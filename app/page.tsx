@@ -3,6 +3,7 @@ import HeroSection from "./components/HeroSection";
 import HeroFilter from "./components/HeroFilter";
 import CategoriiPopulare from "./components/CategoriiPopulare";
 import AnunturiNoi from "./components/AnunturiNoi";
+import Newsletter from "./components/Newsletter";
 import Footer from "./components/Footer";
 
 export default function Home() {
@@ -16,7 +17,7 @@ export default function Home() {
       </div>
       <CategoriiPopulare />
       <AnunturiNoi />
-      <main className="px-8 py-10">{/* Conținutul paginii va veni ulterior */}</main>
+      <Newsletter />
       <Footer />
     </div>
   );

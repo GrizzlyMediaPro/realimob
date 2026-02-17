@@ -7,6 +7,7 @@ import { CiFilter, CiSettings } from "react-icons/ci";
 export default function HeroFilter() {
   const [activeTab, setActiveTab] = useState("Filtrare");
   const [filtrareAvansata, setFiltrareAvansata] = useState(false);
+  const [tipProprietate, setTipProprietate] = useState("Vânzare");
   const router = useRouter();
 
   return (
@@ -58,7 +59,11 @@ export default function HeroFilter() {
               <div className="flex flex-col md:flex-row gap-4">
                 {/* Tip proprietate */}
                 <div className="relative">
-                  <select className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1B1B21] text-black dark:text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B] appearance-none">
+                  <select 
+                    value={tipProprietate}
+                    onChange={(e) => setTipProprietate(e.target.value)}
+                    className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1B1B21] text-black dark:text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B] appearance-none"
+                  >
                     <option>Vânzare</option>
                     <option>Închiriere</option>
                   </select>
@@ -101,7 +106,10 @@ export default function HeroFilter() {
 
                 {/* Buton căutare */}
                 <button
-                  onClick={() => router.push("/anunturi")}
+                  onClick={() => {
+                    const route = tipProprietate === "Închiriere" ? "/inchiriere" : "/vanzare";
+                    router.push(route);
+                  }}
                   className="px-6 py-3 rounded-lg text-white font-medium hover:opacity-90 transition-opacity"
                   style={{ backgroundColor: "#C25A2B" }}
                 >

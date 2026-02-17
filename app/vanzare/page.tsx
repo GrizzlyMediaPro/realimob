@@ -71,7 +71,7 @@ const getSortLabel = (sort: SortOption) => {
   }
 };
 
-export default function AnunturiPage() {
+export default function VanzarePage() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -142,7 +142,7 @@ export default function AnunturiPage() {
               <nav className="text-sm text-gray-600 dark:text-gray-400 mb-3" aria-label="Breadcrumb">
                 <a href="/" className="hover:underline">Acasă</a>
                 <span className="mx-2">/</span>
-                <span className="text-foreground font-medium">Anunțuri</span>
+                <span className="text-foreground font-medium">Vânzare</span>
               </nav>
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -232,7 +232,7 @@ export default function AnunturiPage() {
                 {visibleAnunturi.map((anunt) => (
                   <Link
                     key={anunt.id}
-                    href={`/anunturi/${anunt.id}`}
+                    href={`/vanzare/${anunt.id}`}
                     className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
                   >
                     <div className="flex flex-col sm:flex-row items-stretch h-full">
@@ -387,4 +387,3 @@ export default function AnunturiPage() {
     </div>
   );
 }
-

@@ -71,7 +71,25 @@ const getSortLabel = (sort: SortOption) => {
   }
 };
 
-export default function AnunturiPage() {
+// Funcție helper pentru a formata prețul ca "X €/lună"
+// Convertește prețul de vânzare într-un preț rezonabil de chirie
+const formatPretLuna = (pret: string): string => {
+  // Extragem numărul din preț (ex: "85.000 €" -> "85000")
+  const pretVanzare = parsePretToNumber(pret);
+  // Convertim prețul de vânzare în chirie: împărțim la ~100-150 pentru a obține o chirie rezonabilă
+  // Folosim un factor variabil bazat pe preț pentru a avea chiriile mai rezonabile
+  let factor = 120; // factor default
+  if (pretVanzare < 50000) factor = 100; // pentru proprietăți mai mici
+  if (pretVanzare > 150000) factor = 150; // pentru proprietăți premium
+  
+  const chirie = Math.round(pretVanzare / factor);
+  // Asigurăm că chiriile sunt într-un interval rezonabil (300-2000 €/lună)
+  const chirieFinala = Math.max(300, Math.min(2000, chirie));
+  
+  return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
+};
+
+export default function InchirierePage() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -113,7 +131,7 @@ export default function AnunturiPage() {
           lat: a.lat as number,
           lng: a.lng as number,
           descriere: a.tags.join(" • "),
-          pret: a.pret,
+          pret: formatPretLuna(a.pret),
         })),
     [sortedAnunturi]
   );
@@ -142,7 +160,7 @@ export default function AnunturiPage() {
               <nav className="text-sm text-gray-600 dark:text-gray-400 mb-3" aria-label="Breadcrumb">
                 <a href="/" className="hover:underline">Acasă</a>
                 <span className="mx-2">/</span>
-                <span className="text-foreground font-medium">Anunțuri</span>
+                <span className="text-foreground font-medium">Închiriere</span>
               </nav>
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -232,7 +250,7 @@ export default function AnunturiPage() {
                 {visibleAnunturi.map((anunt) => (
                   <Link
                     key={anunt.id}
-                    href={`/anunturi/${anunt.id}`}
+                    href={`/inchiriere/${anunt.id}`}
                     className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
                   >
                     <div className="flex flex-col sm:flex-row items-stretch h-full">
@@ -293,7 +311,7 @@ export default function AnunturiPage() {
 
                         <div className="mt-4 flex items-center justify-between">
                           <div className="text-2xl font-bold text-foreground">
-                            {anunt.pret}
+                            {formatPretLuna(anunt.pret)}
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -387,4 +405,3 @@ export default function AnunturiPage() {
     </div>
   );
 }
-
