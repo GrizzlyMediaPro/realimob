@@ -114,6 +114,8 @@ export default function AnunturiPage() {
           lng: a.lng as number,
           descriere: a.tags.join(" • "),
           pret: a.pret,
+          image: a.image,
+          routePath: `/anunturi/${a.id}`,
         })),
     [sortedAnunturi]
   );
@@ -219,22 +221,20 @@ export default function AnunturiPage() {
               </div>
             </div>
 
-            {/* Hartă București sau lista de anunțuri */}
-            {isMapView ? (
+            {/* Hartă București + lista de anunțuri (lista rămâne vizibilă și în map view) */}
+            {isMapView && (
               <div className="mt-4">
-                <BucharestMap
-                  markers={mapMarkers}
-                  initialSelectedId={selectedMapId}
-                />
+                <BucharestMap markers={mapMarkers} initialSelectedId={selectedMapId} />
               </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {visibleAnunturi.map((anunt) => (
-                  <Link
-                    key={anunt.id}
-                    href={`/anunturi/${anunt.id}`}
-                    className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
-                  >
+            )}
+
+            <div className={`flex flex-col gap-4 ${isMapView ? "mt-4" : ""}`}>
+              {visibleAnunturi.map((anunt) => (
+                <Link
+                  key={anunt.id}
+                  href={`/anunturi/${anunt.id}`}
+                  className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
+                >
                     <div className="flex flex-col sm:flex-row items-stretch h-full">
                       <div className="w-full sm:w-88 md:w-96 h-40 sm:h-full relative shrink-0 overflow-hidden rounded-l-lg">
                         <Image
@@ -314,10 +314,9 @@ export default function AnunturiPage() {
                         </div>
                       </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+                </Link>
+              ))}
+            </div>
 
             <div className="mt-8 flex justify-center">
               {hasMore ? (

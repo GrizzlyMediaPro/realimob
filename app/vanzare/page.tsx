@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { CiFilter, CiImageOn, CiHeart } from "react-icons/ci";
+import { MdEdit } from "react-icons/md";
 import {
   MdAttachMoney,
   MdAutoAwesome,
@@ -78,14 +79,40 @@ export default function VanzarePage() {
   const [sortOption, setSortOption] = useState<SortOption>("relevanta");
   const [isMapView, setIsMapView] = useState(false);
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [drawnPolygon, setDrawnPolygon] = useState<number[][] | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
 
   const allAnunturi = useMemo<Anunt[]>(() => {
     return getAllAnunturi();
   }, []);
 
+  // Funcție pentru a verifica dacă un punct este în interiorul unui poligon
+  const pointInPolygon = (point: [number, number], polygon: number[][]): boolean => {
+    const [x, y] = point;
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+      const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
   const sortedAnunturi = useMemo(() => {
-    const copy = [...allAnunturi];
+    let copy = [...allAnunturi];
+    
+    // Filtrează pe baza poligonului desenat
+    if (drawnPolygon && drawnPolygon.length >= 3) {
+      copy = copy.filter((a) => {
+        if (typeof a.lat === "number" && typeof a.lng === "number") {
+          return pointInPolygon([a.lng, a.lat], drawnPolygon);
+        }
+        return false;
+      });
+    }
+    
     if (sortOption === "pret_crescator") {
       copy.sort((a, b) => parsePretToNumber(a.pret) - parsePretToNumber(b.pret));
     } else if (sortOption === "pret_descrescator") {
@@ -94,7 +121,7 @@ export default function VanzarePage() {
       copy.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     }
     return copy;
-  }, [allAnunturi, sortOption]);
+  }, [allAnunturi, sortOption, drawnPolygon]);
 
   const visibleAnunturi = useMemo(
     () => sortedAnunturi.slice(0, visibleCount),
@@ -114,6 +141,8 @@ export default function VanzarePage() {
           lng: a.lng as number,
           descriere: a.tags.join(" • "),
           pret: a.pret,
+          image: a.image,
+          routePath: `/vanzare/${a.id}`,
         })),
     [sortedAnunturi]
   );
@@ -208,33 +237,74 @@ export default function VanzarePage() {
                       setSelectedMapId(null);
                       setIsMapView((v) => !v);
                     }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-white hover:opacity-90 transition-opacity"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-white hover:opacity-90 transition-opacity whitespace-nowrap"
                     style={{ backgroundColor: "#C25A2B" }}
-                    aria-label="Vezi pe hartă"
+                    aria-label={isMapView ? "Vezi lista" : "Vezi pe hartă"}
                   >
-                    <MdLocationOn size={20} />
-                    {isMapView ? "Vezi lista" : "Vezi pe hartă"}
+                    <MdLocationOn size={18} className="shrink-0" />
+                    <span className="hidden xs:inline">
+                      {isMapView ? "Vezi lista" : "Vezi pe hartă"}
+                    </span>
+                    <span className="xs:hidden text-sm">
+                      {isMapView ? "Listă" : "Hartă"}
+                    </span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Hartă București sau lista de anunțuri */}
-            {isMapView ? (
-              <div className="mt-4">
-                <BucharestMap
-                  markers={mapMarkers}
+            {/* Hartă București + lista de anunțuri (lista rămâne vizibilă și în map view) */}
+            {isMapView && (
+              <div className="mt-4 relative">
+                <BucharestMap 
+                  markers={mapMarkers} 
                   initialSelectedId={selectedMapId}
+                  isDrawingMode={isDrawingMode}
+                  onPolygonComplete={(polygon) => {
+                    setDrawnPolygon(polygon);
+                    setIsDrawingMode(false);
+                  }}
+                  drawnPolygon={drawnPolygon}
+                  onClearPolygon={() => setDrawnPolygon(null)}
                 />
+                {/* Buton Pen pentru desenare */}
+                <button
+                  onClick={() => {
+                    if (isDrawingMode && drawnPolygon) {
+                      setDrawnPolygon(null);
+                      setIsDrawingMode(false);
+                    } else {
+                      setIsDrawingMode(!isDrawingMode);
+                    }
+                  }}
+                  className={`absolute top-4 right-16 z-10 flex items-center justify-center w-10 h-10 rounded-full backdrop-blur-md border shadow-lg hover:opacity-90 transition-opacity ${
+                    isDrawingMode || drawnPolygon
+                      ? "bg-[#C25A2B]/90 border-[#C25A2B] text-white"
+                      : "bg-white/90 dark:bg-[#1B1B21]/90 border-white/20 dark:border-[#2b2b33]/50 text-foreground"
+                  }`}
+                  aria-label={drawnPolygon ? "Șterge zonă desenată" : isDrawingMode ? "Oprește desenarea" : "Desenează zonă"}
+                  title={drawnPolygon ? "Șterge zonă desenată" : isDrawingMode ? "Oprește desenarea" : "Desenează zonă"}
+                >
+                  <MdEdit size={18} />
+                </button>
+                {/* Indicator mod desenare */}
+                {isDrawingMode && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg backdrop-blur-md bg-[#C25A2B]/90 text-white shadow-lg pointer-events-none">
+                    <p className="text-sm font-medium" style={{ fontFamily: "var(--font-galak-regular)" }}>
+                      Click pe hartă pentru a desena zona. Click pe primul punct sau Enter pentru a închide.
+                    </p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {visibleAnunturi.map((anunt) => (
-                  <Link
-                    key={anunt.id}
-                    href={`/vanzare/${anunt.id}`}
-                    className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
-                  >
+            )}
+
+            <div className={`flex flex-col gap-4 ${isMapView ? "mt-4" : ""}`}>
+              {visibleAnunturi.map((anunt) => (
+                <Link
+                  key={anunt.id}
+                  href={`/vanzare/${anunt.id}`}
+                  className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
+                >
                     <div className="flex flex-col sm:flex-row items-stretch h-full">
                       <div className="w-full sm:w-88 md:w-96 h-40 sm:h-full relative shrink-0 overflow-hidden rounded-l-lg">
                         <Image
@@ -314,10 +384,9 @@ export default function VanzarePage() {
                         </div>
                       </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+                </Link>
+              ))}
+            </div>
 
             <div className="mt-8 flex justify-center">
               {hasMore ? (

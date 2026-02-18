@@ -10,6 +10,9 @@ type ListingMapModalProps = {
   titlu: string;
   lat?: number;
   lng?: number;
+  open?: boolean;
+  onClose?: () => void;
+  showButton?: boolean;
 };
 
 export default function ListingMapModal({
@@ -17,8 +20,26 @@ export default function ListingMapModal({
   titlu,
   lat,
   lng,
+  open: controlledOpen,
+  onClose: controlledOnClose,
+  showButton = true,
 }: ListingMapModalProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  // Folosim controlled state dacă este furnizat, altfel folosim internal state
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const handleOpen = () => {
+    if (controlledOpen === undefined) {
+      setInternalOpen(true);
+    }
+  };
+  const handleClose = () => {
+    if (controlledOnClose) {
+      controlledOnClose();
+    } else {
+      setInternalOpen(false);
+    }
+  };
 
   // Dacă nu avem coordonate valide, nu afișăm deloc butonul.
   if (typeof lat !== "number" || typeof lng !== "number") {
@@ -48,20 +69,22 @@ export default function ListingMapModal({
 
   return (
     <>
-      <button
-        type="button"
-        className="inline-flex items-center gap-1 text-[#C25A2B] font-medium underline-offset-4 hover:underline"
-        onClick={() => setOpen(true)}
-      >
-        Vezi pe hartă
-      </button>
+      {showButton && (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[#C25A2B] font-medium underline-offset-4 hover:underline"
+          onClick={handleOpen}
+        >
+          Vezi pe hartă
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center px-4">
           {/* Overlay */}
           <div
             className="absolute inset-0 bg-black/50"
-            onClick={() => setOpen(false)}
+            onClick={handleClose}
           />
 
           {/* Conținut modal */}
@@ -70,7 +93,7 @@ export default function ListingMapModal({
             <div className="absolute top-3 right-3 z-10 flex items-center justify-center">
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={handleClose}
                 className="w-9 h-9 rounded-full bg-white/90 dark:bg-black/70 flex items-center justify-center shadow hover:opacity-90 transition-opacity"
                 aria-label="Închide harta"
               >

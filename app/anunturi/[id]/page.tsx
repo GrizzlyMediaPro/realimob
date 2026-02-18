@@ -5,6 +5,7 @@ import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToda
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import ListingMapModal from "../../components/ListingMapModal";
+import SmallMapPreview from "../../components/SmallMapPreview";
 import { getAnuntById, getImageCount, parsePretToNumber } from "../../../lib/anunturiData";
 
 type AnuntPageProps = {
@@ -283,7 +284,7 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                     </button>
                   </div>
 
-                  <div className="rounded-2xl border border-dashed border-[#d5dae0] dark:border-[#2b2b33] bg-background p-4 space-y-3">
+                  <div className="rounded-2xl border border-dashed border-gray-400 dark:border-[#2b2b33] bg-background p-4 space-y-3">
                     {anunt.zilePostat !== undefined && (
                       <div className="flex items-center gap-3">
                         <MdAccessTime className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
@@ -315,6 +316,16 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                       </div>
                     )}
                   </div>
+
+                  {/* Harta mică */}
+                  {anunt.lat !== undefined && anunt.lng !== undefined && (
+                    <SmallMapPreview
+                      id={anunt.id}
+                      titlu={anunt.titlu}
+                      lat={anunt.lat}
+                      lng={anunt.lng}
+                    />
+                  )}
                 </aside>
               </div>
             </section>
