@@ -52,6 +52,9 @@ export default function ListingMapModal({
     longitude: lng,
     latitude: lat,
     zoom: 14.5,
+    bearing: 0,
+    pitch: 0,
+    padding: { top: 0, bottom: 0, left: 0, right: 0 },
   };
 
   const [viewState, setViewState] = useState<ViewState>(initialView);
