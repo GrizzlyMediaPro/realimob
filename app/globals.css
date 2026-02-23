@@ -25,10 +25,26 @@
   --color-text-base: var(--foreground);
 }
 
-body {
+/* Culoarea de bază pe html — rămâne sub body */
+html {
   background-color: var(--background);
+}
+
+/* Body transparent + stacking context izolat
+   Astfel, gradientul la z-index:-1 e vizibil pentru backdrop-filter */
+body {
+  background: transparent;
   color: var(--foreground);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  isolation: isolate;
+}
+
+/* Gradient de fundal — mai discret pe dark mode */
+.bg-gradient-overlay {
+  opacity: 1;
+}
+.dark .bg-gradient-overlay {
+  opacity: 0.3;
 }
 
 /* Hide scrollbar */

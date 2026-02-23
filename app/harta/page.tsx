@@ -21,6 +21,21 @@ function HartaContent() {
   const [drawnPolygon, setDrawnPolygon] = useState<number[][] | null>(null);
   const [zona, setZona] = useState("");
   const [tipProprietate, setTipProprietate] = useState("Vânzare");
+
+  // Stare aplicată pe hartă pentru puncte de interes
+  const [poiMode, setPoiMode] = useState<"all" | "custom">("all");
+  const [showMetro, setShowMetro] = useState(true);
+  const [showScoli, setShowScoli] = useState(true);
+  const [showRestaurante, setShowRestaurante] = useState(true);
+  const [showMagazine, setShowMagazine] = useState(true);
+
+  // Stare de editare în panoul "Puncte de interes"
+  const [pendingPoiMode, setPendingPoiMode] = useState<"all" | "custom">("all");
+  const [pendingShowMetro, setPendingShowMetro] = useState(true);
+  const [pendingShowScoli, setPendingShowScoli] = useState(true);
+  const [pendingShowRestaurante, setPendingShowRestaurante] = useState(true);
+  const [pendingShowMagazine, setPendingShowMagazine] = useState(true);
+
   const [pretMinim, setPretMinim] = useState("");
   const [pretMaxim, setPretMaxim] = useState("");
   const [nrDormitoare, setNrDormitoare] = useState("");
@@ -86,7 +101,104 @@ function HartaContent() {
           }}
           drawnPolygon={drawnPolygon}
           onClearPolygon={() => setDrawnPolygon(null)}
+          poiFilters={{
+            mode: poiMode,
+            metro: showMetro,
+            scoli: showScoli,
+            restaurante: showRestaurante,
+            magazine: showMagazine,
+          }}
         />
+      </div>
+
+      {/* Puncte de interes – separat de filtrarea anunțurilor */}
+      <div className="absolute top-24 md:top-24 left-1/2 -translate-x-1/2 z-20 px-4">
+        <div
+          className="inline-flex flex-col gap-2 backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 rounded-xl px-3 py-2 shadow-lg"
+          style={{ fontFamily: "var(--font-galak-regular)" }}
+        >
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground whitespace-nowrap">
+              Puncte de interes
+            </h3>
+            <div className="flex flex-col md:flex-row gap-1.5 md:gap-3 text-[11px] md:text-xs">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  className="accent-[#C25A2B]"
+                  checked={pendingPoiMode === "all"}
+                  onChange={() => setPendingPoiMode("all")}
+                />
+                <span>Hartă completă</span>
+              </label>
+              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  className="accent-[#C25A2B]"
+                  checked={pendingPoiMode === "custom"}
+                  onChange={() => setPendingPoiMode("custom")}
+                />
+                <span>Selectez manual</span>
+              </label>
+            </div>
+          </div>
+
+          {pendingPoiMode === "custom" && (
+            <div className="flex flex-wrap gap-1.5 md:gap-2 mt-1 items-center">
+              <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                <input
+                  type="checkbox"
+                  className="accent-[#C25A2B]"
+                  checked={pendingShowMetro}
+                  onChange={(e) => setPendingShowMetro(e.target.checked)}
+                />
+                <span>Metrou</span>
+              </label>
+              <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                <input
+                  type="checkbox"
+                  className="accent-[#C25A2B]"
+                  checked={pendingShowScoli}
+                  onChange={(e) => setPendingShowScoli(e.target.checked)}
+                />
+                <span>Școli</span>
+              </label>
+              <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                <input
+                  type="checkbox"
+                  className="accent-[#C25A2B]"
+                  checked={pendingShowRestaurante}
+                  onChange={(e) => setPendingShowRestaurante(e.target.checked)}
+                />
+                <span>Restaurante</span>
+              </label>
+              <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                <input
+                  type="checkbox"
+                  className="accent-[#C25A2B]"
+                  checked={pendingShowMagazine}
+                  onChange={(e) => setPendingShowMagazine(e.target.checked)}
+                />
+                <span>Magazine alimentare</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPoiMode(pendingPoiMode);
+                  setShowMetro(pendingShowMetro);
+                  setShowScoli(pendingShowScoli);
+                  setShowRestaurante(pendingShowRestaurante);
+                  setShowMagazine(pendingShowMagazine);
+                }}
+                className="ml-auto px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: "#C25A2B" }}
+              >
+                Aplică filtre
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Butoane Filtre și Pen în colțul stânga sus */}
@@ -128,7 +240,7 @@ function HartaContent() {
 
       {/* Indicator mod desenare */}
       {isDrawingMode && (
-        <div className="absolute top-24 md:top-24 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg backdrop-blur-md bg-[#C25A2B]/90 text-white shadow-lg pointer-events-none">
+        <div className="absolute top-36 md:top-36 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg backdrop-blur-md bg-[#C25A2B]/90 text-white shadow-lg pointer-events-none">
           <p className="text-sm font-medium" style={{ fontFamily: "var(--font-galak-regular)" }}>
             Click pe hartă pentru a desena zona. Click pe primul punct pentru a închide poligonul.
           </p>
@@ -269,7 +381,7 @@ function HartaContent() {
 
 export default function HartaPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen text-foreground flex flex-col">
       <Navbar />
       <Suspense fallback={<div className="flex-1 flex items-center justify-center">Se încarcă harta...</div>}>
         <HartaContent />

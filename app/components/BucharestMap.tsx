@@ -18,6 +18,14 @@ type MarkerItem = {
   routePath?: string;
 };
 
+type PoiFilters = {
+  mode: "all" | "custom";
+  metro: boolean;
+  scoli: boolean;
+  restaurante: boolean;
+  magazine: boolean;
+};
+
 export default function BucharestMap({
   markers,
   initialSelectedId,
@@ -27,6 +35,7 @@ export default function BucharestMap({
   onPolygonComplete,
   drawnPolygon,
   onClearPolygon,
+  poiFilters,
 }: {
   markers: MarkerItem[];
   initialSelectedId?: string | null;
@@ -36,6 +45,7 @@ export default function BucharestMap({
   onPolygonComplete?: (polygon: number[][]) => void;
   drawnPolygon?: number[][] | null;
   onClearPolygon?: () => void;
+  poiFilters?: PoiFilters;
 }) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
   const router = useRouter();
@@ -64,6 +74,7 @@ export default function BucharestMap({
   const [drawingPoints, setDrawingPoints] = useState<number[][]>([]);
   const [pendingPolygon, setPendingPolygon] = useState<number[][] | null>(null);
   const mapRef = useRef<any>(null);
+  const poiLayersInitialized = useRef(false);
   
   // Obține anunțul complet pentru popup
   const selectedAnunt = useMemo(() => {
@@ -77,6 +88,201 @@ export default function BucharestMap({
     onPolygonComplete?.(pendingPolygon);
     setPendingPolygon(null);
   }, [pendingPolygon, onPolygonComplete]);
+
+  // Controlează ce POI-uri native Mapbox se văd pe hartă (metrou, școli, restaurante, magazine)
+  useEffect(() => {
+    if (!poiFilters) return;
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map) return;
+
+    const initCustomLayers = () => {
+      if (poiLayersInitialized.current) return;
+      if (!(map as any).getStyle || !(map as any).getStyle()) return;
+
+      const hasPoiLabel = (map as any).getLayer?.("poi-label");
+      const beforeId = hasPoiLabel ? "poi-label" : undefined;
+
+      // Metrou din layer-ul de transit
+      if (!(map as any).getLayer?.("custom-poi-metro")) {
+        (map as any).addLayer(
+          {
+            id: "custom-poi-metro",
+            type: "symbol",
+            source: "composite",
+            "source-layer": "transit_stop_label",
+            filter: [
+              "in",
+              ["get", "subclass"],
+              ["literal", ["subway", "metro", "light_rail", "station"]],
+            ] as any,
+            layout: {
+              "icon-image": "rail-metro-15",
+              "icon-size": 1,
+              "icon-allow-overlap": false,
+              "text-field": ["get", "name"],
+              "text-size": 11,
+              "text-offset": [0, 0.8],
+            },
+            paint: {
+              "text-color": "#111827",
+              "text-halo-color": "#FFFFFF",
+              "text-halo-width": 1,
+            },
+          },
+          beforeId
+        );
+      }
+
+      // Școli
+      if (!(map as any).getLayer?.("custom-poi-scoli")) {
+        (map as any).addLayer(
+          {
+            id: "custom-poi-scoli",
+            type: "symbol",
+            source: "composite",
+            "source-layer": "poi_label",
+            filter: [
+              "in",
+              ["get", "class"],
+              ["literal", ["school", "college", "university"]],
+            ] as any,
+            layout: {
+              "icon-image": "education-15",
+              "icon-size": 1,
+              "icon-allow-overlap": false,
+              "text-field": ["get", "name"],
+              "text-size": 11,
+              "text-offset": [0, 0.8],
+            },
+            paint: {
+              "text-color": "#111827",
+              "text-halo-color": "#FFFFFF",
+              "text-halo-width": 1,
+            },
+          },
+          beforeId
+        );
+      }
+
+      // Restaurante
+      if (!(map as any).getLayer?.("custom-poi-restaurante")) {
+        (map as any).addLayer(
+          {
+            id: "custom-poi-restaurante",
+            type: "symbol",
+            source: "composite",
+            "source-layer": "poi_label",
+            filter: [
+              "in",
+              ["get", "class"],
+              [
+                "literal",
+                ["food_and_drink", "restaurant", "fast_food", "cafe", "bar"],
+              ],
+            ] as any,
+            layout: {
+              "icon-image": "restaurant-15",
+              "icon-size": 1,
+              "icon-allow-overlap": false,
+              "text-field": ["get", "name"],
+              "text-size": 11,
+              "text-offset": [0, 0.8],
+            },
+            paint: {
+              "text-color": "#111827",
+              "text-halo-color": "#FFFFFF",
+              "text-halo-width": 1,
+            },
+          },
+          beforeId
+        );
+      }
+
+      // Magazine
+      if (!(map as any).getLayer?.("custom-poi-magazine")) {
+        (map as any).addLayer(
+          {
+            id: "custom-poi-magazine",
+            type: "symbol",
+            source: "composite",
+            "source-layer": "poi_label",
+            filter: [
+              "in",
+              ["get", "class"],
+              [
+                "literal",
+                ["grocery", "supermarket", "convenience", "marketplace", "shop"],
+              ],
+            ] as any,
+            layout: {
+              "icon-image": "grocery-15",
+              "icon-size": 1,
+              "icon-allow-overlap": false,
+              "text-field": ["get", "name"],
+              "text-size": 11,
+              "text-offset": [0, 0.8],
+            },
+            paint: {
+              "text-color": "#111827",
+              "text-halo-color": "#FFFFFF",
+              "text-halo-width": 1,
+            },
+          },
+          beforeId
+        );
+      }
+
+      poiLayersInitialized.current = true;
+    };
+
+    const applyVisibility = () => {
+      const setVisibility = (layerId: string, visible: boolean) => {
+        if (!(map as any).getLayer?.(layerId)) return;
+        (map as any).setLayoutProperty(
+          layerId,
+          "visibility",
+          visible ? "visible" : "none"
+        );
+      };
+
+      const poiLayerId = "poi-label";
+      const transitLayerId = "transit-label";
+
+      if (poiFilters.mode === "all") {
+        // Revenim la stilul implicit: doar layerele Mapbox, fără custom
+        setVisibility(poiLayerId, true);
+        setVisibility(transitLayerId, true);
+        setVisibility("custom-poi-metro", false);
+        setVisibility("custom-poi-scoli", false);
+        setVisibility("custom-poi-restaurante", false);
+        setVisibility("custom-poi-magazine", false);
+        return;
+      }
+
+      // Mod custom: scoatem layerele default și arătăm doar categoriile bifate prin layerele custom
+      setVisibility(poiLayerId, false);
+      setVisibility(transitLayerId, false);
+
+      setVisibility("custom-poi-metro", poiFilters.metro);
+      setVisibility("custom-poi-scoli", poiFilters.scoli);
+      setVisibility("custom-poi-restaurante", poiFilters.restaurante);
+      setVisibility("custom-poi-magazine", poiFilters.magazine);
+    };
+
+    if ((map as any).isStyleLoaded && (map as any).isStyleLoaded()) {
+      initCustomLayers();
+      applyVisibility();
+    } else {
+      const onStyle = () => {
+        initCustomLayers();
+        applyVisibility();
+      };
+      (map as any).on("styledata", onStyle);
+      return () => {
+        (map as any).off("styledata", onStyle);
+      };
+    }
+  }, [poiFilters]);
 
   const handleZoom = (delta: number) => {
     setViewState((prev) => ({

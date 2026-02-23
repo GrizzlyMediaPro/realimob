@@ -8,8 +8,23 @@ import Image from "next/image";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Detectare dark mode
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   // Închide meniul când se face click în afara lui
   useEffect(() => {
@@ -55,10 +70,38 @@ export default function Navbar() {
     ],
   };
 
+  const pillButtonStyle = (baseColor: string, shadowColor: string): React.CSSProperties => ({
+    background: isDark
+      ? `linear-gradient(135deg, ${baseColor} 0%, ${baseColor} 100%)`
+      : `linear-gradient(135deg, ${baseColor} 0%, ${baseColor} 100%)`,
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.2)",
+    boxShadow: `0 2px 8px ${shadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.12)`,
+    backdropFilter: "blur(20px) saturate(1.4)",
+    WebkitBackdropFilter: "blur(20px) saturate(1.4)",
+  });
+
   return (
     <>
-      <nav ref={navRef} className="fixed top-0 w-full flex items-center justify-center px-4 md:px-8 py-5 bg-white dark:bg-[#1B1B21] z-200 border-b border-[#d5dae0] dark:border-[#2b2b33]">
-        <div className="flex items-center justify-between w-full max-w-[1250px]">
+      <nav 
+        ref={navRef} 
+        className="fixed top-0 w-full flex items-center justify-center px-4 md:px-8 py-5 z-200"
+        style={{
+          background: isDark 
+            ? "rgba(35, 35, 48, 0.5)" 
+            : "rgba(255, 255, 255, 0.6)",
+          borderBottomWidth: "1px",
+          borderBottomStyle: "solid",
+          borderBottomColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.5)",
+          backdropFilter: "blur(80px) saturate(1.6)",
+          WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+          boxShadow: isDark
+            ? "0 4px 20px rgba(0, 0, 0, 0.3), inset 0 -1px 0 rgba(255, 255, 255, 0.1)"
+            : "0 4px 20px rgba(0, 0, 0, 0.06), inset 0 -1px 0 rgba(255, 255, 255, 0.5)",
+        }}
+      >
+        <div className="flex items-center justify-between w-full max-w-[1250px] relative z-1">
           {/* Logo pe stânga */}
           <Link
             href="/"
@@ -81,22 +124,22 @@ export default function Navbar() {
                   <CiCirclePlus size={24} />
                   Adaugă anunț
                 </a>
-                <a 
-                  href="#" 
+                <Link 
+                  href="/inregistrare" 
                   className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: "#3B1F3A" }}
+                  style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
                 >
                   <CiUser size={24} />
                   Cont nou
-                </a>
-                <a 
-                  href="#" 
+                </Link>
+                <Link 
+                  href="/login" 
                   className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: "#1F2D44" }}
+                  style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
                 >
                   <CiLogin size={24} />
                   Intră în cont
-                </a>
+                </Link>
                 <Image 
                   src="/Flag_of_Romania.svg.webp" 
                   alt="România" 
@@ -184,10 +227,26 @@ export default function Navbar() {
           
           {/* Conținut menu */}
           <div
-            className="bg-white dark:bg-[#1B1B21] rounded-b-2xl shadow-2xl border border-t-0 border-[#d5dae0] dark:border-[#2b2b33]"
-            style={{ fontFamily: "var(--font-galak-regular)" }}
+            className="rounded-b-2xl relative"
+            style={{
+              fontFamily: "var(--font-galak-regular)",
+              background: isDark
+                ? "rgba(35, 35, 48, 0.5)"
+                : "rgba(255, 255, 255, 0.6)",
+              borderLeftWidth: "1px",
+              borderRightWidth: "1px",
+              borderBottomWidth: "1px",
+              borderTopWidth: "0",
+              borderStyle: "solid",
+              borderColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.5)",
+              boxShadow: isDark
+                ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+              backdropFilter: "blur(80px) saturate(1.6)",
+              WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+            }}
           >
-            <div className="px-4 md:px-8 py-4">
+            <div className="px-4 md:px-8 py-4 relative z-1">
               {/* Adaugă anunț (doar pe mobil) */}
               <a
                 href="#"
@@ -233,24 +292,22 @@ export default function Navbar() {
               </div>
               {/* Cont nou și Intră în cont (doar pe mobil) */}
               <div className="flex flex-row gap-4 mt-8 md:hidden">
-                <a 
-                  href="#" 
+                <Link 
+                  href="/inregistrare" 
                   className="flex items-center gap-2 px-4 py-2 rounded-full text-white text-base hover:opacity-90 transition-opacity justify-center grow"
-                  style={{ backgroundColor: "#3B1F3A" }}
-                  onClick={() => setIsMenuOpen(false)}
+                  style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
                 >
                   <CiUser size={24} />
                   Cont nou
-                </a>
-                <a 
-                  href="#" 
+                </Link>
+                <Link 
+                  href="/login" 
                   className="flex items-center gap-2 px-4 py-2 rounded-full text-white text-base hover:opacity-90 transition-opacity justify-center grow"
-                  style={{ backgroundColor: "#1F2D44" }}
-                  onClick={() => setIsMenuOpen(false)}
+                  style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
                 >
                   <CiLogin size={24} />
                   Intră în cont
-                </a>
+                </Link>
               </div>
             </div>
           </div>

@@ -83,7 +83,7 @@ export default function ListingMapModal({
       )}
 
       {open && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-300 flex items-center justify-center px-4">
           {/* Overlay */}
           <div
             className="absolute inset-0 bg-black/50"

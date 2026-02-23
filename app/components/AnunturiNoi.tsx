@@ -88,6 +88,7 @@ export default function AnunturiNoi() {
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [selectedType, setSelectedType] = useState<"vanzare" | "inchiriere">("vanzare");
+  const [isDark, setIsDark] = useState(false);
 
   const checkScroll = () => {
     if (scrollContainerRef.current) {
@@ -110,6 +111,19 @@ export default function AnunturiNoi() {
     }
   }, []);
 
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
       const scrollAmount = 340; // card width (320px) + gap (24px)
@@ -122,9 +136,38 @@ export default function AnunturiNoi() {
   };
 
   return (
-    <section className="w-full pb-6 md:pb-12 px-0 md:px-8 bg-background">
+    <section className="w-full pb-6 md:pb-12 px-0 md:px-8">
       <div className="w-full md:max-w-[1250px] md:mx-auto">
-        <div className="bg-white dark:bg-[#1B1B21] border-0 md:border border-[#d5dae0] dark:border-[#2b2b33] rounded-none md:rounded-2xl p-4 md:p-6" style={{ fontFamily: "var(--font-galak-regular)" }}>
+        <div
+          className="rounded-none md:rounded-3xl overflow-hidden relative"
+          style={{
+            fontFamily: "var(--font-galak-regular)",
+            background: isDark ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
+            border: isDark ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
+            boxShadow: isDark
+              ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+              : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+            backdropFilter: "blur(80px) saturate(1.6)",
+            WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+          }}
+        >
+          {/* Reflexie mată subtilă */}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "40%",
+              background: isDark
+                ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
+                : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
+              borderRadius: "inherit",
+              pointerEvents: "none",
+              zIndex: 0,
+            }}
+          />
+          <div className="p-4 md:p-6 relative z-1" style={{ background: "transparent" }}>
           {/* Heading și tab-uri pe aceeași linie pe desktop */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6">
             <h2
@@ -173,8 +216,44 @@ export default function AnunturiNoi() {
                 <Link
                   key={anunt.id}
                   href={href}
-                  className="shrink-0 w-[320px] bg-background rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+                  className="shrink-0 w-[320px] rounded-lg overflow-hidden relative cursor-pointer"
+                  style={{
+                    background: isDark ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                    border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                    boxShadow: isDark
+                      ? "0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                      : "0 4px 20px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                    backdropFilter: "blur(60px) saturate(1.6)",
+                    WebkitBackdropFilter: "blur(60px) saturate(1.6)",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = isDark
+                      ? "0 6px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                      : "0 6px 24px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = isDark
+                      ? "0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                      : "0 4px 20px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)";
+                  }}
                 >
+                  {/* Reflexie mată */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: "50%",
+                      background: isDark
+                        ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
+                        : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
+                      borderRadius: "inherit",
+                      pointerEvents: "none",
+                      zIndex: 0,
+                    }}
+                  />
                   {/* Imagine cu preț overlay */}
                   <div className="w-full h-[200px] relative">
                     <Image
@@ -192,7 +271,7 @@ export default function AnunturiNoi() {
                     </div>
                   </div>
                   
-                  <div className="p-4">
+                  <div className="p-4 relative z-1">
                     <h3
                       className="text-xl font-bold mb-3 text-foreground line-clamp-2"
                       style={{ 
@@ -232,7 +311,16 @@ export default function AnunturiNoi() {
             {showLeftArrow && (
               <button
                 onClick={() => scroll('left')}
-                className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-10"
+                className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-10"
+                style={{
+                  background: isDark ? "rgba(35, 35, 48, 0.6)" : "rgba(255, 255, 255, 0.7)",
+                  border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.5)",
+                  backdropFilter: "blur(40px) saturate(1.6)",
+                  WebkitBackdropFilter: "blur(40px) saturate(1.6)",
+                  boxShadow: isDark
+                    ? "0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                    : "0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                }}
                 aria-label="Scroll left"
               >
                 <MdOutlineKeyboardArrowLeft size={24} />
@@ -243,7 +331,16 @@ export default function AnunturiNoi() {
             {showRightArrow && (
               <button
                 onClick={() => scroll('right')}
-                className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-10"
+                className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-10"
+                style={{
+                  background: isDark ? "rgba(35, 35, 48, 0.6)" : "rgba(255, 255, 255, 0.7)",
+                  border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.5)",
+                  backdropFilter: "blur(40px) saturate(1.6)",
+                  WebkitBackdropFilter: "blur(40px) saturate(1.6)",
+                  boxShadow: isDark
+                    ? "0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                    : "0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                }}
                 aria-label="Scroll right"
               >
                 <MdOutlineKeyboardArrowRight size={24} />
@@ -261,6 +358,7 @@ export default function AnunturiNoi() {
               Vezi toate anunțurile
               <MdOutlineKeyboardArrowRight size={18} className="ml-1" />
             </Link>
+          </div>
           </div>
         </div>
       </div>

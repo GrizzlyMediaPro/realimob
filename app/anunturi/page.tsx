@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { CiFilter, CiImageOn, CiHeart } from "react-icons/ci";
+import { CiFilter } from "react-icons/ci";
 import {
   MdAttachMoney,
   MdAutoAwesome,
@@ -27,6 +26,7 @@ import type { IconType } from "react-icons";
 
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import ListingCard from "../components/ListingCard";
 import {
   getAllAnunturi,
   getImageCount,
@@ -133,7 +133,7 @@ export default function AnunturiPage() {
   }, [isSortOpen]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       <Navbar />
 
       <main className="pt-20 md:pt-24 px-4 md:px-0">
@@ -153,7 +153,16 @@ export default function AnunturiPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setIsFilterOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#d5dae0] dark:border-[#2b2b33] bg-white dark:bg-[#1B1B21] text-foreground hover:opacity-90 transition-opacity"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-foreground hover:opacity-90 transition-opacity"
+                    style={{
+                      background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                      border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                      boxShadow: document.documentElement.classList.contains("dark")
+                        ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                        : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                      backdropFilter: "blur(60px) saturate(1.6)",
+                      WebkitBackdropFilter: "blur(60px) saturate(1.6)",
+                    }}
                     aria-haspopup="dialog"
                     aria-expanded={isFilterOpen}
                   >
@@ -164,7 +173,16 @@ export default function AnunturiPage() {
                   <div className="relative" ref={sortRef}>
                     <button
                       onClick={() => setIsSortOpen((v) => !v)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#d5dae0] dark:border-[#2b2b33] bg-white dark:bg-[#1B1B21] text-foreground hover:opacity-90 transition-opacity"
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-foreground hover:opacity-90 transition-opacity"
+                      style={{
+                        background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                        border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                        boxShadow: document.documentElement.classList.contains("dark")
+                          ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                          : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                        backdropFilter: "blur(60px) saturate(1.6)",
+                        WebkitBackdropFilter: "blur(60px) saturate(1.6)",
+                      }}
                       aria-haspopup="menu"
                       aria-expanded={isSortOpen}
                     >
@@ -176,8 +194,33 @@ export default function AnunturiPage() {
                     {isSortOpen && (
                       <div
                         role="menu"
-                        className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-xl shadow-xl overflow-hidden z-50"
+                        className="absolute right-0 mt-2 w-64 rounded-xl overflow-hidden z-50"
+                        style={{
+                          background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
+                          border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
+                          boxShadow: document.documentElement.classList.contains("dark")
+                            ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                            : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                          backdropFilter: "blur(80px) saturate(1.6)",
+                          WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+                        }}
                       >
+                        {/* Reflexie mată */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: "40%",
+                            background: document.documentElement.classList.contains("dark")
+                              ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
+                              : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
+                            borderRadius: "inherit",
+                            pointerEvents: "none",
+                            zIndex: 0,
+                          }}
+                        />
                         {(
                           [
                             ["relevanta", "Relevanță"],
@@ -230,91 +273,18 @@ export default function AnunturiPage() {
 
             <div className={`flex flex-col gap-4 ${isMapView ? "mt-4" : ""}`}>
               {visibleAnunturi.map((anunt) => (
-                <Link
+                <ListingCard
                   key={anunt.id}
+                  id={anunt.id}
+                  titlu={anunt.titlu}
+                  image={anunt.image}
+                  pret={anunt.pret}
+                  tags={anunt.tags}
+                  locationText={anunt.tags.find((t) => t.includes("Sector")) ?? "Zona centrală"}
+                  imageCount={getImageCount(anunt.id)}
+                  getTagIcon={getTagIcon}
                   href={`/anunturi/${anunt.id}`}
-                  className="block bg-white dark:bg-[#1B1B21] border border-[#d5dae0] dark:border-[#2b2b33] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer sm:h-64 md:h-72"
-                >
-                    <div className="flex flex-col sm:flex-row items-stretch h-full">
-                      <div className="w-full sm:w-88 md:w-96 h-40 sm:h-full relative shrink-0 overflow-hidden rounded-l-lg">
-                        <Image
-                          src={anunt.image}
-                          alt={anunt.titlu}
-                          fill
-                          className="object-cover object-center"
-                        />
-                        <div className="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-md bg-black/70 text-white text-sm flex items-center gap-2">
-                          <CiImageOn size={18} />
-                          <span className="font-medium">{getImageCount(anunt.id)}</span>
-                        </div>
-                      </div>
-
-                      <div className="p-4 flex-1 flex flex-col justify-between rounded-r-lg h-full">
-                        <div>
-                          <div className="flex items-start justify-between gap-3">
-                            <h3
-                              className="text-lg md:text-xl font-bold text-foreground flex-1"
-                              style={{
-                                display: "-webkit-box",
-                                WebkitLineClamp: 3,
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden",
-                              }}
-                            >
-                              {anunt.titlu}
-                            </h3>
-                            <button
-                              type="button"
-                              className="hidden sm:flex w-9 h-9 rounded-full bg-[#3B1F3A] items-center justify-center text-white hover:opacity-90 transition-opacity ml-3 shrink-0"
-                              onClick={(e) => e.preventDefault()}
-                            >
-                              <CiHeart size={18} />
-                            </button>
-                          </div>
-                          <div className="mt-1 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <MdLocationOn size={16} />
-                            <span>București, {anunt.tags.find((t) => t.includes("Sector")) ?? "Zona centrală"}</span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-sm">
-                            {anunt.tags.map((tag, idx) => {
-                              const Icon = getTagIcon(tag);
-                              return (
-                                <span
-                                  key={`${anunt.id}-tag-${idx}`}
-                                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                                >
-                                  {Icon && <Icon size={14} />}
-                                  {tag}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="text-2xl font-bold text-foreground">
-                            {anunt.pret}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="w-9 h-9 rounded-full bg-[#1F2D44] flex items-center justify-center text-white hover:opacity-90 transition-opacity"
-                              onClick={(e) => e.preventDefault()}
-                            >
-                              <MdPhone size={18} />
-                            </button>
-                            <button
-                              type="button"
-                              className="w-9 h-9 rounded-full bg-[#3B1F3A] flex items-center justify-center text-white hover:opacity-90 transition-opacity sm:hidden"
-                              onClick={(e) => e.preventDefault()}
-                            >
-                              <CiHeart size={18} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                </Link>
+                />
               ))}
             </div>
 
@@ -338,13 +308,47 @@ export default function AnunturiPage() {
 
       {/* Modal Filtre (placeholder, pregătit pentru integrare reală) */}
       {isFilterOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-300 flex items-center justify-center px-4">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setIsFilterOpen(false)}
           />
-          <div className="relative w-full max-w-[720px] bg-white dark:bg-[#1B1B21] rounded-2xl border border-[#d5dae0] dark:border-[#2b2b33] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#d5dae0] dark:border-[#2b2b33]">
+          <div 
+            className="relative w-full max-w-[720px] rounded-2xl overflow-hidden"
+            style={{
+              background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
+              border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
+              boxShadow: document.documentElement.classList.contains("dark")
+                ? "0 16px 64px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                : "0 16px 64px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+              backdropFilter: "blur(100px) saturate(1.6)",
+              WebkitBackdropFilter: "blur(100px) saturate(1.6)",
+            }}
+          >
+            {/* Reflexie mată */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "30%",
+                background: document.documentElement.classList.contains("dark")
+                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
+                  : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
+                borderRadius: "inherit",
+                pointerEvents: "none",
+                zIndex: 0,
+              }}
+            />
+            <div 
+              className="flex items-center justify-between px-5 py-4 relative z-1"
+              style={{
+                borderBottom: document.documentElement.classList.contains("dark")
+                  ? "1px solid rgba(255, 255, 255, 0.08)"
+                  : "1px solid rgba(0, 0, 0, 0.06)",
+              }}
+            >
               <div className="text-xl font-bold" style={{ fontFamily: "var(--font-galak-regular)" }}>
                 Filtre
               </div>
@@ -357,7 +361,7 @@ export default function AnunturiPage() {
               </button>
             </div>
 
-            <div className="p-5" style={{ fontFamily: "var(--font-galak-regular)" }}>
+            <div className="p-5 relative z-1" style={{ fontFamily: "var(--font-galak-regular)" }}>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Butonul de filtre e gata vizual; aici poți lega ulterior aceleași câmpuri ca în HeroFilter.
               </p>
@@ -365,7 +369,16 @@ export default function AnunturiPage() {
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setIsFilterOpen(false)}
-                  className="px-4 py-2.5 rounded-lg border border-[#d5dae0] dark:border-[#2b2b33] bg-background hover:opacity-90 transition-opacity"
+                  className="px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity"
+                  style={{
+                    background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                    border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                    boxShadow: document.documentElement.classList.contains("dark")
+                      ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                      : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                    backdropFilter: "blur(60px) saturate(1.6)",
+                    WebkitBackdropFilter: "blur(60px) saturate(1.6)",
+                  }}
                 >
                   Închide
                 </button>
