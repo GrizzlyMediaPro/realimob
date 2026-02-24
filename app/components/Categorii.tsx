@@ -11,6 +11,7 @@ import {
 import type { IconType } from "react-icons";
 
 interface CategorieItem {
+  key: "apartamente" | "garsoniere" | "case" | "spatii-comerciale";
   titlu: string;
   descriere: string;
   icon: IconType;
@@ -20,6 +21,7 @@ interface CategorieItem {
 
 const categorii: CategorieItem[] = [
   {
+    key: "apartamente",
     titlu: "Apartamente",
     descriere: "2, 3 sau 4+ camere",
     icon: MdApartment,
@@ -27,6 +29,7 @@ const categorii: CategorieItem[] = [
     count: "120+ anunțuri",
   },
   {
+    key: "garsoniere",
     titlu: "Garsoniere",
     descriere: "Studio & garsoniere",
     icon: MdMeetingRoom,
@@ -34,6 +37,7 @@ const categorii: CategorieItem[] = [
     count: "85+ anunțuri",
   },
   {
+    key: "case",
     titlu: "Case",
     descriere: "Case & vile",
     icon: MdHouse,
@@ -41,6 +45,7 @@ const categorii: CategorieItem[] = [
     count: "60+ anunțuri",
   },
   {
+    key: "spatii-comerciale",
     titlu: "Spații Comerciale",
     descriere: "Birouri & comercial",
     icon: MdStorefront,
@@ -51,6 +56,7 @@ const categorii: CategorieItem[] = [
 
 export default function Categorii() {
   const [isDark, setIsDark] = useState(false);
+  const [selectedType, setSelectedType] = useState<"vanzare" | "inchiriere">("vanzare");
   const router = useRouter();
 
   useEffect(() => {
@@ -107,12 +113,39 @@ export default function Categorii() {
             className="p-4 md:p-6 relative z-1"
             style={{ background: "transparent" }}
           >
+            {/* Heading + tab-uri Vanzare / Inchiriere pe aceeași linie (stânga/dreapta) */}
+            <div className="flex items-center justify-between gap-2 md:gap-3 flex-wrap mb-3 md:mb-8">
             <h2
-              className="text-2xl md:text-5xl font-bold mb-4 md:mb-8 text-foreground"
-              style={{ fontFamily: "var(--font-galak-regular)" }}
-            >
-              Categorii
-            </h2>
+                className="home-section-title text-2xl md:text-5xl font-bold text-foreground"
+                style={{ fontFamily: "var(--font-galak-regular)" }}
+              >
+                Categorii
+              </h2>
+              <div className="flex gap-3 md:gap-4">
+                <button
+                  onClick={() => setSelectedType("vanzare")}
+                  className={`home-section-tab pb-1 md:pb-2 px-1 text-sm md:text-base font-medium transition-colors ${
+                    selectedType === "vanzare"
+                      ? "text-[#C25A2B] border-b-2 border-[#C25A2B]"
+                      : "text-gray-500 dark:text-gray-400 hover:text-foreground"
+                  }`}
+                  style={{ fontFamily: "var(--font-galak-regular)" }}
+                >
+                  Vânzare
+                </button>
+                <button
+                  onClick={() => setSelectedType("inchiriere")}
+                  className={`home-section-tab pb-1 md:pb-2 px-1 text-sm md:text-base font-medium transition-colors ${
+                    selectedType === "inchiriere"
+                      ? "text-[#C25A2B] border-b-2 border-[#C25A2B]"
+                      : "text-gray-500 dark:text-gray-400 hover:text-foreground"
+                  }`}
+                  style={{ fontFamily: "var(--font-galak-regular)" }}
+                >
+                  Închiriere
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               {categorii.map((categorie, index) => {
@@ -120,7 +153,13 @@ export default function Categorii() {
                 return (
                   <div
                     key={index}
-                    onClick={() => router.push(categorie.href)}
+                    onClick={() => {
+                      const basePath =
+                        selectedType === "vanzare" ? "/vanzare" : "/inchiriere";
+                      router.push(
+                        `${basePath}?categorie=${encodeURIComponent(categorie.key)}`,
+                      );
+                    }}
                     className="group rounded-2xl overflow-hidden relative cursor-pointer p-5 md:p-6 flex flex-col items-center text-center transition-all duration-300"
                     style={{
                       background: isDark

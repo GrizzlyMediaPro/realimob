@@ -33,6 +33,9 @@ export default function RootLayout({
   return (
     <html lang="ro">
       <body className={`${kurskMedium.variable} ${galakThin.variable} ${galakRegular.variable} antialiased`}>
+        {/* Zonă safe-area top (notch / dynamic island) cu același efect de "glass" ca navbar-ul */}
+        <div aria-hidden="true" className="safe-area-nav-glass" />
+
         {/* Gradient de fundal — dă backdrop-filter ceva de blurat pe light mode.
             Body e transparent + isolation:isolate, deci z-index:-1 e vizibil aici. */}
         <div

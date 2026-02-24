@@ -31,6 +31,7 @@ export default function BucharestMap({
   initialSelectedId,
   showControls = true,
   fullscreen = false,
+  fillContainer = false,
   isDrawingMode = false,
   onPolygonComplete,
   drawnPolygon,
@@ -41,6 +42,7 @@ export default function BucharestMap({
   initialSelectedId?: string | null;
   showControls?: boolean;
   fullscreen?: boolean;
+  fillContainer?: boolean;
   isDrawingMode?: boolean;
   onPolygonComplete?: (polygon: number[][]) => void;
   drawnPolygon?: number[][] | null;
@@ -474,7 +476,7 @@ export default function BucharestMap({
           border-radius: 1rem !important;
         }
       `}</style>
-      <div className={`realimob-map--rounded w-full ${fullscreen ? 'h-screen' : 'h-[560px]'} ${fullscreen ? 'overflow-visible' : 'rounded-2xl overflow-visible border border-[#d5dae0] dark:border-[#2b2b33]'} bg-white dark:bg-[#0b0b10] relative`}>
+      <div className={`realimob-map--rounded w-full ${fillContainer ? 'h-full' : fullscreen ? 'h-screen' : 'h-[560px]'} ${fullscreen || fillContainer ? 'overflow-visible' : 'rounded-2xl overflow-visible border border-[#d5dae0] dark:border-[#2b2b33]'} bg-white dark:bg-[#0b0b10] relative`}>
       <Map
         ref={mapRef}
         {...viewState}

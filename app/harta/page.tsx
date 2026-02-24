@@ -382,7 +382,7 @@ function HartaContent() {
 export default function HartaPage() {
   return (
     <div className="min-h-screen text-foreground flex flex-col">
-      <Navbar />
+      <Navbar fullWidthContent />
       <Suspense fallback={<div className="flex-1 flex items-center justify-center">Se încarcă harta...</div>}>
         <HartaContent />
       </Suspense>

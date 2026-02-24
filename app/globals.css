@@ -56,3 +56,35 @@ body {
 .hide-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
 }
+
+/* Titluri secțiuni home — mai mici pe telefoane sub 430px */
+@media (max-width: 429px) {
+  .home-section-title {
+    font-size: 1.25rem; /* echivalent text-xl */
+    line-height: 1.75rem;
+  }
+  .home-section-tab {
+    font-size: 0.75rem; /* echivalent text-xs */
+    line-height: 1rem;
+  }
+}
+
+/* Banda de sub notch / dynamic island, cu același "glass" ca navbar-ul */
+.safe-area-nav-glass {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 190; /* sub navbar (z-200), peste gradient (z-[-1]) */
+  /* Culoare identică cu background-ul paginii pentru tema curentă */
+  background: var(--background);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(80px) saturate(1.6);
+  -webkit-backdrop-filter: blur(80px) saturate(1.6);
+  pointer-events: none;
+}
+
+.dark .safe-area-nav-glass {
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}

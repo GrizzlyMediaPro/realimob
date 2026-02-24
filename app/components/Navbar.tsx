@@ -2,11 +2,16 @@
 
 import { useState, useRef, useEffect } from "react";
 import { CiCirclePlus, CiUser, CiLogin } from "react-icons/ci";
-import { MdClose, MdMenu } from "react-icons/md";
+import { MdClose, MdMenu, MdApartment, MdHomeWork, MdLocationCity } from "react-icons/md";
 import Link from "next/link";
 import Image from "next/image";
 
-export default function Navbar() {
+type NavbarProps = {
+  /** Dacă este true, conținutul intern NU mai este limitat la max-w-[1250px] și se întinde full-width. */
+  fullWidthContent?: boolean;
+};
+
+export default function Navbar({ fullWidthContent = false }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const navRef = useRef<HTMLElement>(null);
@@ -50,25 +55,34 @@ export default function Navbar() {
   }, [isMenuOpen]);
 
   const menuItems = {
-    "De vânzare": [
-      "Apartamente de vânzare",
-      "Garsoniere de vânzare",
-      "Case și vile de vânzare",
-      "Terenuri de vânzare",
-      "Spații comerciale de vânzare",
-    ],
-    "De închiriat": [
-      "Apartamente de închiriat",
-      "Garsoniere de închiriat",
-      "Case și vile de închiriat",
-      "Spații comerciale de închiriat",
-      "Birouri de închiriat",
-    ],
-    "Ansambluri Rezidențiale": [
-      "Complexuri Rezidențiale",
-      "Dezvoltatori",
-    ],
-  };
+    "De vânzare": {
+      icon: <MdHomeWork className="text-[#C25A2B]" size={22} />,
+      items: [
+        "Apartamente de vânzare",
+        "Garsoniere de vânzare",
+        "Case și vile de vânzare",
+        "Terenuri de vânzare",
+        "Spații comerciale de vânzare",
+      ],
+    },
+    "De închiriat": {
+      icon: <MdApartment className="text-[#C25A2B]" size={22} />,
+      items: [
+        "Apartamente de închiriat",
+        "Garsoniere de închiriat",
+        "Case și vile de închiriat",
+        "Spații comerciale de închiriat",
+        "Birouri de închiriat",
+      ],
+    },
+    "Ansambluri Rezidențiale": {
+      icon: <MdLocationCity className="text-[#C25A2B]" size={22} />,
+      items: [
+        "Complexuri Rezidențiale",
+        "Dezvoltatori",
+      ],
+    },
+  } as const;
 
   const pillButtonStyle = (baseColor: string, shadowColor: string): React.CSSProperties => ({
     background: isDark
@@ -101,7 +115,11 @@ export default function Navbar() {
             : "0 4px 20px rgba(0, 0, 0, 0.06), inset 0 -1px 0 rgba(255, 255, 255, 0.5)",
         }}
       >
-        <div className="flex items-center justify-between w-full max-w-[1250px] relative z-1">
+        <div
+          className={`flex items-center justify-between w-full relative z-1 ${
+            fullWidthContent ? "" : "max-w-[1250px] mx-auto"
+          }`}
+        >
           {/* Logo pe stânga */}
           <Link
             href="/"
@@ -214,7 +232,7 @@ export default function Navbar() {
       {/* Menu overlay — deasupra paginii, sub navbar */}
       <div
         ref={menuRef}
-        className={`absolute left-0 right-0 z-190 flex justify-center transition-all duration-300 ease-in-out ${
+        className={`fixed left-0 right-0 z-190 flex justify-center transition-all duration-300 ease-in-out ${
           isMenuOpen
             ? "opacity-100 translate-y-0"
             : "opacity-0 -translate-y-4 pointer-events-none"
@@ -227,7 +245,7 @@ export default function Navbar() {
           
           {/* Conținut menu */}
           <div
-            className="rounded-b-2xl relative"
+            className="rounded-b-2xl relative max-h-[calc(100vh-80px)] overflow-y-auto"
             style={{
               fontFamily: "var(--font-galak-regular)",
               background: isDark
@@ -246,38 +264,39 @@ export default function Navbar() {
               WebkitBackdropFilter: "blur(80px) saturate(1.6)",
             }}
           >
-            <div className="px-4 md:px-8 py-4 relative z-1">
+            <div className="px-4 md:px-10 py-4 md:py-6 relative z-1">
               {/* Adaugă anunț (doar pe mobil) */}
               <a
                 href="#"
-                className="flex items-center gap-2 text-base text-black dark:text-foreground hover:opacity-80 transition-opacity mb-6 md:hidden"
+                className="flex items-center gap-2 text-sm text-black dark:text-foreground hover:opacity-80 transition-opacity mb-5 md:hidden"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <CiCirclePlus size={24} />
                 Adaugă anunț
               </a>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                {Object.entries(menuItems).map(([category, subcategories], index) => (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
+                {Object.entries(menuItems).map(([category, data], index) => (
                   <div key={index}>
                     {/* Categorie principală */}
                     <a
                       href="#"
-                      className="block text-lg font-semibold text-foreground hover:text-[#C25A2B] transition-colors mb-4"
+                      className="flex items-center gap-2 text-base md:text-lg font-semibold text-foreground hover:text-[#C25A2B] transition-colors mb-3 md:mb-4"
                       onClick={(e) => {
                         e.preventDefault();
                         setIsMenuOpen(false);
                       }}
                     >
+                      {data.icon}
                       {category}
                     </a>
                     
                     {/* Subcategorii */}
-                    <div className="space-y-2.5">
-                      {subcategories.map((subcategory, subIndex) => (
+                    <div className="space-y-1.5 md:space-y-2.5">
+                      {data.items.map((subcategory, subIndex) => (
                         <a
                           key={subIndex}
                           href="#"
-                          className="block text-sm text-gray-600 dark:text-gray-400 hover:text-[#C25A2B] dark:hover:text-[#C25A2B] transition-colors"
+                          className="block text-xs md:text-sm text-gray-600 dark:text-gray-400 hover:text-[#C25A2B] dark:hover:text-[#C25A2B] transition-colors"
                           onClick={(e) => {
                             e.preventDefault();
                             setIsMenuOpen(false);
@@ -291,10 +310,10 @@ export default function Navbar() {
                 ))}
               </div>
               {/* Cont nou și Intră în cont (doar pe mobil) */}
-              <div className="flex flex-row gap-4 mt-8 md:hidden">
+              <div className="flex flex-row gap-3 mt-6 md:hidden">
                 <Link 
                   href="/inregistrare" 
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-white text-base hover:opacity-90 transition-opacity justify-center grow"
+                  className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
                   style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
                 >
                   <CiUser size={24} />
@@ -302,7 +321,7 @@ export default function Navbar() {
                 </Link>
                 <Link 
                   href="/login" 
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-white text-base hover:opacity-90 transition-opacity justify-center grow"
+                  className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
                   style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
                 >
                   <CiLogin size={24} />

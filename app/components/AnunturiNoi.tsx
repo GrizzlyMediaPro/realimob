@@ -168,19 +168,19 @@ export default function AnunturiNoi() {
             }}
           />
           <div className="p-4 md:p-6 relative z-1" style={{ background: "transparent" }}>
-          {/* Heading și tab-uri pe aceeași linie pe desktop */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6">
+          {/* Heading și tab-uri pe aceeași linie (stânga/dreapta) pe toate viewport-urile */}
+          <div className="flex items-center justify-between gap-2 md:gap-3 flex-wrap mb-3 md:mb-6">
             <h2
-              className="text-2xl md:text-5xl font-bold text-foreground mb-3 md:mb-0"
+              className="home-section-title text-2xl md:text-5xl font-bold text-foreground"
               style={{ fontFamily: "var(--font-galak-regular)" }}
             >
               Anunțuri noi
             </h2>
             {/* Tab pentru Inchiriere/Vanzare */}
-            <div className="flex gap-4">
+            <div className="flex gap-3 md:gap-4">
               <button
                 onClick={() => setSelectedType("vanzare")}
-                className={`pb-2 px-1 font-medium transition-colors ${
+                className={`home-section-tab pb-1 md:pb-2 px-1 text-sm md:text-base font-medium transition-colors ${
                   selectedType === "vanzare"
                     ? "text-[#C25A2B] border-b-2 border-[#C25A2B]"
                     : "text-gray-500 dark:text-gray-400 hover:text-foreground"
@@ -191,7 +191,7 @@ export default function AnunturiNoi() {
               </button>
               <button
                 onClick={() => setSelectedType("inchiriere")}
-                className={`pb-2 px-1 font-medium transition-colors ${
+                className={`home-section-tab pb-1 md:pb-2 px-1 text-sm md:text-base font-medium transition-colors ${
                   selectedType === "inchiriere"
                     ? "text-[#C25A2B] border-b-2 border-[#C25A2B]"
                     : "text-gray-500 dark:text-gray-400 hover:text-foreground"
@@ -352,7 +352,7 @@ export default function AnunturiNoi() {
           <div className="mt-4 mb-6 px-4">
             <Link
               href={selectedType === "vanzare" ? "/vanzare" : "/inchiriere"}
-              className="flex items-center justify-center text-[#C25A2B] font-medium hover:opacity-80 transition-opacity"
+              className="flex items-center justify-center text-sm md:text-base text-[#C25A2B] font-medium hover:opacity-80 transition-opacity"
               style={{ fontFamily: "var(--font-galak-regular)" }}
             >
               Vezi toate anunțurile

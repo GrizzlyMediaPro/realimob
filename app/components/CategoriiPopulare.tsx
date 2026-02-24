@@ -19,6 +19,7 @@ import {
   MdHome
 } from "react-icons/md";
 import type { IconType } from "react-icons";
+import { parsePretToNumber } from "../../lib/anunturiData";
 
 // Funcție helper pentru a obține icoana potrivită pentru fiecare tag
 const getTagIcon = (tag: string): IconType | null => {
@@ -64,6 +65,19 @@ const getTagIcon = (tag: string): IconType | null => {
   return null;
 };
 
+// Funcție helper pentru a formata prețul ca chirie lunară (similar cu AnunturiNoi)
+const formatPretLuna = (pret: string): string => {
+  const pretVanzare = parsePretToNumber(pret);
+  let factor = 120;
+  if (pretVanzare < 50000) factor = 100;
+  if (pretVanzare > 150000) factor = 150;
+
+  const chirie = Math.round(pretVanzare / factor);
+  const chirieFinala = Math.max(300, Math.min(2000, chirie));
+
+  return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
+};
+
 const categorii = [
   {
     titlu: "Studio",
@@ -101,6 +115,7 @@ export default function CategoriiPopulare() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
+  const [selectedType, setSelectedType] = useState<"vanzare" | "inchiriere">("vanzare");
   const [isDark, setIsDark] = useState(false);
 
   const checkScroll = () => {
@@ -182,19 +197,62 @@ export default function CategoriiPopulare() {
             }}
           />
           <div className="p-4 md:p-6 relative z-1" style={{ background: "transparent" }}>
-            <h2
-              className="text-2xl md:text-5xl font-bold mb-4 md:mb-8 text-foreground"
-              style={{ fontFamily: "var(--font-galak-regular)" }}
-            >
-              Categorii populare
-            </h2>
+            {/* Heading + tab-uri Vanzare / Inchiriere pe aceeași linie (stânga/dreapta) */}
+            <div className="flex items-center justify-between gap-2 md:gap-3 flex-wrap mb-3 md:mb-8">
+              <h2
+                className="home-section-title text-2xl md:text-5xl font-bold text-foreground"
+                style={{ fontFamily: "var(--font-galak-regular)" }}
+              >
+                Categorii populare
+              </h2>
+              <div className="flex gap-3 md:gap-4">
+                <button
+                  onClick={() => setSelectedType("vanzare")}
+                  className={`home-section-tab pb-1 md:pb-2 px-1 text-sm md:text-base font-medium transition-colors ${
+                    selectedType === "vanzare"
+                      ? "text-[#C25A2B] border-b-2 border-[#C25A2B]"
+                      : "text-gray-500 dark:text-gray-400 hover:text-foreground"
+                  }`}
+                  style={{ fontFamily: "var(--font-galak-regular)" }}
+                >
+                  Vânzare
+                </button>
+                <button
+                  onClick={() => setSelectedType("inchiriere")}
+                  className={`home-section-tab pb-1 md:pb-2 px-1 text-sm md:text-base font-medium transition-colors ${
+                    selectedType === "inchiriere"
+                      ? "text-[#C25A2B] border-b-2 border-[#C25A2B]"
+                      : "text-gray-500 dark:text-gray-400 hover:text-foreground"
+                  }`}
+                  style={{ fontFamily: "var(--font-galak-regular)" }}
+                >
+                  Închiriere
+                </button>
+              </div>
+            </div>
 
             <div className="relative">
               <div
                 ref={scrollContainerRef}
                 className="flex gap-6 overflow-x-auto hide-scrollbar pb-4"
               >
-                {categorii.map((categorie, index) => (
+              {categorii.map((categorie, index) => {
+                // Adaptăm primul tag de preț în funcție de tipul selectat
+                const displayTags = categorie.tags.map((tag, tagIndex) => {
+                  if (tagIndex === 0) {
+                    // Tag de forma "de la 25.000 €"
+                    const basePriceNumber = parsePretToNumber(tag);
+                    if (selectedType === "inchiriere") {
+                      const chirie = formatPretLuna(`${basePriceNumber.toLocaleString("ro-RO")} €`);
+                      return `de la ${chirie}`;
+                    }
+                    // pentru vânzare păstrăm tag-ul original
+                    return tag;
+                  }
+                  return tag;
+                });
+
+                return (
                   <div
                     key={index}
                     className="shrink-0 w-[320px] rounded-lg overflow-hidden relative cursor-pointer"
@@ -254,7 +312,7 @@ export default function CategoriiPopulare() {
                       </h3>
                       
                       <div className="flex flex-wrap gap-2">
-                        {categorie.tags.map((tag, tagIndex) => {
+                        {displayTags.map((tag, tagIndex) => {
                           const Icon = getTagIcon(tag);
                           return (
                             <span
@@ -270,7 +328,8 @@ export default function CategoriiPopulare() {
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
               </div>
 
               {/* Buton navigare stânga */}

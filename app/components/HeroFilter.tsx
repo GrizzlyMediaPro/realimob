@@ -24,23 +24,18 @@ export default function HeroFilter() {
     return () => observer.disconnect();
   }, []);
 
-  const inputStyle = {
-    background: isDark ? "rgba(27, 27, 33, 0.6)" : "rgba(255, 255, 255, 0.6)",
-    borderColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.4)",
+  const controlStyle = {
+    background: isDark ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
+    borderColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.5)",
     boxShadow: isDark 
       ? "0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
-      : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.3)"
-  };
-
-  const selectStyle = {
-    background: isDark ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
-    borderColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.45)",
-    boxShadow: isDark 
-      ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
-      : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+      : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.3)",
     backdropFilter: "blur(60px) saturate(1.6)",
     WebkitBackdropFilter: "blur(60px) saturate(1.6)",
   };
+
+  const inputStyle = controlStyle;
+  const selectStyle = controlStyle;
 
   return (
     <div className="md:absolute md:left-0 md:right-0 flex justify-center z-10 px-0 md:px-8 md:mt-0" style={{ top: 'calc(100% - 48px)' }}>

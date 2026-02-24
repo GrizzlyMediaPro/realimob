@@ -17,6 +17,7 @@ type ListingCardProps = {
   imageCount: number;
   getTagIcon: (tag: string) => IconType | null;
   href: string;
+  compact?: boolean;
 };
 
 function useDarkMode() {
@@ -43,6 +44,7 @@ export default function ListingCard({
   imageCount,
   getTagIcon,
   href,
+  compact = false,
 }: ListingCardProps) {
   const isDark = useDarkMode();
 
@@ -67,6 +69,88 @@ export default function ListingCard({
     transition: "all 0.3s ease",
   };
 
+  /* ── Compact card (map view mobile) ── */
+  if (compact) {
+    return (
+      <Link
+        href={href}
+        className="block rounded-xl overflow-hidden relative cursor-pointer"
+        style={cardStyle}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.boxShadow = hoverShadow;
+          e.currentTarget.style.transform = "translateY(-1px)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.boxShadow = normalShadow;
+          e.currentTarget.style.transform = "translateY(0)";
+        }}
+      >
+        <div className="flex flex-row items-stretch h-full relative z-2">
+          {/* Imagine mică stânga */}
+          <div className="w-[110px] h-[110px] relative shrink-0 overflow-hidden rounded-l-xl">
+            <Image
+              src={image}
+              alt={titlu}
+              fill
+              className="object-cover object-center"
+            />
+            <div className="absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] flex items-center gap-1 backdrop-blur-xl">
+              <CiImageOn size={12} />
+              <span className="font-medium">{imageCount}</span>
+            </div>
+          </div>
+
+          {/* Info dreapta — compact */}
+          <div className="p-2.5 flex-1 flex flex-col justify-between min-w-0">
+            <div className="min-w-0">
+              <h3
+                className="text-xs font-bold text-foreground leading-tight"
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {titlu}
+              </h3>
+              <div className="mt-0.5 flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                <MdLocationOn size={11} />
+                <span className="truncate">București, {locationText}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {tags.slice(0, 3).map((tag, idx) => {
+                  const Icon = getTagIcon(tag);
+                  return (
+                    <span
+                      key={`${id}-tag-${idx}`}
+                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[9px] leading-tight"
+                    >
+                      {Icon && <Icon size={10} />}
+                      {tag}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-1 flex items-center justify-between">
+              <div className="text-sm font-bold text-foreground">{pret}</div>
+              <button
+                type="button"
+                className="w-6 h-6 rounded-full bg-[#1F2D44] flex items-center justify-center text-white hover:opacity-90 transition-opacity"
+                onClick={(e) => e.preventDefault()}
+              >
+                <MdPhone size={12} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  /* ── Card normal ── */
   return (
     <Link
       href={href}
@@ -144,7 +228,7 @@ export default function ListingCard({
                 return (
                   <span
                     key={`${id}-tag-${idx}`}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300"
                   >
                     {Icon && <Icon size={14} />}
                     {tag}
