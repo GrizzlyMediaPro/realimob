@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -99,7 +99,7 @@ const formatPretLuna = (pret: string): string => {
   return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
 };
 
-export default function InchirierePage() {
+function InchirierePageContent() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -679,5 +679,13 @@ export default function InchirierePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function InchirierePage() {
+  return (
+    <Suspense fallback={null}>
+      <InchirierePageContent />
+    </Suspense>
   );
 }

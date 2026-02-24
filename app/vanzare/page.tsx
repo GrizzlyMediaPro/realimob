@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -81,7 +81,7 @@ const primaryCtaStyle = {
     "0 4px 16px rgba(194, 90, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
 } as const;
 
-export default function VanzarePage() {
+function VanzarePageContent() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -661,5 +661,13 @@ export default function VanzarePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function VanzarePage() {
+  return (
+    <Suspense fallback={null}>
+      <VanzarePageContent />
+    </Suspense>
   );
 }

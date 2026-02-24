@@ -80,6 +80,10 @@ export default function AnunturiPage() {
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const sortRef = useRef<HTMLDivElement>(null);
 
+  const isDarkMode =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark");
+
   const allAnunturi = useMemo<Anunt[]>(() => {
     return getAllAnunturi();
   }, []);
@@ -128,8 +132,14 @@ export default function AnunturiPage() {
       }
     };
 
-    if (isSortOpen) document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
+    if (typeof document !== "undefined" && isSortOpen) {
+      document.addEventListener("mousedown", onMouseDown);
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.removeEventListener("mousedown", onMouseDown);
+      }
+    };
   }, [isSortOpen]);
 
   return (
@@ -155,9 +165,9 @@ export default function AnunturiPage() {
                     onClick={() => setIsFilterOpen(true)}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-foreground hover:opacity-90 transition-opacity"
                     style={{
-                      background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
-                      border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
-                      boxShadow: document.documentElement.classList.contains("dark")
+                      background: isDarkMode ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                      border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                      boxShadow: isDarkMode
                         ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
                         : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
                       backdropFilter: "blur(60px) saturate(1.6)",
@@ -175,9 +185,9 @@ export default function AnunturiPage() {
                       onClick={() => setIsSortOpen((v) => !v)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-foreground hover:opacity-90 transition-opacity"
                       style={{
-                        background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
-                        border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
-                        boxShadow: document.documentElement.classList.contains("dark")
+                        background: isDarkMode ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                        border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                        boxShadow: isDarkMode
                           ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
                           : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
                         backdropFilter: "blur(60px) saturate(1.6)",
@@ -196,9 +206,9 @@ export default function AnunturiPage() {
                         role="menu"
                         className="absolute right-0 mt-2 w-64 rounded-xl overflow-hidden z-50"
                         style={{
-                          background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
-                          border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
-                          boxShadow: document.documentElement.classList.contains("dark")
+                          background: isDarkMode ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
+                          border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
+                          boxShadow: isDarkMode
                             ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
                             : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
                           backdropFilter: "blur(80px) saturate(1.6)",
@@ -213,7 +223,7 @@ export default function AnunturiPage() {
                             left: 0,
                             right: 0,
                             height: "40%",
-                            background: document.documentElement.classList.contains("dark")
+                            background: isDarkMode
                               ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
                               : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
                             borderRadius: "inherit",
@@ -316,9 +326,9 @@ export default function AnunturiPage() {
           <div 
             className="relative w-full max-w-[720px] rounded-2xl overflow-hidden"
             style={{
-              background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
-              border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
-              boxShadow: document.documentElement.classList.contains("dark")
+              background: isDarkMode ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
+              border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
+              boxShadow: isDarkMode
                 ? "0 16px 64px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
                 : "0 16px 64px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
               backdropFilter: "blur(100px) saturate(1.6)",
@@ -333,7 +343,7 @@ export default function AnunturiPage() {
                 left: 0,
                 right: 0,
                 height: "30%",
-                background: document.documentElement.classList.contains("dark")
+                background: isDarkMode
                   ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
                   : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
                 borderRadius: "inherit",
@@ -344,7 +354,7 @@ export default function AnunturiPage() {
             <div 
               className="flex items-center justify-between px-5 py-4 relative z-1"
               style={{
-                borderBottom: document.documentElement.classList.contains("dark")
+                borderBottom: isDarkMode
                   ? "1px solid rgba(255, 255, 255, 0.08)"
                   : "1px solid rgba(0, 0, 0, 0.06)",
               }}
@@ -371,9 +381,9 @@ export default function AnunturiPage() {
                   onClick={() => setIsFilterOpen(false)}
                   className="px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity"
                   style={{
-                    background: document.documentElement.classList.contains("dark") ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
-                    border: document.documentElement.classList.contains("dark") ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
-                    boxShadow: document.documentElement.classList.contains("dark")
+                    background: isDarkMode ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
+                    border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
+                    boxShadow: isDarkMode
                       ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
                       : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
                     backdropFilter: "blur(60px) saturate(1.6)",
