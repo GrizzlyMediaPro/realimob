@@ -14,6 +14,7 @@ type NavbarProps = {
 export default function Navbar({ fullWidthContent = false }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +30,22 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
       attributeFilter: ["class"],
     });
     return () => observer.disconnect();
+  }, []);
+
+  // Detectare viewport mobil (sub breakpoint-ul Tailwind md: 768px)
+  useEffect(() => {
+    const updateIsMobile = () => {
+      if (typeof window !== "undefined") {
+        setIsMobile(window.innerWidth < 768);
+      }
+    };
+
+    updateIsMobile();
+    window.addEventListener("resize", updateIsMobile);
+
+    return () => {
+      window.removeEventListener("resize", updateIsMobile);
+    };
   }, []);
 
   // Închide meniul când se face click în afara lui
@@ -101,19 +118,32 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
       <nav 
         ref={navRef} 
         className="fixed top-0 w-full flex items-center justify-center px-4 md:px-8 py-5 z-200"
-        style={{
-          background: isDark 
-            ? "rgba(35, 35, 48, 0.5)" 
-            : "rgba(255, 255, 255, 0.6)",
-          borderBottomWidth: "1px",
-          borderBottomStyle: "solid",
-          borderBottomColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.5)",
-          backdropFilter: "blur(80px) saturate(1.6)",
-          WebkitBackdropFilter: "blur(80px) saturate(1.6)",
-          boxShadow: isDark
-            ? "0 4px 20px rgba(0, 0, 0, 0.3), inset 0 -1px 0 rgba(255, 255, 255, 0.1)"
-            : "0 4px 20px rgba(0, 0, 0, 0.06), inset 0 -1px 0 rgba(255, 255, 255, 0.5)",
-        }}
+        style={
+          isMobile
+            ? {
+                // Pe mobil: culoare SOLIDĂ (fără transparență, fără blur),
+                // în aceeași gamă ca și cardurile pentru fiecare temă.
+                background: isDark ? "#232330" : "#FFFFFF",
+                borderBottomWidth: 0,
+                boxShadow: "none",
+              }
+            : {
+                // Desktop: păstrăm efectul glass existent
+                background: isDark
+                  ? "rgba(35, 35, 48, 0.5)"
+                  : "rgba(255, 255, 255, 0.6)",
+                borderBottomWidth: "1px",
+                borderBottomStyle: "solid",
+                borderBottomColor: isDark
+                  ? "rgba(255, 255, 255, 0.12)"
+                  : "rgba(255, 255, 255, 0.5)",
+                backdropFilter: "blur(80px) saturate(1.6)",
+                WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+                boxShadow: isDark
+                  ? "0 4px 20px rgba(0, 0, 0, 0.3), inset 0 -1px 0 rgba(255, 255, 255, 0.1)"
+                  : "0 4px 20px rgba(0, 0, 0, 0.06), inset 0 -1px 0 rgba(255, 255, 255, 0.5)",
+              }
+        }
       >
         <div
           className={`flex items-center justify-between w-full relative z-1 ${
