@@ -80,7 +80,7 @@ export function GlassContactCard({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="rounded-2xl p-5 space-y-4 relative overflow-hidden"
+      className="rounded-2xl p-5 space-y-4 relative overflow-visible"
       style={{
         background: isDark
           ? "rgba(35, 35, 48, 0.5)"
@@ -163,12 +163,12 @@ export function GlassCTAButton({ children, primary = false, onClick }: { childre
 }
 
 /* ── Stats Card cu liquid glass ── */
-export function GlassStatsCard({ children }: { children: ReactNode }) {
+export function GlassStatsCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   const isDark = useDarkMode();
 
   return (
     <div
-      className="rounded-2xl p-4 space-y-3 relative overflow-hidden"
+      className={`rounded-2xl p-4 space-y-3 relative overflow-hidden ${className}`}
       style={{
         background: isDark
           ? "rgba(35, 35, 48, 0.45)"

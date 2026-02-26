@@ -1,14 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdHistory } from "react-icons/md";
-import { FaWhatsapp } from "react-icons/fa";
+
 
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import ListingMapModal from "../../components/ListingMapModal";
 import SmallMapPreview from "../../components/SmallMapPreview";
-import { GlassSpecCard, GlassContactCard, GlassCTAButton, GlassStatsCard, GlassDivider } from "../../components/LiquidGlassCards";
+import { GlassSpecCard, GlassStatsCard, GlassDivider } from "../../components/LiquidGlassCards";
 import AnuntDetailsExpanded from "../../components/AnuntDetailsExpanded";
+import AnuntOffersModal from "../../components/AnuntOffersModal";
+import { AgentMobileBar } from "../../components/AgentContactCard";
+import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
+import AgentContactCard from "../../components/AgentContactCard";
 import { getAnuntById, getImageCount, parsePretToNumber } from "../../../lib/anunturiData";
 
 type AnuntPageProps = {
@@ -174,17 +178,20 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
               </div>
             </section>
 
-            {/* Conținut principal: specificații + descriere */}
+            {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">
-              {/* Preț */}
-              <div className="text-2xl md:text-3xl font-bold">
-                {formatPretLuna(anunt.pret)}
+              {/* Preț + Oferte primite */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="text-2xl md:text-3xl font-bold">
+                  {formatPretLuna(anunt.pret)}
+                </div>
+                <AnuntOffersModal anuntId={anunt.id} />
               </div>
 
               {/* Carduri cu detalii + Contact card */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 md:items-stretch">
                 {/* Carduri cu detalii */}
-                <div className="md:col-span-2 space-y-6">
+                <div className="md:col-span-2 flex flex-col gap-6 md:h-full">
                   {(anunt.dormitoare !== undefined || anunt.bai !== undefined || anunt.suprafataUtil !== undefined) && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                       {anunt.dormitoare !== undefined && (
@@ -240,139 +247,139 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                     </div>
                   )}
 
-                  <GlassStatsCard>
-                    <div className="space-y-6 md:space-y-8">
+                  <GlassStatsCard className="flex-1 flex flex-col">
+                    <div className="flex-1 flex flex-col space-y-6 md:space-y-8">
                       {/* Descriere completă */}
-                      <div>
-                        <h2 className="text-lg md:text-xl font-semibold mb-2">
-                          Descriere
-                        </h2>
-                        <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                          Acest anunț este un exemplu realist pentru prezentarea
-                          proprietăților în București. Poți folosi această secțiune
-                          pentru a evidenția avantajele principale ale locuinței:
-                          compartimentare, lumină naturală, finisaje, acces la
-                          transport, magazine și zone verzi. Poți extinde ulterior
-                          descrierea cu informații despre anul construcției, tipul de
-                          încălzire, costurile lunare estimate și orice alte detalii
-                          relevante pentru chiriași sau cumpărători.
-                        </p>
-                      </div>
+                        <div>
+                          <h2 className="text-lg md:text-xl font-semibold mb-2">
+                            Descriere
+                          </h2>
+                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                            Acest anunț este un exemplu realist pentru prezentarea
+                            proprietăților în București. Poți folosi această secțiune
+                            pentru a evidenția avantajele principale ale locuinței:
+                            compartimentare, lumină naturală, finisaje, acces la
+                            transport, magazine și zone verzi. Poți extinde ulterior
+                            descrierea cu informații despre anul construcției, tipul de
+                            încălzire, costurile lunare estimate și orice alte detalii
+                            relevante pentru chiriași sau cumpărători.
+                          </p>
+                        </div>
 
-                      {/* Detalii și caracteristici */}
-                      <div>
-                        <h2 className="text-lg md:text-xl font-semibold mb-4">
-                          Detalii și caracteristici
-                        </h2>
-                        
-                        {/* Interior */}
-                        <div className="mb-4">
-                      <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-                        Interior
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Coloana stânga */}
-                        <div className="space-y-4">
-                          {/* Dormitoare și băi */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Dormitoare și băi
-                            </h4>
-                            <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                              {anunt.dormitoare !== undefined && (
-                                <div>Dormitoare: {anunt.dormitoare}</div>
-                              )}
-                              {anunt.bai !== undefined && (
-                                <div>Băi: {anunt.bai}</div>
-                              )}
+                        {/* Detalii și caracteristici */}
+                        <div className="mt-auto">
+                          <h2 className="text-lg md:text-xl font-semibold mb-4">
+                            Detalii și caracteristici
+                          </h2>
+                          
+                          {/* Interior */}
+                          <div className="mb-4">
+                            <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                              Interior
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {/* Coloana stânga */}
+                              <div className="space-y-4">
+                                {/* Dormitoare și băi */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Dormitoare și băi
+                                  </h4>
+                                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                    {anunt.dormitoare !== undefined && (
+                                      <div>Dormitoare: {anunt.dormitoare}</div>
+                                    )}
+                                    {anunt.bai !== undefined && (
+                                      <div>Băi: {anunt.bai}</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Încălzire */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Încălzire
+                                  </h4>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    Centrală termică
+                                  </div>
+                                </div>
+
+                                {/* Echipament */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Echipament inclus
+                                  </h4>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    Mașină de spălat, frigider, cuptor, plită
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Coloana dreapta */}
+                              <div className="space-y-4">
+                                {/* Caracteristici */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Caracteristici
+                                  </h4>
+                                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                    <div>Balcon: Da</div>
+                                    <div>Izolație termică: Da</div>
+                                    <div>Geamuri termopan: Da</div>
+                                  </div>
+                                </div>
+
+                                {/* Suprafață */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Suprafață
+                                  </h4>
+                                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                    {anunt.suprafataUtil !== undefined && (
+                                      <div>Suprafață utilă: {anunt.suprafataUtil} m²</div>
+                                    )}
+                                    <div>Suprafață totală: {anunt.suprafataUtil ? anunt.suprafataUtil + 10 : 'N/A'} m²</div>
+                                  </div>
+                                </div>
+
+                                {/* Stare */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Stare
+                                  </h4>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                                    Finisat, locuibil
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
 
-                          {/* Încălzire */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Încălzire
-                            </h4>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              Centrală termică
-                            </div>
-                          </div>
-
-                          {/* Echipament */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Echipament inclus
-                            </h4>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              Mașină de spălat, frigider, cuptor, plită
+                          {/* Exterior */}
+                          <div className="mt-4">
+                            <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                              Exterior
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                <div>Tip clădire: Bloc de locuințe</div>
+                                {anunt.etaj !== undefined && (
+                                  <div>Etaj: {typeof anunt.etaj === 'number' ? `Etaj ${anunt.etaj}` : anunt.etaj}</div>
+                                )}
+                                {anunt.anConstructie !== undefined && (
+                                  <div>An construcție: {anunt.anConstructie}</div>
+                                )}
+                              </div>
+                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                <div>Parcare: Disponibilă</div>
+                                <div>Lift: Da</div>
+                                <div>Acces controlat: Da</div>
+                              </div>
                             </div>
                           </div>
                         </div>
-
-                        {/* Coloana dreapta */}
-                        <div className="space-y-4">
-                          {/* Caracteristici */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Caracteristici
-                            </h4>
-                            <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                              <div>Balcon: Da</div>
-                              <div>Izolație termică: Da</div>
-                              <div>Geamuri termopan: Da</div>
-                            </div>
-                          </div>
-
-                          {/* Suprafață */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Suprafață
-                            </h4>
-                            <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                              {anunt.suprafataUtil !== undefined && (
-                                <div>Suprafață utilă: {anunt.suprafataUtil} m²</div>
-                              )}
-                              <div>Suprafață totală: {anunt.suprafataUtil ? anunt.suprafataUtil + 10 : 'N/A'} m²</div>
-                            </div>
-                          </div>
-
-                          {/* Stare */}
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                              Stare
-                            </h4>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              Finisat, locuibil
-                            </div>
-                          </div>
-                        </div>
                       </div>
-                    </div>
-
-                    {/* Exterior */}
-                    <div className="mt-4">
-                      <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-                        Exterior
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                          <div>Tip clădire: Bloc de locuințe</div>
-                          {anunt.etaj !== undefined && (
-                            <div>Etaj: {typeof anunt.etaj === 'number' ? `Etaj ${anunt.etaj}` : anunt.etaj}</div>
-                          )}
-                          {anunt.anConstructie !== undefined && (
-                            <div>An construcție: {anunt.anConstructie}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                          <div>Parcare: Disponibilă</div>
-                          <div>Lift: Da</div>
-                          <div>Acces controlat: Da</div>
-                        </div>
-                      </div>
-                    </div>
-                      </div>
-                    </div>
                   </GlassStatsCard>
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
@@ -394,19 +401,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                 {/* Col dreapta: Contact card - doar pe desktop */}
                 <aside className="flex flex-col md:flex-col">
                   <div className="hidden md:block mb-4">
-                    <GlassContactCard>
-                      <div className="relative z-2 text-sm text-gray-500 dark:text-gray-400">Contact agent</div>
-                      <div className="relative z-2 text-lg font-semibold">
-                        Programare vizionare
-                      </div>
-                      <GlassCTAButton primary>Programează-te acum</GlassCTAButton>
-                      <GlassCTAButton>
-                        <div className="flex items-center justify-center gap-2">
-                          <FaWhatsapp className="text-lg" />
-                          <span>Contactează pe WhatsApp</span>
-                        </div>
-                      </GlassCTAButton>
-                    </GlassContactCard>
+                    <AgentContactCard anunt={anunt} />
                   </div>
 
                   {/* Harta mică - pe mobile apare primul */}
@@ -459,45 +454,18 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                 </aside>
               </div>
             </section>
+            
           </div>
         </div>
       </main>
 
+      {/* Anunțuri similare – full width pe mobile */}
+      <SimilarListingsCarousel anunt={anunt} isInchiriere basePath="/inchiriere" />
+
       <Footer />
 
-      {/* Bara fixă pentru mobile cu butoanele de contact */}
-      <div className="fixed bottom-0 left-0 right-0 md:hidden z-50 p-4 bg-background border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-[1250px] mx-auto space-y-2">
-          <div className="text-sm text-gray-500 dark:text-gray-400 text-center">Contact agent</div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className="flex-1 px-4 py-3 rounded-2xl text-white font-medium text-sm transition-all duration-300"
-              style={{
-                background: "linear-gradient(135deg, rgba(194, 90, 43, 0.95) 0%, rgba(180, 75, 35, 0.9) 100%)",
-                border: "1px solid rgba(255, 255, 255, 0.15)",
-                boxShadow: "0 4px 16px rgba(194, 90, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
-              }}
-            >
-              Programează-te acum
-            </button>
-            <button
-              type="button"
-              className="flex-1 px-4 py-3 rounded-2xl font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2"
-              style={{
-                background: "rgba(50, 50, 65, 0.4)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
-                backdropFilter: "blur(30px) saturate(1.5)",
-                WebkitBackdropFilter: "blur(30px) saturate(1.5)",
-              }}
-            >
-              <FaWhatsapp className="text-lg text-[#25D366]" />
-              <span>WhatsApp</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Bara fixă pentru mobile cu info agent */}
+      <AgentMobileBar anunt={anunt} />
     </div>
   );
 }

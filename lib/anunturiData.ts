@@ -151,6 +151,14 @@ export const generateAnunturi = (total = 80): Anunt[] => {
 
 export const getAllAnunturi = () => generateAnunturi();
 
+// Helper intern pentru a extrage "zona" (Sector / Centru) din tag-uri
+const getAreaTag = (anunt: Anunt): string | null => {
+  const areaTag =
+    anunt.tags.find((t) => t.includes("Sector")) ??
+    anunt.tags.find((t) => t.toLowerCase().includes("centru"));
+  return areaTag ?? null;
+};
+
 export const getAnuntById = (
   id: string | undefined | null,
 ): Anunt | undefined => {
@@ -197,6 +205,80 @@ export const getAnuntById = (
 
   const all = getAllAnunturi();
   return all.find((a) => a.id === id);
+};
+
+// Returnează anunțuri similare, cu prioritate:
+// 1) aceeași zonă + același nr. de dormitoare
+// 2) același nr. de dormitoare
+// 3) aceeași zonă
+// 4) restul anunțurilor
+export const getSimilarAnunturi = (
+  current: Anunt,
+  count = 8,
+): Anunt[] => {
+  const all = getAllAnunturi();
+  const others = all.filter((a) => a.id !== current.id);
+
+  const currentArea = getAreaTag(current);
+  const currentRooms = current.dormitoare ?? null;
+
+  const byArea = (a: Anunt) =>
+    !!currentArea &&
+    a.tags.some(
+      (t) =>
+        t === currentArea ||
+        t.toLowerCase().includes(currentArea.toLowerCase()),
+    );
+
+  const byRooms = (a: Anunt) =>
+    currentRooms !== null && a.dormitoare === currentRooms;
+
+  const sortByCreatedAtDesc = (arr: Anunt[]) =>
+    arr.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+
+  const result: Anunt[] = [];
+  const pushFrom = (candidates: Anunt[]) => {
+    for (const a of candidates) {
+      if (result.length >= count) break;
+      if (!result.some((r) => r.id === a.id)) {
+        result.push(a);
+      }
+    }
+  };
+
+  // 1) Aceeași zonă + același nr. de dormitoare
+  if (currentArea && currentRooms !== null) {
+    const both = sortByCreatedAtDesc(
+      others.filter((a) => byArea(a) && byRooms(a)),
+    );
+    pushFrom(both);
+  }
+
+  // 2) Același nr. de dormitoare
+  if (result.length < count && currentRooms !== null) {
+    const sameRooms = sortByCreatedAtDesc(
+      others.filter((a) => byRooms(a)),
+    );
+    pushFrom(sameRooms);
+  }
+
+  // 3) Aceeași zonă
+  if (result.length < count && currentArea) {
+    const sameArea = sortByCreatedAtDesc(
+      others.filter((a) => byArea(a)),
+    );
+    pushFrom(sameArea);
+  }
+
+  // 4) Restul
+  if (result.length < count) {
+    const rest = sortByCreatedAtDesc(
+      others.filter((a) => !result.some((r) => r.id === a.id)),
+    );
+    pushFrom(rest);
+  }
+
+  return result.slice(0, count);
 };
 
 export const getHighlightedAnunturi = (count = 6): Anunt[] => {

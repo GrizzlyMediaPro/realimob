@@ -168,10 +168,13 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
           >
               {/* Desktop: butoane normale + steag + hamburger */}
               <div className="items-center gap-4 hidden md:flex">
-                <a href="#" className="flex items-center gap-2 text-black dark:text-foreground hover:opacity-80 transition-opacity">
+                <Link
+                  href="/adauga-anunt"
+                  className="flex items-center gap-2 text-black dark:text-foreground hover:opacity-80 transition-opacity"
+                >
                   <CiCirclePlus size={24} />
                   Adaugă anunț
-                </a>
+                </Link>
                 <Link 
                   href="/inregistrare" 
                   className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
@@ -296,14 +299,14 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
           >
             <div className="px-4 md:px-10 py-4 md:py-6 relative z-1">
               {/* Adaugă anunț (doar pe mobil) */}
-              <a
-                href="#"
+              <Link
+                href="/adauga-anunt"
                 className="flex items-center gap-2 text-sm text-black dark:text-foreground hover:opacity-80 transition-opacity mb-5 md:hidden"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <CiCirclePlus size={24} />
                 Adaugă anunț
-              </a>
+              </Link>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
                 {Object.entries(menuItems).map(([category, data], index) => (
                   <div key={index}>

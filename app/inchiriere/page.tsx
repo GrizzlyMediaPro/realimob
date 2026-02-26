@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { CiFilter } from "react-icons/ci";
@@ -11,7 +10,6 @@ import {
   MdAutoAwesome,
   MdBalcony,
   MdBuild,
-  MdClose,
   MdDeck,
   MdHome,
   MdHomeWork,
@@ -22,13 +20,13 @@ import {
   MdStar,
   MdSwapVert,
   MdViewQuilt,
-  MdPhone,
 } from "react-icons/md";
 import type { IconType } from "react-icons";
 
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ListingCard from "../components/ListingCard";
+import ListingFiltersModal from "../components/ListingFiltersModal";
 import {
   getAllAnunturi,
   getImageCount,
@@ -590,94 +588,12 @@ function InchirierePageContent() {
 
       {!isMapView && <Footer />}
 
-      {/* Modal Filtre (placeholder, pregătit pentru integrare reală) */}
-      {isFilterOpen && (
-        <div className="fixed inset-0 z-300 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setIsFilterOpen(false)}
-          />
-          <div 
-            className="relative w-full max-w-[720px] rounded-2xl overflow-hidden"
-            style={{
-              background: isDarkMode ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
-              border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid rgba(255, 255, 255, 0.5)",
-              boxShadow: isDarkMode
-                ? "0 16px 64px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
-                : "0 16px 64px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
-              backdropFilter: "blur(100px) saturate(1.6)",
-              WebkitBackdropFilter: "blur(100px) saturate(1.6)",
-            }}
-          >
-            {/* Reflexie mată */}
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "30%",
-                background: isDarkMode
-                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
-                  : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
-                borderRadius: "inherit",
-                pointerEvents: "none",
-                zIndex: 0,
-              }}
-            />
-            <div 
-              className="flex items-center justify-between px-5 py-4 relative z-1"
-              style={{
-                borderBottom: isDarkMode
-                  ? "1px solid rgba(255, 255, 255, 0.08)"
-                  : "1px solid rgba(0, 0, 0, 0.06)",
-              }}
-            >
-              <div className="text-xl font-bold" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                Filtre
-              </div>
-              <button
-                onClick={() => setIsFilterOpen(false)}
-                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Închide"
-              >
-                <MdClose size={22} />
-              </button>
-            </div>
-
-            <div className="p-5 relative z-1" style={{ fontFamily: "var(--font-galak-regular)" }}>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Butonul de filtre e gata vizual; aici poți lega ulterior aceleași câmpuri ca în HeroFilter.
-              </p>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setIsFilterOpen(false)}
-                  className="px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity"
-                  style={{
-                    background: isDarkMode ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
-                    border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
-                    boxShadow: isDarkMode
-                      ? "0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
-                      : "0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
-                    backdropFilter: "blur(60px) saturate(1.6)",
-                    WebkitBackdropFilter: "blur(60px) saturate(1.6)",
-                  }}
-                >
-                  Închide
-                </button>
-                <button
-                  onClick={() => setIsFilterOpen(false)}
-                  className="px-4 py-2.5 rounded-lg text-white font-medium hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: "#3B1F3A" }}
-                >
-                  Aplică
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal Filtre */}
+      <ListingFiltersModal
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        onApply={() => setVisibleCount(20)}
+      />
     </div>
   );
 }

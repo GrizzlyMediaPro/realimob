@@ -1,14 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdDescription, MdInfo, MdHistory } from "react-icons/md";
-import { FaWhatsapp } from "react-icons/fa";
+
 
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import ListingMapModal from "../../components/ListingMapModal";
 import SmallMapPreview from "../../components/SmallMapPreview";
-import { GlassSpecCard, GlassContactCard, GlassCTAButton, GlassStatsCard, GlassDivider } from "../../components/LiquidGlassCards";
+import { GlassSpecCard, GlassStatsCard, GlassDivider } from "../../components/LiquidGlassCards";
 import AnuntDetailsExpanded from "../../components/AnuntDetailsExpanded";
+import AnuntOffersModal from "../../components/AnuntOffersModal";
+import { AgentMobileBar } from "../../components/AgentContactCard";
+import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
+import AgentContactCard from "../../components/AgentContactCard";
 import { getAnuntById, getImageCount, parsePretToNumber } from "../../../lib/anunturiData";
 
 type AnuntPageProps = {
@@ -161,17 +165,20 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
               </div>
             </section>
 
-            {/* Conținut principal: specificații + descriere */}
+            {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">
-              {/* Preț */}
-              <div className="text-2xl md:text-3xl font-bold">
-                {anunt.pret}
+              {/* Preț + Oferte primite */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="text-2xl md:text-3xl font-bold">
+                  {anunt.pret}
+                </div>
+                <AnuntOffersModal anuntId={anunt.id} />
               </div>
 
               {/* Carduri cu detalii + Contact card */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 md:items-stretch">
                 {/* Carduri cu detalii */}
-                <div className="md:col-span-2 space-y-6">
+                <div className="md:col-span-2 flex flex-col gap-6 md:h-full">
                   {(anunt.dormitoare !== undefined || anunt.bai !== undefined || anunt.suprafataUtil !== undefined) && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                       {anunt.dormitoare !== undefined && (
@@ -219,96 +226,96 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                     </div>
                   )}
 
-                  <GlassStatsCard>
-                    <div className="space-y-6 md:space-y-8">
+                  <GlassStatsCard className="flex-1 flex flex-col">
+                    <div className="flex-1 flex flex-col space-y-6 md:space-y-8">
                       {/* Descriere completă */}
-                      <div>
-                        <h2 className="flex items-center gap-2 text-lg md:text-xl font-semibold mb-2">
-                          <MdDescription className="text-[#C25A2B]" />
-                          Descriere
-                        </h2>
-                        <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                          Acest anunț este un exemplu realist pentru prezentarea
-                          proprietăților în București. Poți folosi această secțiune
-                          pentru a evidenția avantajele principale ale locuinței:
-                          compartimentare, lumină naturală, finisaje, acces la
-                          transport, magazine și zone verzi. Poți extinde ulterior
-                          descrierea cu informații despre anul construcției, tipul de
-                          încălzire, costurile lunare estimate și orice alte detalii
-                          relevante pentru chiriași sau cumpărători.
-                        </p>
-                      </div>
+                        <div>
+                          <h2 className="flex items-center gap-2 text-lg md:text-xl font-semibold mb-2">
+                            <MdDescription className="text-[#C25A2B]" />
+                            Descriere
+                          </h2>
+                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                            Acest anunț este un exemplu realist pentru prezentarea
+                            proprietăților în București. Poți folosi această secțiune
+                            pentru a evidenția avantajele principale ale locuinței:
+                            compartimentare, lumină naturală, finisaje, acces la
+                            transport, magazine și zone verzi. Poți extinde ulterior
+                            descrierea cu informații despre anul construcției, tipul de
+                            încălzire, costurile lunare estimate și orice alte detalii
+                            relevante pentru chiriași sau cumpărători.
+                          </p>
+                        </div>
 
-                      {/* Detalii și caracteristici */}
-                      <div>
-                        <h2 className="flex items-center gap-2 text-lg md:text-xl font-semibold mb-4">
-                          <MdInfo className="text-[#C25A2B]" />
-                          Detalii și caracteristici
-                        </h2>
+                        {/* Detalii și caracteristici */}
+                        <div className="mt-auto">
+                          <h2 className="flex items-center gap-2 text-lg md:text-xl font-semibold mb-4">
+                            <MdInfo className="text-[#C25A2B]" />
+                            Detalii și caracteristici
+                          </h2>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3 text-sm">
-                          {/* Coloana stânga */}
-                          <div className="space-y-3">
-                            <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2 first:pt-0 first:border-t-0">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                Suprafață utilă totală
-                              </span>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                {anunt.suprafataUtil ? `${anunt.suprafataUtil} m²` : "-"}
-                              </span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3 text-sm">
+                            {/* Coloana stânga */}
+                            <div className="space-y-3">
+                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2 first:pt-0 first:border-t-0">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Suprafață utilă totală
+                                </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  {anunt.suprafataUtil ? `${anunt.suprafataUtil} m²` : "-"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Nr. băi
+                                </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  {anunt.bai ?? "-"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Tip imobil
+                                </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  Bloc de apartamente
+                                </span>
+                              </div>
                             </div>
 
-                            <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                Nr. băi
-                              </span>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                {anunt.bai ?? "-"}
-                              </span>
-                            </div>
+                            {/* Coloana dreapta */}
+                            <div className="space-y-3">
+                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2 first:pt-0 first:border-t-0">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Suprafață construită
+                                </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  {anunt.suprafataUtil ? `${anunt.suprafataUtil + 10} m²` : "-"}
+                                </span>
+                              </div>
 
-                            <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                Tip imobil
-                              </span>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                Bloc de apartamente
-                              </span>
-                            </div>
-                          </div>
+                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Structură rezistență
+                                </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  Beton
+                                </span>
+                              </div>
 
-                          {/* Coloana dreapta */}
-                          <div className="space-y-3">
-                            <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2 first:pt-0 first:border-t-0">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                Suprafață construită
-                              </span>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                {anunt.suprafataUtil ? `${anunt.suprafataUtil + 10} m²` : "-"}
-                              </span>
-                            </div>
-
-                            <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                Structură rezistență
-                              </span>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                Beton
-                              </span>
-                            </div>
-
-                            <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                Regim înălțime
-                              </span>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                P+10E
-                              </span>
+                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  Regim înălțime
+                                </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  P+10E
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
                   </GlassStatsCard>
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
@@ -320,21 +327,9 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                 </div>
 
                 {/* Col dreapta: Contact card - doar pe desktop */}
-                <aside className="flex flex-col md:flex-col">
+                <aside className="flex flex-col md:flex-col h-full">
                   <div className="hidden md:block mb-4">
-                    <GlassContactCard>
-                      <div className="relative z-2 text-sm text-gray-500 dark:text-gray-400">Contact agent</div>
-                      <div className="relative z-2 text-lg font-semibold">
-                        Programare vizionare
-                      </div>
-                      <GlassCTAButton primary>Programează-te acum</GlassCTAButton>
-                      <GlassCTAButton>
-                        <div className="flex items-center justify-center gap-2">
-                          <FaWhatsapp className="text-lg" />
-                          <span>Contactează pe WhatsApp</span>
-                        </div>
-                      </GlassCTAButton>
-                    </GlassContactCard>
+                    <AgentContactCard anunt={anunt} />
                   </div>
 
                   {/* Harta mică - pe mobile apare primul */}
@@ -387,45 +382,18 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                 </aside>
               </div>
             </section>
+            
           </div>
         </div>
       </main>
 
+      {/* Anunțuri similare – full width pe mobile */}
+      <SimilarListingsCarousel anunt={anunt} basePath="/vanzare" />
+
       <Footer />
 
-      {/* Bara fixă pentru mobile cu butoanele de contact */}
-      <div className="fixed bottom-0 left-0 right-0 md:hidden z-50 p-4 bg-background border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-[1250px] mx-auto space-y-2">
-          <div className="text-sm text-gray-500 dark:text-gray-400 text-center">Contact agent</div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className="flex-1 px-4 py-3 rounded-2xl text-white font-medium text-sm transition-all duration-300"
-              style={{
-                background: "linear-gradient(135deg, rgba(194, 90, 43, 0.95) 0%, rgba(180, 75, 35, 0.9) 100%)",
-                border: "1px solid rgba(255, 255, 255, 0.15)",
-                boxShadow: "0 4px 16px rgba(194, 90, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
-              }}
-            >
-              Programează-te acum
-            </button>
-            <button
-              type="button"
-              className="flex-1 px-4 py-3 rounded-2xl font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2"
-              style={{
-                background: "rgba(50, 50, 65, 0.4)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
-                backdropFilter: "blur(30px) saturate(1.5)",
-                WebkitBackdropFilter: "blur(30px) saturate(1.5)",
-              }}
-            >
-              <FaWhatsapp className="text-lg text-[#25D366]" />
-              <span>WhatsApp</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Bara fixă pentru mobile cu info agent */}
+      <AgentMobileBar anunt={anunt} />
     </div>
   );
 }

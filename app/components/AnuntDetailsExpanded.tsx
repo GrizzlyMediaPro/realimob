@@ -18,7 +18,7 @@ export default function AnuntDetailsExpanded({ anunt, pretPerMp, isInchiriere }:
 
   if (!isExpanded) {
     return (
-      <div className="mt-6 mb-4">
+      <div>
         <GlassCTAButton onClick={() => setIsExpanded(true)}>
           Vezi mai multe
         </GlassCTAButton>
@@ -28,7 +28,7 @@ export default function AnuntDetailsExpanded({ anunt, pretPerMp, isInchiriere }:
 
   return (
     <>
-      <div className="mt-6 mb-4">
+      <div>
         <GlassCTAButton onClick={() => setIsExpanded(false)}>
           Ascunde detalii
         </GlassCTAButton>
