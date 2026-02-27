@@ -315,6 +315,7 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                           </div>
                         </div>
                       </div>
+                    </div>
                   </GlassStatsCard>
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
