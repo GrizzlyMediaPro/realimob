@@ -22,6 +22,7 @@ import {
   MdArrowBack,
   MdCameraAlt,
 } from "react-icons/md";
+import { UploadDropzone } from "../components/Uploadthing";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -32,7 +33,7 @@ type SubtipComercial = "" | "Stradal/Retail" | "Birouri" | "Depozit/Hala";
 interface Camera {
   id: string;
   nume: string;
-  imagini: { id: string; file: File; preview: string }[];
+  imagini: { id: string; url: string }[];
 }
 
 // ─── Componente helper reutilizabile ─────────────────────────────────────
@@ -363,6 +364,7 @@ export default function AdaugaAnuntPage() {
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // ── Info de bază ──
   const [titlu, setTitlu] = useState("");
@@ -506,23 +508,18 @@ export default function AdaugaAnuntPage() {
   };
 
   const removeCamera = (cameraId: string) => {
-    setCamereImagini((prev) => {
-      const camera = prev.find((c) => c.id === cameraId);
-      if (camera) {
-        camera.imagini.forEach((img) => URL.revokeObjectURL(img.preview));
-      }
-      return prev.filter((c) => c.id !== cameraId);
-    });
+    setCamereImagini((prev) => prev.filter((c) => c.id !== cameraId));
   };
 
-  const addImaginiToCamera = (cameraId: string, files: FileList) => {
+  const addImaginiToCamera = (cameraId: string, urls: string[]) => {
     setCamereImagini((prev) =>
       prev.map((camera) => {
         if (camera.id !== cameraId) return camera;
-        const newImages = Array.from(files).map((file) => ({
-          id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          file,
-          preview: URL.createObjectURL(file),
+        const newImages = urls.map((url) => ({
+          id: `img-${Date.now()}-${Math.random()
+            .toString(36)
+            .substr(2, 9)}`,
+          url,
         }));
         return { ...camera, imagini: [...camera.imagini, ...newImages] };
       })
@@ -533,8 +530,6 @@ export default function AdaugaAnuntPage() {
     setCamereImagini((prev) =>
       prev.map((camera) => {
         if (camera.id !== cameraId) return camera;
-        const img = camera.imagini.find((i) => i.id === imagineId);
-        if (img) URL.revokeObjectURL(img.preview);
         return {
           ...camera,
           imagini: camera.imagini.filter((i) => i.id !== imagineId),
@@ -544,14 +539,123 @@ export default function AdaugaAnuntPage() {
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    // Simulare submit
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsSubmitting(false);
-    setSubmitSuccess(true);
-    setTimeout(() => {
-      router.push("/");
-    }, 3000);
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      const details = {
+        tipProprietate,
+        subtipComercial,
+        tipTranzactie,
+        camere,
+        suprafataUtila,
+        suprafataConstruita,
+        etaj,
+        etajTotal,
+        compartimentare,
+        anConstructie,
+        stare,
+        mobilare,
+        confort,
+        lift,
+        balcon,
+        nrBalcoane,
+        incalzire,
+        locParcare,
+        tipParcare,
+        boxa,
+        orientare,
+        tipCladire,
+        suprafataTeren,
+        nrCamere,
+        nrBai,
+        regimInaltime,
+        tipCasa,
+        incalzireCasa,
+        utilitati,
+        garaj,
+        materialCasa,
+        acoperis,
+        deschidereStrada,
+        drumAcces,
+        suprafata,
+        intravilan,
+        destinatieTeren,
+        deschidere,
+        utilitatiTeren,
+        puzPud,
+        tipAccesTeren,
+        tipTeren,
+        inApropriere,
+        traficPietonal,
+        compartimentareComercial,
+        grupSanitar,
+        inaltimeLibera,
+        putereElectrica,
+        ventilatie,
+        terasa,
+        locuriParcare,
+        accesMarfa,
+        clasaCladire,
+        nrBirouri,
+        locuriParcareBirouri,
+        liftBirouri,
+        receptie,
+        securitate,
+        acCentralizat,
+        suprafataCurte,
+        inaltimeHala,
+        accesTir,
+        nrRampe,
+        sarcinaPardoseala,
+        putereElectricaHala,
+        incalzireHala,
+        birouriIncluse,
+        mpBirouri,
+      };
+
+      const images = camereImagini.map((camera) => ({
+        cameraId: camera.id,
+        cameraName: camera.nume,
+        urls: camera.imagini.map((img) => img.url),
+      }));
+
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          titlu,
+          descriere,
+          tipTranzactie,
+          tipProprietate,
+          subtipComercial,
+          pret,
+          moneda,
+          locatie,
+          adresa,
+          sector,
+          details,
+          images,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Nu am putut salva anunțul");
+      }
+
+      setSubmitSuccess(true);
+      setTimeout(() => {
+        router.push("/");
+      }, 3000);
+    } catch (error: any) {
+      console.error(error);
+      setSubmitError(error.message || "A apărut o eroare neașteptată");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const totalImagini = camereImagini.reduce(
@@ -1583,7 +1687,7 @@ export default function AdaugaAnuntPage() {
                           className="relative aspect-square rounded-lg overflow-hidden group bg-gray-200 dark:bg-gray-800"
                         >
                           <Image
-                            src={img.preview}
+                            src={img.url}
                             alt={`${camera.nume}`}
                             fill
                             className="object-cover"
@@ -1602,39 +1706,30 @@ export default function AdaugaAnuntPage() {
                         </div>
                       ))}
 
-                      {/* Buton adaugă imagini */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          fileInputRefs.current[camera.id]?.click()
-                        }
-                        className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all duration-200 hover:border-[#C25A2B]/50"
+                      {/* Upload imagini (tile stil vechi, cu UploadThing în interior) */}
+                      <div
+                        className="aspect-square rounded-lg border-2 border-dashed overflow-hidden flex items-center justify-center transition-all duration-200 hover:border-[#C25A2B]/50"
                         style={{
                           borderColor: isDark
                             ? "rgba(255, 255, 255, 0.15)"
                             : "rgba(0, 0, 0, 0.12)",
                         }}
                       >
-                        <MdAddPhotoAlternate className="text-gray-400 text-xl" />
-                        <span className="text-[10px] text-gray-400">
-                          Adaugă
-                        </span>
-                      </button>
-                      <input
-                        ref={(el) => {
-                          fileInputRefs.current[camera.id] = el;
-                        }}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            addImaginiToCamera(camera.id, e.target.files);
-                            e.target.value = "";
-                          }
-                        }}
-                      />
+                        <UploadDropzone
+                          endpoint="imageUploader"
+                          onClientUploadComplete={(res) => {
+                            const urls = res.map((f) => f.url);
+                            addImaginiToCamera(camera.id, urls);
+                          }}
+                          onUploadError={(error) => {
+                            console.error(error);
+                          }}
+                          appearance={{
+                            container:
+                              "ut-h-full ut-w-full ut-bg-transparent ut-border-none ut-flex ut-items-center ut-justify-center",
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1706,6 +1801,13 @@ export default function AdaugaAnuntPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Mesaj eroare submit */}
+                {submitError && (
+                  <div className="text-xs text-red-500 text-center">
+                    {submitError}
+                  </div>
+                )}
 
                 {/* Contor total imagini */}
                 {totalImagini > 0 && (

@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Listing {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Informații de bază
+  title            String
+  description      String
+  transactionType  String
+  propertyType     String
+  commercialSubtype String?
+  price            Float
+  currency         String
+  location         String
+  address          String?
+  sector           String?
+
+  // Alte detalii salvate flexibil
+  details Json?
+  images  Json?
+}
+

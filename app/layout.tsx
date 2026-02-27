@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const kurskMedium = localFont({
@@ -37,8 +38,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ro">
-      <body className={`${kurskMedium.variable} ${galakThin.variable} ${galakRegular.variable} antialiased`}>
+    <ClerkProvider>
+      <html lang="ro">
+        <body className={`${kurskMedium.variable} ${galakThin.variable} ${galakRegular.variable} antialiased`}>
         {/* Zonă safe-area top (notch / dynamic island) cu același efect de "glass" ca navbar-ul */}
         <div aria-hidden="true" className="safe-area-nav-glass" />
 
@@ -61,8 +63,9 @@ export default function RootLayout({
             ].join(", "),
           }}
         />
-        {children}
-      </body>
-    </html>
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
