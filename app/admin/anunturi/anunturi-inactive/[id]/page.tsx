@@ -1,10 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdArrowBack, MdCancel } from "react-icons/md";
 
 import Navbar from "../../../../components/Navbar";
 import Footer from "../../../../components/Footer";
-import { getAnuntById, getImageCount, parsePretToNumber } from "../../../../../lib/anunturiData";
+import { getAnuntById, getRoomImages, parsePretToNumber } from "../../../../../lib/anunturiData";
+import RoomGallery from "../../../../components/RoomGallery";
 
 type AnuntPageProps = {
   params: Promise<{
@@ -17,10 +17,6 @@ type DeactivationReason =
   | "Vandut"
   | "Dezactivat utilizator"
   | "Dezactivat admin";
-
-const getGalleryImages = (image: string, count: number) => {
-  return Array.from({ length: count }, () => image);
-};
 
 // Simulăm motivul dezactivării pentru anunțuri inactive
 const getDeactivationReason = (id: string): DeactivationReason => {
@@ -96,8 +92,7 @@ export default async function AdminAnuntInactivePage({
     );
   }
 
-  const totalImages = getImageCount(anunt.id);
-  const galleryImages = getGalleryImages(anunt.image, Math.max(totalImages, 4));
+  const roomImages = getRoomImages(anunt.id, anunt.image);
   const locationText =
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
@@ -179,35 +174,12 @@ export default async function AdminAnuntInactivePage({
               </div>
             </div>
 
-            {/* Galerie imagini */}
-            <section className="mb-6 md:mb-8">
-              <div className="w-full max-w-[1250px] mx-auto aspect-video md:rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 relative">
-                <Image
-                  src={galleryImages[0]}
-                  alt={anunt.titlu}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 1250px"
-                />
-              </div>
-
-              <div className="mt-3 md:mt-4 flex gap-2 md:gap-3 overflow-x-auto pb-1 hide-scrollbar">
-                {galleryImages.map((src, index) => (
-                  <div
-                    key={`${anunt.id}-thumb-${index}`}
-                    className="relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 shrink-0 w-20 h-16 md:w-28 md:h-20 cursor-pointer"
-                  >
-                    <Image
-                      src={src}
-                      alt={`${anunt.titlu} imagine ${index + 1}`}
-                      fill
-                      className="object-cover"
-                      sizes="120px"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
+            {/* Galerie imagini cu filtrare pe camere */}
+            <RoomGallery
+              images={roomImages}
+              titlu={anunt.titlu}
+              anuntId={anunt.id}
+            />
 
             {/* Conținut principal */}
             <section className="space-y-6 md:space-y-8 mb-0">

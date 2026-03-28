@@ -97,6 +97,54 @@ const formatPretLuna = (pret: string): string => {
   return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
 };
 
+function getDbListingImageCount(images: any): number {
+  if (!Array.isArray(images)) return 0;
+  return images.reduce((count: number, group: any) => {
+    const urls = Array.isArray(group?.urls) ? group.urls.length : 0;
+    return count + urls;
+  }, 0);
+}
+
+function transformListingToAnunt(listing: any): Anunt & { realImageCount?: number } {
+  const details = listing.details || {};
+  const images = listing.images || [];
+  const firstImage = images.length > 0 && images[0].urls && images[0].urls.length > 0
+    ? images[0].urls[0]
+    : "/ap2.jpg";
+
+  const tags: string[] = [];
+  if (details.suprafataUtila) tags.push(`${details.suprafataUtila} m²`);
+  if (listing.sector) tags.push(listing.sector);
+  if (details.etaj !== undefined && details.etaj !== "") tags.push(`Etaj ${details.etaj}`);
+  if (details.stare) tags.push(details.stare);
+  if (details.mobilare) tags.push(details.mobilare);
+
+  const createdAt = new Date(listing.createdAt);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - createdAt.getTime());
+  const zilePostat = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  return {
+    id: listing.id,
+    titlu: listing.title,
+    image: firstImage,
+    pret: `${listing.price.toLocaleString("ro-RO")} ${listing.currency}`,
+    tags,
+    createdAt: listing.createdAt,
+    lat: details.lat || undefined,
+    lng: details.lng || undefined,
+    dormitoare: details.camere ? (details.camere === "Studio" ? 1 : Number(details.camere)) : undefined,
+    bai: details.nrBai ? Number(details.nrBai) : undefined,
+    suprafataUtil: details.suprafataUtila ? Number(details.suprafataUtila) : undefined,
+    etaj: details.etaj || undefined,
+    anConstructie: details.anConstructie ? Number(details.anConstructie) : undefined,
+    zilePostat,
+    vizualizari: 0,
+    favorite: 0,
+    realImageCount: getDbListingImageCount(images),
+  };
+}
+
 function InchirierePageContent() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -107,9 +155,29 @@ function InchirierePageContent() {
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [drawnPolygon, setDrawnPolygon] = useState<number[][] | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [dbListings, setDbListings] = useState<Anunt[]>([]);
   const sortRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const categorieParam = searchParams.get("categorie");
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        const response = await fetch("/api/listings");
+        if (response.ok) {
+          const data = await response.json();
+          const inchiriereListings = data.listings.filter(
+            (l: any) => l.transactionType === "Închiriere" || l.transactionType === "Inchiriere"
+          );
+          const transformed = inchiriereListings.map(transformListingToAnunt);
+          setDbListings(transformed);
+        }
+      } catch (error) {
+        console.error("Failed to fetch listings:", error);
+      }
+    };
+    fetchListings();
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -124,8 +192,11 @@ function InchirierePageContent() {
     document.documentElement.classList.contains("dark");
 
   const allAnunturi = useMemo<Anunt[]>(() => {
-    return getAllAnunturi();
-  }, []);
+    const mockAnunturi = getAllAnunturi();
+    const dbIds = new Set(dbListings.map((a) => a.id));
+    const uniqueMock = mockAnunturi.filter((a) => !dbIds.has(a.id));
+    return [...dbListings, ...uniqueMock];
+  }, [dbListings]);
 
   const filterByCategorie = (anunturi: Anunt[], categorie: string | null) => {
     if (!categorie) return anunturi;
@@ -556,7 +627,7 @@ function InchirierePageContent() {
                       pret={formatPretLuna(anunt.pret)}
                       tags={anunt.tags}
                       locationText={anunt.tags.find((t) => t.includes("Sector")) ?? "Zona centrală"}
-                      imageCount={getImageCount(anunt.id)}
+                      imageCount={(anunt as any).realImageCount ?? getImageCount(anunt.id)}
                       getTagIcon={getTagIcon}
                       href={`/inchiriere/${anunt.id}`}
                       compact={isMapView && isMobile}

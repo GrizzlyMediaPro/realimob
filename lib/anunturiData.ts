@@ -294,3 +294,51 @@ export const getImageCount = (id: string) => {
   return (h % 8) + 1; // 1..8 images
 };
 
+// ─── Room-based images for demo ──────────────────────────────────────────
+export type RoomImage = {
+  url: string;
+  roomName: string;
+};
+
+const DEMO_IMAGES = ["/ap2.jpg", "/ap3.jpg", "/ap4.jpg", "/studio.jpg"];
+
+const ROOM_SETS: { rooms: string[]; imgPerRoom: number[] }[] = [
+  { rooms: ["Living", "Dormitor", "Bucătărie", "Baie"], imgPerRoom: [3, 2, 2, 1] },
+  { rooms: ["Living", "Dormitor 1", "Dormitor 2", "Bucătărie", "Baie"], imgPerRoom: [2, 2, 2, 1, 1] },
+  { rooms: ["Living", "Dormitor", "Baie", "Balcon"], imgPerRoom: [2, 2, 1, 1] },
+  { rooms: ["Living", "Dormitor 1", "Dormitor 2", "Dormitor 3", "Bucătărie", "Baie"], imgPerRoom: [2, 1, 1, 1, 2, 1] },
+  { rooms: ["Living", "Dormitor", "Bucătărie", "Baie", "Hol"], imgPerRoom: [2, 2, 1, 1, 1] },
+  { rooms: ["Living", "Dormitor", "Bucătărie"], imgPerRoom: [2, 2, 1] },
+];
+
+/**
+ * Returns room-grouped images for a listing (deterministic based on id).
+ * Each room has a name and a list of image URLs.
+ */
+export const getRoomImages = (id: string, mainImage: string): RoomImage[] => {
+  // deterministic hash from id
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 37 + id.charCodeAt(i)) % 10000;
+  }
+
+  const setIndex = h % ROOM_SETS.length;
+  const { rooms, imgPerRoom } = ROOM_SETS[setIndex];
+
+  const allImages = [mainImage, ...DEMO_IMAGES];
+  const result: RoomImage[] = [];
+
+  let imgCursor = 0;
+  rooms.forEach((roomName, rIdx) => {
+    const count = imgPerRoom[rIdx];
+    for (let j = 0; j < count; j++) {
+      result.push({
+        url: allImages[(imgCursor + rIdx + j) % allImages.length],
+        roomName,
+      });
+      imgCursor++;
+    }
+  });
+
+  return result;
+};

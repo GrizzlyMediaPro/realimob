@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdHistory } from "react-icons/md";
 
@@ -13,16 +12,15 @@ import AnuntOffersModal from "../../components/AnuntOffersModal";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
-import { getAnuntById, getImageCount, parsePretToNumber } from "../../../lib/anunturiData";
+import PropertyDetailsSection from "../../components/PropertyDetailsSection";
+import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import RoomGallery from "../../components/RoomGallery";
+import { prisma } from "../../../lib/prisma";
 
 type AnuntPageProps = {
   params: Promise<{
     id: string;
   }>;
-};
-
-const getGalleryImages = (image: string, count: number) => {
-  return Array.from({ length: count }, () => image);
 };
 
 // Funcție helper pentru a formata prețul ca "X €/lună"
@@ -38,9 +36,78 @@ const formatPretLuna = (pret: string): string => {
   return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
 };
 
+function transformListingToAnunt(listing: any): Anunt & { description?: string; dbDetails?: any } {
+  const details = listing.details || {};
+  const images = listing.images || [];
+  const firstImage = images.length > 0 && images[0].urls && images[0].urls.length > 0
+    ? images[0].urls[0]
+    : "/ap2.jpg";
+  const tags: string[] = [];
+  if (details.suprafataUtila) tags.push(`${details.suprafataUtila} m²`);
+  if (listing.sector) tags.push(listing.sector);
+  if (details.etaj !== undefined && details.etaj !== "") tags.push(`Etaj ${details.etaj}`);
+  if (details.stare) tags.push(details.stare);
+  if (details.mobilare) tags.push(details.mobilare);
+  const createdAt = new Date(listing.createdAt);
+  const now = new Date();
+  const zilePostat = Math.floor(Math.abs(now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+  return {
+    id: listing.id,
+    titlu: listing.title,
+    image: firstImage,
+    pret: `${listing.price.toLocaleString("ro-RO")} ${listing.currency}`,
+    tags,
+    createdAt: listing.createdAt,
+    lat: details.lat || undefined,
+    lng: details.lng || undefined,
+    dormitoare: details.camere ? (details.camere === "Studio" ? 1 : Number(details.camere)) : undefined,
+    bai: details.nrBai ? Number(details.nrBai) : undefined,
+    suprafataUtil: details.suprafataUtila ? Number(details.suprafataUtila) : undefined,
+    etaj: details.etaj || undefined,
+    anConstructie: details.anConstructie ? Number(details.anConstructie) : undefined,
+    zilePostat,
+    vizualizari: 0,
+    favorite: 0,
+    description: listing.description || undefined,
+    dbDetails: details || undefined,
+  };
+}
+
+function transformImagesToRoomImages(images: any[]): RoomImage[] {
+  const result: RoomImage[] = [];
+  images.forEach((camera) => {
+    if (camera.urls && Array.isArray(camera.urls)) {
+      camera.urls.forEach((url: string) => {
+        result.push({ url, roomName: camera.cameraName || "Cameră" });
+      });
+    }
+  });
+  return result;
+}
+
 export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
-  const anunt = getAnuntById(id);
+  let anunt: (Anunt & { description?: string; dbDetails?: any }) | null = getAnuntById(id);
+  let roomImages: RoomImage[] = [];
+
+  if (!anunt) {
+    try {
+      const listing = await prisma.listing.findUnique({ where: { id } });
+      if (listing) {
+        anunt = transformListingToAnunt(listing);
+        const dbImages = listing.images as any[];
+        if (dbImages && Array.isArray(dbImages)) {
+          roomImages = transformImagesToRoomImages(dbImages);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch listing from DB:", error);
+    }
+  }
+
+  if (anunt && roomImages.length === 0) {
+    roomImages = getRoomImages(anunt.id, anunt.image);
+  }
 
   if (!anunt) {
     return (
@@ -91,9 +158,6 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
       </div>
     );
   }
-
-  const totalImages = getImageCount(anunt.id);
-  const galleryImages = getGalleryImages(anunt.image, Math.max(totalImages, 4));
 
   const locationText =
     anunt.tags.find((t) => t.includes("Sector")) ??
@@ -148,35 +212,12 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
               </div>
             </div>
 
-            {/* Galerie imagini */}
-            <section className="mb-6 md:mb-8">
-              <div className="w-full max-w-[1250px] mx-auto aspect-video md:rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 relative">
-                <Image
-                  src={galleryImages[0]}
-                  alt={anunt.titlu}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 1250px"
-                />
-              </div>
-
-              <div className="mt-3 md:mt-4 flex gap-2 md:gap-3 overflow-x-auto pb-1 hide-scrollbar">
-                {galleryImages.map((src, index) => (
-                  <div
-                    key={`${anunt.id}-thumb-${index}`}
-                    className="relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 shrink-0 w-20 h-16 md:w-28 md:h-20 cursor-pointer"
-                  >
-                    <Image
-                      src={src}
-                      alt={`${anunt.titlu} imagine ${index + 1}`}
-                      fill
-                      className="object-cover"
-                      sizes="120px"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
+            {/* Galerie imagini cu filtrare pe camere */}
+            <RoomGallery
+              images={roomImages}
+              titlu={anunt.titlu}
+              anuntId={anunt.id}
+            />
 
             {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">
@@ -254,133 +295,26 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                           <h2 className="text-lg md:text-xl font-semibold mb-2">
                             Descriere
                           </h2>
-                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                            Acest anunț este un exemplu realist pentru prezentarea
-                            proprietăților în București. Poți folosi această secțiune
-                            pentru a evidenția avantajele principale ale locuinței:
-                            compartimentare, lumină naturală, finisaje, acces la
-                            transport, magazine și zone verzi. Poți extinde ulterior
-                            descrierea cu informații despre anul construcției, tipul de
-                            încălzire, costurile lunare estimate și orice alte detalii
-                            relevante pentru chiriași sau cumpărători.
+                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+                            {(anunt as any).description || "Acest anunț este un exemplu realist pentru prezentarea proprietăților în București. Poți folosi această secțiune pentru a evidenția avantajele principale ale locuinței: compartimentare, lumină naturală, finisaje, acces la transport, magazine și zone verzi."}
                           </p>
-                        </div>
-
-                        {/* Detalii și caracteristici */}
-                        <div className="mt-auto">
-                          <h2 className="text-lg md:text-xl font-semibold mb-4">
-                            Detalii și caracteristici
-                          </h2>
-                          
-                          {/* Interior */}
-                          <div className="mb-4">
-                            <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-                              Interior
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {/* Coloana stânga */}
-                              <div className="space-y-4">
-                                {/* Dormitoare și băi */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Dormitoare și băi
-                                  </h4>
-                                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                    {anunt.dormitoare !== undefined && (
-                                      <div>Dormitoare: {anunt.dormitoare}</div>
-                                    )}
-                                    {anunt.bai !== undefined && (
-                                      <div>Băi: {anunt.bai}</div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Încălzire */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Încălzire
-                                  </h4>
-                                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    Centrală termică
-                                  </div>
-                                </div>
-
-                                {/* Echipament */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Echipament inclus
-                                  </h4>
-                                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    Mașină de spălat, frigider, cuptor, plită
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Coloana dreapta */}
-                              <div className="space-y-4">
-                                {/* Caracteristici */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Caracteristici
-                                  </h4>
-                                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                    <div>Balcon: Da</div>
-                                    <div>Izolație termică: Da</div>
-                                    <div>Geamuri termopan: Da</div>
-                                  </div>
-                                </div>
-
-                                {/* Suprafață */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Suprafață
-                                  </h4>
-                                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                    {anunt.suprafataUtil !== undefined && (
-                                      <div>Suprafață utilă: {anunt.suprafataUtil} m²</div>
-                                    )}
-                                    <div>Suprafață totală: {anunt.suprafataUtil ? anunt.suprafataUtil + 10 : 'N/A'} m²</div>
-                                  </div>
-                                </div>
-
-                                {/* Stare */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Stare
-                                  </h4>
-                                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    Finisat, locuibil
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Exterior */}
-                          <div className="mt-4">
-                            <h3 className="text-base md:text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-                              Exterior
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                <div>Tip clădire: Bloc de locuințe</div>
-                                {anunt.etaj !== undefined && (
-                                  <div>Etaj: {typeof anunt.etaj === 'number' ? `Etaj ${anunt.etaj}` : anunt.etaj}</div>
-                                )}
-                                {anunt.anConstructie !== undefined && (
-                                  <div>An construcție: {anunt.anConstructie}</div>
-                                )}
-                              </div>
-                              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                <div>Parcare: Disponibilă</div>
-                                <div>Lift: Da</div>
-                                <div>Acces controlat: Da</div>
-                              </div>
-                            </div>
-                          </div>
                         </div>
                       </div>
                   </GlassStatsCard>
+
+                  {/* Detalii proprietate din DB */}
+                  {(anunt as any).dbDetails ? (
+                    <PropertyDetailsSection details={(anunt as any).dbDetails} />
+                  ) : (
+                    <PropertyDetailsSection details={{
+                      tipProprietate: "Apartament",
+                      suprafataUtila: anunt.suprafataUtil,
+                      camere: anunt.dormitoare,
+                      nrBai: anunt.bai,
+                      etaj: anunt.etaj,
+                      anConstructie: anunt.anConstructie,
+                    }} />
+                  )}
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
                   <AnuntDetailsExpanded 
