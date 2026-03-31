@@ -12,8 +12,13 @@ import AnuntOffersModal from "../../components/AnuntOffersModal";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
-import { getAnuntById, getRoomImages, parsePretToNumber } from "../../../lib/anunturiData";
+import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  transformListingToAnunt,
+  transformImagesToRoomImages,
+} from "../../../lib/listingToAnunt";
 import RoomGallery from "../../components/RoomGallery";
+import { prisma } from "../../../lib/prisma";
 
 type AnuntPageProps = {
   params: Promise<{
@@ -23,7 +28,30 @@ type AnuntPageProps = {
 
 export default async function AnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
-  const anunt = getAnuntById(id);
+  let anunt: Anunt | undefined = getAnuntById(id);
+  let roomImages: RoomImage[] = [];
+
+  if (!anunt) {
+    try {
+      const listing = await prisma.listing.findUnique({
+        where: { id },
+        include: { agent: true },
+      });
+      if (listing) {
+        anunt = transformListingToAnunt(listing);
+        const dbImages = listing.images as any[];
+        if (dbImages && Array.isArray(dbImages)) {
+          roomImages = transformImagesToRoomImages(dbImages);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch listing from DB:", error);
+    }
+  }
+
+  if (anunt && roomImages.length === 0) {
+    roomImages = getRoomImages(anunt.id, anunt.image);
+  }
 
   if (!anunt) {
     return (
@@ -74,8 +102,6 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
       </div>
     );
   }
-
-  const roomImages = getRoomImages(anunt.id, anunt.image);
 
   const locationText =
     anunt.tags.find((t) => t.includes("Sector")) ??

@@ -31,87 +31,20 @@ interface Agent {
   anunturiTotal: number;
   status: AgentStatus;
   dataInregistrare: string;
+  buletinUrl?: string | null;
+  cui?: string | null;
 }
 
-// Funcție deterministă pentru a genera valori pseudo-aleatoare bazate pe index
-const deterministicValue = (index: number, seed: number, max: number) => {
-  return ((index * seed + seed * 7) % max);
-};
-
-// Date dummy pentru agenți
-const generateAgenti = (): Agent[] => {
-  const nume = [
-    "Ion Popescu",
-    "Maria Ionescu",
-    "Alexandru Georgescu",
-    "Elena Radu",
-    "Mihai Stan",
-    "Ana Dumitrescu",
-    "Cristian Nistor",
-    "Andreea Munteanu",
-    "Bogdan Vasile",
-    "Ioana Constantinescu",
-    "Radu Petrescu",
-    "Diana Gheorghe",
-    "Florin Marin",
-    "Simona Toma",
-    "Adrian Popa",
-  ];
-
-  const companii = [
-    "Imobiliare Premium",
-    "Casa Perfectă",
-    "Real Estate Pro",
-    "Luxury Properties",
-    "Smart Living",
-    undefined,
-    undefined,
-  ];
-
-  const statusuri: AgentStatus[] = ["activ", "activ", "activ", "inactiv", "suspendat", "pending"];
-
-  const telefonBase = [
-    "0793193877",
-    "0718593727",
-    "0723456789",
-    "0734567890",
-    "0745678901",
-    "0756789012",
-    "0767890123",
-    "0778901234",
-    "0789012345",
-    "0790123456",
-    "0711234567",
-    "0722345678",
-    "0733456789",
-    "0744567890",
-    "0755678901",
-  ];
-
-  return nume.map((n, index) => {
-    const numeParts = n.split(" ");
-    const email = `${numeParts[0].toLowerCase()}.${numeParts[1].toLowerCase()}@realimob.ro`;
-    const telefon = telefonBase[index % telefonBase.length];
-    const status = statusuri[index % statusuri.length];
-    const anunturiActive = deterministicValue(index, 17, 50) + 5;
-    const anunturiTotal = anunturiActive + deterministicValue(index, 23, 20);
-    const daysAgo = deterministicValue(index, 31, 365);
-    const dataInregistrare = new Date(
-      Date.now() - daysAgo * 24 * 60 * 60 * 1000
-    ).toISOString();
-
-    return {
-      id: `agent-${index + 1}`,
-      nume: n,
-      email,
-      telefon,
-      companie: companii[index % companii.length],
-      anunturiActive,
-      anunturiTotal,
-      status,
-      dataInregistrare,
-    };
-  });
+type AgentApiItem = {
+  id: string;
+  nume?: string;
+  email?: string;
+  telefon?: string;
+  status?: "pending" | "approved" | "rejected";
+  dataInregistrare?: string;
+  formaOrganizare?: string | null;
+  buletinUrl?: string | null;
+  cui?: string | null;
 };
 
 export default function AdminAgentiPage() {
@@ -121,6 +54,56 @@ export default function AdminAgentiPage() {
   const [statusFilter, setStatusFilter] = useState<AgentStatus | "toate">("toate");
   const [companieFilter, setCompanieFilter] = useState("");
   const [showPending, setShowPending] = useState(false);
+  const [allAgenti, setAllAgenti] = useState<Agent[]>([]);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
+
+  const fetchAgenti = async () => {
+    try {
+      setIsLoadingAgents(true);
+      setAgentsError(null);
+
+      const response = await fetch("/api/admin/agent-requests", {
+        cache: "no-store",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut încărca agenții.");
+      }
+
+      const mappedAgents: Agent[] = (payload.agents ?? []).map((agent: AgentApiItem) => {
+        const status: AgentStatus =
+          agent.status === "pending"
+            ? "pending"
+            : agent.status === "rejected"
+            ? "suspendat"
+            : "activ";
+
+        return {
+          id: agent.id,
+          nume: agent.nume ?? "Agent fără nume",
+          email: agent.email ?? "-",
+          telefon: agent.telefon ?? "-",
+          companie: agent.formaOrganizare ?? undefined,
+          anunturiActive: 0,
+          anunturiTotal: 0,
+          status,
+          dataInregistrare: agent.dataInregistrare ?? new Date().toISOString(),
+          buletinUrl: agent.buletinUrl ?? null,
+          cui: agent.cui ?? null,
+        };
+      });
+
+      setAllAgenti(mappedAgents);
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut încărca agenții."
+      );
+    } finally {
+      setIsLoadingAgents(false);
+    }
+  };
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -135,7 +118,32 @@ export default function AdminAgentiPage() {
     return () => observer.disconnect();
   }, []);
 
-  const allAgenti = useMemo(() => generateAgenti(), []);
+  useEffect(() => {
+    fetchAgenti();
+  }, []);
+
+  const updateAgentStatus = async (targetUserId: string, action: "approve" | "reject") => {
+    try {
+      const response = await fetch("/api/admin/agent-requests", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ targetUserId, action }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut actualiza cererea.");
+      }
+
+      await fetchAgenti();
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut actualiza cererea."
+      );
+    }
+  };
 
   const filteredAgenti = useMemo(() => {
     let filtered = allAgenti;
@@ -546,7 +554,25 @@ export default function AdminAgentiPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAgenti.length === 0 ? (
+                  {isLoadingAgents ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-12 text-center text-gray-500 dark:text-gray-400"
+                      >
+                        Se încarcă agenții reali...
+                      </td>
+                    </tr>
+                  ) : agentsError ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-12 text-center text-red-500"
+                      >
+                        {agentsError}
+                      </td>
+                    </tr>
+                  ) : filteredAgenti.length === 0 ? (
                     <tr>
                       <td
                         colSpan={7}
@@ -617,14 +643,31 @@ export default function AdminAgentiPage() {
                           </td>
                           <td className="px-4 py-4">
                             {agent.companie ? (
-                              <div className="flex items-center gap-2">
-                                <MdBusiness
-                                  size={16}
-                                  className="text-gray-400"
-                                />
-                                <span className="text-sm text-foreground">
-                                  {agent.companie}
-                                </span>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <MdBusiness
+                                    size={16}
+                                    className="text-gray-400"
+                                  />
+                                  <span className="text-sm text-foreground">
+                                    {agent.companie}
+                                  </span>
+                                </div>
+                                {agent.cui && (
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    CUI: {agent.cui}
+                                  </div>
+                                )}
+                                {agent.buletinUrl && (
+                                  <a
+                                    href={agent.buletinUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs text-[#C25A2B] underline"
+                                  >
+                                    Vezi buletin
+                                  </a>
+                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">
@@ -668,15 +711,32 @@ export default function AdminAgentiPage() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex justify-end">
-                              <button
-                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                aria-label="Mai multe opțiuni"
-                              >
-                                <MdMoreVert
-                                  size={20}
-                                  className="text-gray-500 dark:text-gray-400"
-                                />
-                              </button>
+                              {agent.status === "pending" ? (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#10B981] hover:opacity-90 transition-opacity"
+                                    onClick={() => updateAgentStatus(agent.id, "approve")}
+                                  >
+                                    Aprobă
+                                  </button>
+                                  <button
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#EF4444] hover:opacity-90 transition-opacity"
+                                    onClick={() => updateAgentStatus(agent.id, "reject")}
+                                  >
+                                    Respinge
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                  aria-label="Mai multe opțiuni"
+                                >
+                                  <MdMoreVert
+                                    size={20}
+                                    className="text-gray-500 dark:text-gray-400"
+                                  />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

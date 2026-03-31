@@ -20,6 +20,9 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
   const isAdmin = Boolean((user?.publicMetadata as { isAdmin?: boolean } | undefined)?.isAdmin);
+  const agentMetadata = (user?.publicMetadata as { isAgent?: boolean; agentStatus?: string } | undefined);
+  const isAgent = Boolean(agentMetadata?.isAgent);
+  const isAgentApproved = agentMetadata?.agentStatus === "approved";
 
   // Detectare dark mode
   useEffect(() => {
@@ -180,7 +183,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                 </Link>
                 <SignedOut>
                   <Link 
-                    href="/sign-up" 
+                    href="/inregistrare" 
                     className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
                     style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
                   >
@@ -204,6 +207,18 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                       style={pillButtonStyle("rgba(194, 90, 43, 0.9)", "rgba(194, 90, 43, 0.35)")}
                     >
                       Admin
+                    </Link>
+                  )}
+                  {isAgent && (
+                    <Link
+                      href="/agent"
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                      style={pillButtonStyle(
+                        isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                        isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)"
+                      )}
+                    >
+                      Agent
                     </Link>
                   )}
                   <UserButton
@@ -370,7 +385,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
               <div className="flex flex-row gap-3 mt-6 md:hidden">
                 <SignedOut>
                   <Link 
-                    href="/sign-up" 
+                    href="/inregistrare" 
                     className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
                     style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
                     onClick={() => setIsMenuOpen(false)}
@@ -398,6 +413,19 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                         onClick={() => setIsMenuOpen(false)}
                       >
                         Admin
+                      </Link>
+                    )}
+                    {isAgent && (
+                      <Link
+                        href="/agent"
+                        className="px-3 py-1.5 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                        style={pillButtonStyle(
+                          isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                          isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)"
+                        )}
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Agent
                       </Link>
                     )}
                     <div className="flex items-center gap-2">

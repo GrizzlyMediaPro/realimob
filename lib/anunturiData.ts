@@ -1,3 +1,13 @@
+/** Agent atribuit anunțului (din DB), pentru contact / Calendly / WhatsApp */
+export type AssignedAgentPublic = {
+  id: string;
+  name: string;
+  phone?: string;
+  avatar?: string;
+  rating: number;
+  calendlyUrl?: string;
+};
+
 export type Anunt = {
   id: string;
   titlu: string;
@@ -15,6 +25,8 @@ export type Anunt = {
   zilePostat?: number;
   vizualizari?: number;
   favorite?: number;
+  /** Prezent pe anunțurile încărcate din MongoDB cu agent atribuit */
+  assignedAgent?: AssignedAgentPublic;
 };
 
 export type SortOption =

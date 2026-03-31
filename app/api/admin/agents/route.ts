@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 // GET — Lista agenți, opțional cu scoring pentru un listing specific
 export async function GET(request: NextRequest) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const listingId = searchParams.get("listingId");
@@ -76,9 +80,12 @@ export async function GET(request: NextRequest) {
 
 // POST — Creează un agent nou
 export async function POST(request: NextRequest) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
     const body = await request.json();
-    const { name, email, phone, avatar, sectors, rating } = body;
+    const { name, email, phone, avatar, sectors, rating, calendlyUrl } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -95,6 +102,7 @@ export async function POST(request: NextRequest) {
         avatar: avatar || null,
         sectors: sectors || [],
         rating: rating ? Number(rating) : 3.0,
+        calendlyUrl: calendlyUrl?.trim() || null,
       },
     });
 

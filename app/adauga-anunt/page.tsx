@@ -382,7 +382,7 @@ export default function AdaugaAnuntPage() {
   const [tipProprietate, setTipProprietate] = useState<TipProprietate>("Apartament");
   const [subtipComercial, setSubtipComercial] = useState<SubtipComercial>("");
   const [pret, setPret] = useState("");
-  const [moneda, setMoneda] = useState("€");
+  const [moneda, setMoneda] = useState("RON");
   const [locatie, setLocatie] = useState("");
   const [adresa, setAdresa] = useState("");
   const [sector, setSector] = useState("");
@@ -515,6 +515,22 @@ export default function AdaugaAnuntPage() {
       attributeFilter: ["class"],
     });
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const loadDefaultCurrency = async () => {
+      try {
+        const res = await fetch("/api/settings/public", { cache: "no-store" });
+        const data = await res.json();
+        const c = String(data.defaultCurrency || "RON").toUpperCase();
+        if (c === "EUR") setMoneda("€");
+        else if (c === "USD") setMoneda("RON");
+        else setMoneda("RON");
+      } catch {
+        // păstrează implicitul din useState
+      }
+    };
+    loadDefaultCurrency();
   }, []);
 
   useEffect(() => {

@@ -56,6 +56,51 @@ model Agent {
   // Rating agent (1-5, cu zecimale)
   rating    Float    @default(3.0)
 
+  // Link Calendly pentru programare vizionări (URL complet, ex. https://calendly.com/user/30min)
+  calendlyUrl String?
+
+  // Google Calendar (OAuth) – refresh token în DB; evenimente în calendarul „primary” al contului conectat
+  googleRefreshToken          String?
+  googleCalendarEmail         String?
+  googleCalendarConnectedAt   DateTime?
+
   // Anunțuri atribuite
   listings  Listing[]
+}
+
+/// Preferințe globale: cine primește emailuri pe tip de conținut (agenți / clienți / admini).
+model EmailTopicPreference {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  topicId        String   @unique
+  label          String
+  description    String?
+  sendToAgents   Boolean  @default(true)
+  sendToClients  Boolean  @default(true)
+  sendToAdmins   Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+/// Șabloane HTML create din panou (pentru campanii sau mesaje reutilizabile).
+model EmailTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String
+  subject   String
+  bodyHtml  String
+  active    Boolean  @default(true)
+}
+
+/// Setări globale platformă (un singur document cu key unică).
+model PlatformSettings {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  siteName  String   @default("realimob")
+  supportEmail String?
+  supportPhone String?
+  defaultCurrency String @default("RON")
+  registrationsEnabled Boolean @default(true)
+  newListingsAutoApprove Boolean @default(false)
+  updatedAt DateTime @updatedAt
 }

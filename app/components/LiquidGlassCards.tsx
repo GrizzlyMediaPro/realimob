@@ -118,7 +118,7 @@ export function GlassContactCard({ children }: { children: ReactNode }) {
 }
 
 /* ── Buton liquid glass CTA ── */
-export function GlassCTAButton({ children, primary = false, onClick }: { children: ReactNode; primary?: boolean; onClick?: () => void }) {
+export function GlassCTAButton({ children, primary = false, onClick, disabled }: { children: ReactNode; primary?: boolean; onClick?: () => void; disabled?: boolean }) {
   const isDark = useDarkMode();
 
   if (primary) {
@@ -126,7 +126,8 @@ export function GlassCTAButton({ children, primary = false, onClick }: { childre
       <button
         type="button"
         onClick={onClick}
-        className="relative z-2 w-full mt-2 px-4 py-2.5 rounded-xl text-white font-medium hover:brightness-110 transition-all duration-300"
+        disabled={disabled}
+        className="relative z-2 w-full mt-2 px-4 py-2.5 rounded-xl text-white font-medium hover:brightness-110 transition-all duration-300 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:brightness-100"
         style={{
           background: "linear-gradient(135deg, rgba(194, 90, 43, 0.95) 0%, rgba(180, 75, 35, 0.9) 100%)",
           border: "1px solid rgba(255, 255, 255, 0.15)",
@@ -142,7 +143,8 @@ export function GlassCTAButton({ children, primary = false, onClick }: { childre
     <button
       type="button"
       onClick={onClick}
-      className="relative z-2 w-full px-4 py-2.5 rounded-xl hover:brightness-105 transition-all duration-300 text-sm font-medium text-foreground"
+      disabled={disabled}
+      className="relative z-2 w-full px-4 py-2.5 rounded-xl hover:brightness-105 transition-all duration-300 text-sm font-medium text-foreground disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:brightness-100"
       style={{
         background: isDark
           ? "rgba(50, 50, 65, 0.4)"

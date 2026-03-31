@@ -14,6 +14,10 @@ import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
 import PropertyDetailsSection from "../../components/PropertyDetailsSection";
 import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  transformListingToAnunt,
+  transformImagesToRoomImages,
+} from "../../../lib/listingToAnunt";
 import RoomGallery from "../../components/RoomGallery";
 import { prisma } from "../../../lib/prisma";
 
@@ -22,70 +26,6 @@ type AnuntPageProps = {
     id: string;
   }>;
 };
-
-// Helper pentru transformarea unui listing din MongoDB în format Anunt
-function transformListingToAnunt(listing: any): Anunt & { description?: string; dbDetails?: any } {
-  const details = listing.details || {};
-  const images = listing.images || [];
-  
-  // Extrage prima imagine sau folosește o imagine default
-  const firstImage = images.length > 0 && images[0].urls && images[0].urls.length > 0
-    ? images[0].urls[0]
-    : "/ap2.jpg";
-  
-  // Construiește tags din datele disponibile
-  const tags: string[] = [];
-  if (details.suprafataUtila) tags.push(`${details.suprafataUtila} m²`);
-  if (listing.sector) tags.push(listing.sector);
-  if (details.etaj !== undefined && details.etaj !== "") {
-    tags.push(`Etaj ${details.etaj}`);
-  }
-  if (details.stare) tags.push(details.stare);
-  if (details.mobilare) tags.push(details.mobilare);
-  
-  // Calculează zilePostat
-  const createdAt = new Date(listing.createdAt);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - createdAt.getTime());
-  const zilePostat = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
-  return {
-    id: listing.id,
-    titlu: listing.title,
-    image: firstImage,
-    pret: `${listing.price.toLocaleString("ro-RO")} ${listing.currency}`,
-    tags,
-    createdAt: listing.createdAt,
-    lat: details.lat || undefined,
-    lng: details.lng || undefined,
-    dormitoare: details.camere ? (details.camere === "Studio" ? 1 : Number(details.camere)) : undefined,
-    bai: details.nrBai ? Number(details.nrBai) : undefined,
-    suprafataUtil: details.suprafataUtila ? Number(details.suprafataUtila) : undefined,
-    etaj: details.etaj || undefined,
-    anConstructie: details.anConstructie ? Number(details.anConstructie) : undefined,
-    zilePostat,
-    vizualizari: 0,
-    favorite: 0,
-    description: listing.description || undefined,
-    dbDetails: details || undefined,
-  };
-}
-
-// Helper pentru transformarea imaginilor din DB în format RoomImage
-function transformImagesToRoomImages(images: any[]): RoomImage[] {
-  const result: RoomImage[] = [];
-  images.forEach((camera) => {
-    if (camera.urls && Array.isArray(camera.urls)) {
-      camera.urls.forEach((url: string) => {
-        result.push({
-          url,
-          roomName: camera.cameraName || "Cameră",
-        });
-      });
-    }
-  });
-  return result;
-}
 
 export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
@@ -99,6 +39,7 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
     try {
       const listing = await prisma.listing.findUnique({
         where: { id },
+        include: { agent: true },
       });
       
       if (listing) {

@@ -5,11 +5,6 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import AdminListingCard from "../../components/AdminListingCard";
 import {
-  getAllAnunturi,
-  getImageCount,
-  type Anunt,
-} from "../../../lib/anunturiData";
-import {
   MdCheckCircle,
   MdCancel,
   MdPending,
@@ -24,7 +19,6 @@ import {
 } from "react-icons/md";
 import { CiFilter } from "react-icons/ci";
 import Link from "next/link";
-import { parsePretToNumber } from "../../../lib/anunturiData";
 
 type AnuntStatus = "active" | "inactive" | "pending";
 type DeactivationReason =
@@ -33,9 +27,22 @@ type DeactivationReason =
   | "Dezactivat utilizator"
   | "Dezactivat admin";
 
-interface AnuntWithStatus extends Anunt {
+interface AdminAnuntCardItem {
+  id: string;
+  titlu: string;
+  image: string;
+  pret: string;
+  priceNumber: number;
+  tags: string[];
+  locationText: string;
+  imageCount: number;
   status: AnuntStatus;
   deactivationReason?: DeactivationReason;
+  suprafataUtil?: number;
+  dormitoare?: number;
+  bai?: number;
+  etaj?: number | string;
+  anConstructie?: number;
 }
 
 // ── Tipuri pentru anunțurile din baza de date ──
@@ -83,33 +90,56 @@ type DBListing = {
   agent?: DBAgent | null;
   createdAt: string;
   images?: string[] | null;
+  details?: unknown;
 };
 
-// Simulăm statusurile și motivele pentru anunțuri
-const addStatusToAnunturi = (anunturi: Anunt[]): AnuntWithStatus[] => {
-  const deactivationReasons: DeactivationReason[] = [
-    "A trecut prea mult timp",
-    "Vandut",
-    "Dezactivat utilizator",
-    "Dezactivat admin",
-  ];
-
-  return anunturi.map((anunt, index) => {
-    // Distribuim statusurile: 60% active, 30% inactive, 10% pending
-    let status: AnuntStatus = "active";
-    let deactivationReason: DeactivationReason | undefined = undefined;
-    const mod = index % 10;
-    if (mod >= 6 && mod < 9) {
-      status = "inactive";
-      // Distribuim motivele pentru anunțurile inactive
-      const reasonIndex = (index % 4);
-      deactivationReason = deactivationReasons[reasonIndex];
-    } else if (mod === 9) {
-      status = "pending";
+/** Aliniat la `lib/listingToAnunt.ts` — câmpuri pentru filtre în lista admin. */
+function cardFieldsFromListingDetails(details: unknown): {
+  suprafataUtil?: number;
+  dormitoare?: number;
+  bai?: number;
+  etaj?: number | string;
+  anConstructie?: number;
+} {
+  if (!details || typeof details !== "object") return {};
+  const d = details as Record<string, unknown>;
+  let dormitoare: number | undefined;
+  if (d.camere !== undefined && d.camere !== null) {
+    if (d.camere === "Studio") dormitoare = 1;
+    else {
+      const n = Number(d.camere);
+      if (!Number.isNaN(n)) dormitoare = n;
     }
-    return { ...anunt, status, deactivationReason };
-  });
-};
+  }
+  const supRaw = d.suprafataUtila;
+  const sup =
+    supRaw != null && String(supRaw).trim() !== ""
+      ? Number(supRaw)
+      : undefined;
+  const baiRaw = d.nrBai;
+  const baiNum =
+    baiRaw != null && String(baiRaw).trim() !== "" ? Number(baiRaw) : undefined;
+  const anRaw =
+    d.anConstructie != null && String(d.anConstructie).trim() !== ""
+      ? Number(d.anConstructie)
+      : undefined;
+
+  return {
+    suprafataUtil:
+      sup !== undefined && !Number.isNaN(sup) ? sup : undefined,
+    dormitoare,
+    bai: baiNum !== undefined && !Number.isNaN(baiNum) ? baiNum : undefined,
+    etaj:
+      d.etaj !== undefined && d.etaj !== ""
+        ? (d.etaj as number | string)
+        : undefined,
+    anConstructie:
+      anRaw !== undefined && !Number.isNaN(anRaw) ? anRaw : undefined,
+  };
+}
+
+const formatPrice = (price: number, currency: string) =>
+  `${price.toLocaleString("ro-RO")} ${currency}`;
 
 export default function AdminAnunturiPage() {
   const [isDark, setIsDark] = useState(false);
@@ -142,6 +172,10 @@ export default function AdminAnunturiPage() {
   const [scoredAgents, setScoredAgents] = useState<ScoredAgent[]>([]);
   const [scoredLoading, setScoredLoading] = useState(false);
   const [scoreInfoAgentId, setScoreInfoAgentId] = useState<string | null>(null);
+  const [dbApprovedListings, setDbApprovedListings] = useState<DBListing[]>([]);
+  const [dbDeniedListings, setDbDeniedListings] = useState<DBListing[]>([]);
+  const [dbListingsLoading, setDbListingsLoading] = useState(false);
+  const [dbListingsError, setDbListingsError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -169,6 +203,33 @@ export default function AdminAnunturiPage() {
       setDbPendingError(err.message || "Eroare la încărcarea anunțurilor.");
     } finally {
       setDbPendingLoading(false);
+    }
+  }, []);
+
+  const fetchListingsByStatus = useCallback(async () => {
+    setDbListingsLoading(true);
+    setDbListingsError(null);
+    try {
+      const [approvedRes, deniedRes] = await Promise.all([
+        fetch("/api/admin/listings?status=approved&limit=100"),
+        fetch("/api/admin/listings?status=denied&limit=100"),
+      ]);
+
+      if (!approvedRes.ok || !deniedRes.ok) {
+        throw new Error("Eroare la încărcarea anunțurilor active/inactive");
+      }
+
+      const [approvedData, deniedData] = await Promise.all([
+        approvedRes.json(),
+        deniedRes.json(),
+      ]);
+
+      setDbApprovedListings(approvedData.listings || []);
+      setDbDeniedListings(deniedData.listings || []);
+    } catch (error: any) {
+      setDbListingsError(error.message || "Eroare la încărcarea anunțurilor.");
+    } finally {
+      setDbListingsLoading(false);
     }
   }, []);
 
@@ -202,7 +263,8 @@ export default function AdminAnunturiPage() {
   // Încarcă pending count la mount, și detalii complete când se selectează tab-ul
   useEffect(() => {
     fetchPendingListings(); // Încarcă mereu pentru count
-  }, [fetchPendingListings]);
+    fetchListingsByStatus();
+  }, [fetchPendingListings, fetchListingsByStatus]);
 
   useEffect(() => {
     if (showPending) {
@@ -288,9 +350,42 @@ export default function AdminAnunturiPage() {
     }
   };
 
-  const allAnunturi = useMemo(() => {
-    return addStatusToAnunturi(getAllAnunturi());
-  }, []);
+  const allAnunturi = useMemo<AdminAnuntCardItem[]>(() => {
+    const approved = dbApprovedListings.map((listing) => {
+      const listingImages = Array.isArray(listing.images) ? listing.images : [];
+      return {
+        id: listing.id,
+        titlu: listing.title,
+        image: listingImages[0] || "/ap2.jpg",
+        pret: formatPrice(listing.price, listing.currency),
+        priceNumber: listing.price,
+        tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
+        locationText: listing.sector || listing.location || "Zona centrală",
+        imageCount: listingImages.length,
+        status: "active" as AnuntStatus,
+        ...cardFieldsFromListingDetails(listing.details),
+      };
+    });
+
+    const denied = dbDeniedListings.map((listing) => {
+      const listingImages = Array.isArray(listing.images) ? listing.images : [];
+      return {
+        id: listing.id,
+        titlu: listing.title,
+        image: listingImages[0] || "/ap2.jpg",
+        pret: formatPrice(listing.price, listing.currency),
+        priceNumber: listing.price,
+        tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
+        locationText: listing.sector || listing.location || "Zona centrală",
+        imageCount: listingImages.length,
+        status: "inactive" as AnuntStatus,
+        deactivationReason: "Dezactivat admin" as DeactivationReason,
+        ...cardFieldsFromListingDetails(listing.details),
+      };
+    });
+
+    return [...approved, ...denied];
+  }, [dbApprovedListings, dbDeniedListings]);
 
   const filteredAnunturi = useMemo(() => {
     let filtered = allAnunturi;
@@ -304,12 +399,12 @@ export default function AdminAnunturiPage() {
     
     // Filtrare după preț
     if (pretMinim) {
-      const pretMin = parsePretToNumber(pretMinim);
-      filtered = filtered.filter((a) => parsePretToNumber(a.pret) >= pretMin);
+      const pretMin = Number(pretMinim);
+      filtered = filtered.filter((a) => a.priceNumber >= pretMin);
     }
     if (pretMaxim) {
-      const pretMax = parsePretToNumber(pretMaxim);
-      filtered = filtered.filter((a) => parsePretToNumber(a.pret) <= pretMax);
+      const pretMax = Number(pretMaxim);
+      filtered = filtered.filter((a) => a.priceNumber <= pretMax);
     }
     
     // Filtrare după sector
@@ -441,24 +536,17 @@ export default function AdminAnunturiPage() {
     setMotivDezactivare("");
   };
 
-  const getAnuntHref = (anunt: AnuntWithStatus): string => {
-    if (anunt.status === "inactive") {
-      return `/admin/anunturi/anunturi-inactive/${anunt.id}`;
-    } else if (anunt.status === "pending") {
-      return `/admin/anunturi/anunturi-pending/${anunt.id}`;
-    } else {
-      return `/admin/anunturi/anunturi-active/${anunt.id}`;
-    }
-  };
+  const getAnuntHref = (anunt: AdminAnuntCardItem): string =>
+    `/admin/anunturi/preview/${anunt.id}`;
 
   const pendingCount = dbPendingListings.length;
   const activeCount = useMemo(
-    () => allAnunturi.filter((a) => a.status === "active").length,
-    [allAnunturi]
+    () => dbApprovedListings.length,
+    [dbApprovedListings.length]
   );
   const inactiveCount = useMemo(
-    () => allAnunturi.filter((a) => a.status === "inactive").length,
-    [allAnunturi]
+    () => dbDeniedListings.length,
+    [dbDeniedListings.length]
   );
 
   return (
@@ -1392,7 +1480,28 @@ export default function AdminAnunturiPage() {
             ) : (
               /* ── Active / Inactive din date mock ── */
               <>
-                {filteredAnunturi.length === 0 ? (
+                {dbListingsLoading ? (
+                  <div
+                    className="rounded-none md:rounded-3xl p-12 text-center"
+                    style={{
+                      fontFamily: "var(--font-galak-regular)",
+                      background: isDark
+                        ? "rgba(35, 35, 48, 0.5)"
+                        : "rgba(255, 255, 255, 0.6)",
+                      border: isDark
+                        ? "1px solid rgba(255, 255, 255, 0.12)"
+                        : "1px solid rgba(255, 255, 255, 0.5)",
+                    }}
+                  >
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">
+                      Se încarcă anunțurile reale...
+                    </p>
+                  </div>
+                ) : dbListingsError ? (
+                  <div className="rounded-xl p-4 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p className="text-red-600 dark:text-red-400 text-sm">{dbListingsError}</p>
+                  </div>
+                ) : filteredAnunturi.length === 0 ? (
                   <div
                     className="rounded-none md:rounded-3xl p-12 text-center"
                     style={{
@@ -1434,7 +1543,7 @@ export default function AdminAnunturiPage() {
                             anunt.tags.find((t) => t.includes("Sector")) ??
                             "Zona centrală"
                           }
-                          imageCount={getImageCount(anunt.id)}
+                          imageCount={anunt.imageCount}
                           href={getAnuntHref(anunt)}
                           status={anunt.status}
                           deactivationReason={anunt.deactivationReason}

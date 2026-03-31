@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOrCreatePlatformSettings } from "@/lib/platformSettings";
 
 export async function GET(request: NextRequest) {
   try {
@@ -76,6 +77,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const platform = await getOrCreatePlatformSettings();
+    const status = platform.newListingsAutoApprove ? "approved" : "pending";
+
     const listing = await prisma.listing.create({
       data: {
         title: titlu,
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
         sector: sector || null,
         latitude: latitude ? Number(latitude) : null,
         longitude: longitude ? Number(longitude) : null,
-        status: "pending",
+        status,
         details: details ?? {},
         images: images ?? [],
       },

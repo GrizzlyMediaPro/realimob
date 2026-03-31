@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 // GET — Lista anunțurilor cu filtru de status (pentru admin)
 export async function GET(request: NextRequest) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "pending";
@@ -40,6 +44,9 @@ export async function GET(request: NextRequest) {
 
 // PATCH — Actualizează status / agent pentru un anunț
 export async function PATCH(request: NextRequest) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
     const body = await request.json();
     const { listingId, action, agentId } = body;

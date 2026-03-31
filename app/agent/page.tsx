@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { UploadButton } from "../components/Uploadthing";
 import AdminListingCard from "../components/AdminListingCard";
 import {
   MdPerson,
@@ -24,11 +25,10 @@ import {
   MdDone,
 } from "react-icons/md";
 import {
-  getAllAnunturi,
-  getImageCount,
   type Anunt,
 } from "../../lib/anunturiData";
 import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
 
 /* ═══════════════════════════════════════════
    Helpers
@@ -107,6 +107,19 @@ type Notificare = {
   citita: boolean;
 };
 
+type AgentListing = Anunt & {
+  imageCount: number;
+};
+
+type AgentProfile = {
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  location: string;
+  createdAt: string | null;
+};
+
 const getProgramareStatusConfig = (status: ProgramareStatus) => {
   switch (status) {
     case "confirmata":
@@ -118,168 +131,16 @@ const getProgramareStatusConfig = (status: ProgramareStatus) => {
   }
 };
 
-/** Deterministic date helper — returns YYYY-MM-DD for today + offsetDays */
-const dateOffset = (offsetDays: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().split("T")[0];
-};
-
-const useAgentData = () => {
-  const allAnunturi = useMemo(() => getAllAnunturi(), []);
-
-  // Agent's active listings (first 5)
-  const activeListings: Anunt[] = allAnunturi.slice(0, 5);
-  // Agent's sold listings (next 3)
-  const soldListings: Anunt[] = allAnunturi.slice(5, 8);
-
-  const programari: Programare[] = useMemo(
-    () => [
-      {
-        id: "p1",
-        data: dateOffset(0),
-        ora: "10:00",
-        numeClient: "Andreea Pop",
-        tip: "vizionare" as const,
-        imobil: activeListings[0]?.titlu ?? "Apartament 3 camere",
-        status: "confirmata" as const,
-      },
-      {
-        id: "p2",
-        data: dateOffset(0),
-        ora: "14:30",
-        numeClient: "Mihai Istrate",
-        tip: "consultanta" as const,
-        imobil: activeListings[1]?.titlu ?? "Garsonieră centrală",
-        status: "in_asteptare" as const,
-      },
-      {
-        id: "p3",
-        data: dateOffset(0),
-        ora: "17:00",
-        numeClient: "Cristina Enache",
-        tip: "vizionare" as const,
-        imobil: activeListings[2]?.titlu ?? "Studio Floreasca",
-        status: "confirmata" as const,
-      },
-      {
-        id: "p4",
-        data: dateOffset(1),
-        ora: "11:00",
-        numeClient: "Ion Marinescu",
-        tip: "vizionare" as const,
-        imobil: activeListings[3]?.titlu ?? "Penthouse Sector 3",
-        status: "confirmata" as const,
-      },
-      {
-        id: "p5",
-        data: dateOffset(2),
-        ora: "09:30",
-        numeClient: "Ioana Dima",
-        tip: "vizionare" as const,
-        imobil: activeListings[0]?.titlu ?? "Apartament 2 camere",
-        status: "confirmata" as const,
-      },
-      {
-        id: "p6",
-        data: dateOffset(2),
-        ora: "16:00",
-        numeClient: "Radu Petrescu",
-        tip: "consultanta" as const,
-        imobil: activeListings[4]?.titlu ?? "Garsonieră modernă",
-        status: "in_asteptare" as const,
-      },
-      {
-        id: "p7",
-        data: dateOffset(4),
-        ora: "12:00",
-        numeClient: "Elena Stoica",
-        tip: "vizionare" as const,
-        imobil: activeListings[1]?.titlu ?? "Apartament modern",
-        status: "confirmata" as const,
-      },
-      {
-        id: "p8",
-        data: dateOffset(5),
-        ora: "10:30",
-        numeClient: "Bogdan Vasile",
-        tip: "vizionare" as const,
-        imobil: activeListings[2]?.titlu ?? "Duplex premium",
-        status: "in_asteptare" as const,
-      },
-      {
-        id: "p9",
-        data: dateOffset(8),
-        ora: "14:00",
-        numeClient: "Maria Ionescu",
-        tip: "consultanta" as const,
-        imobil: activeListings[0]?.titlu ?? "Apartament 2 camere",
-        status: "confirmata" as const,
-      },
-      {
-        id: "p10",
-        data: dateOffset(12),
-        ora: "11:30",
-        numeClient: "Dan Gheorghe",
-        tip: "vizionare" as const,
-        imobil: activeListings[3]?.titlu ?? "Penthouse",
-        status: "confirmata" as const,
-      },
-    ],
-    [activeListings]
-  );
-
-  const notificariInitiale: Notificare[] = [
-    {
-      id: "n1",
-      mesaj: "Ți-a fost atribuit un nou anunț în Sector 1.",
-      data: dateOffset(0),
-      tip: "anunt",
-      citita: false,
-    },
-    {
-      id: "n2",
-      mesaj: "X a făcut o programare de vizionare pentru mâine la ora 11:00.",
-      data: dateOffset(0),
-      tip: "programare",
-      citita: false,
-    },
-    {
-      id: "n3",
-      mesaj:
-        "Unul dintre anunțurile tale a depășit 30 de zile. Verifică actualitatea.",
-      data: dateOffset(-1),
-      tip: "general",
-      citita: false,
-    },
-    {
-      id: "n4",
-      mesaj: "Clientul Andreea Pop a confirmat vizionarea de astăzi.",
-      data: dateOffset(-1),
-      tip: "programare",
-      citita: true,
-    },
-  ];
+const useAgentData = (activeListings: AgentListing[]) => {
+  const soldListings: AgentListing[] = [];
+  const programari: Programare[] = [];
+  const notificariInitiale: Notificare[] = [];
 
   return {
     activeListings,
     soldListings,
     programari,
     notificariInitiale,
-    agent: {
-      nume: "Ion Popescu",
-      initiala: "IP",
-      rol: "Agent imobiliar senior",
-      email: "ion.popescu@realimob.ro",
-      telefon: "0712 345 678",
-      scor: 4.8,
-      reviews: 47,
-      tranzactiiInchise: 12,
-      vizualizariLuna: 1243,
-      programariLuna: 10,
-      vechimeLuni: 18,
-      locatie: "București",
-    },
   };
 };
 
@@ -433,16 +294,312 @@ function MonthCalendar({
    ═══════════════════════════════════════════ */
 
 export default function AgentDashboardPage() {
+  const { isSignedIn } = useUser();
   const isDark = useDarkMode();
-  const { activeListings, soldListings, programari, notificariInitiale, agent } =
-    useAgentData();
+  const [activeListingsData, setActiveListingsData] = useState<AgentListing[]>([]);
+  const { activeListings, soldListings, programari, notificariInitiale } =
+    useAgentData(activeListingsData);
 
   const [notificari, setNotificari] =
     useState<Notificare[]>(notificariInitiale);
+  const [agentStatus, setAgentStatus] = useState<"none" | "pending" | "approved" | "rejected">("none");
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [agentProfile, setAgentProfile] = useState<AgentProfile | null>(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    phone: "",
+    role: "",
+    location: "",
+  });
+  const [profileSaveLoading, setProfileSaveLoading] = useState(false);
+  const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
+  const [formaOrganizare, setFormaOrganizare] = useState("");
+  const [cui, setCui] = useState("");
+  const [buletinUrl, setBuletinUrl] = useState("");
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+  const [googleCalendarEmail, setGoogleCalendarEmail] = useState<string | null>(null);
+  const [googleCalendarMessage, setGoogleCalendarMessage] = useState<string | null>(null);
+  const [googleDisconnectLoading, setGoogleDisconnectLoading] = useState(false);
+  const [googleTestEventLoading, setGoogleTestEventLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchAgentProfile = async () => {
+      if (!isSignedIn) {
+        setProfileLoading(false);
+        setProfileError("Trebuie să fii autentificat pentru a accesa pagina de agent.");
+        return;
+      }
+
+      try {
+        setProfileLoading(true);
+        setProfileError(null);
+
+        const response = await fetch("/api/agent/profile", { cache: "no-store" });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "Nu am putut încărca profilul de agent.");
+        }
+
+        const status = payload.agentStatus as "none" | "pending" | "approved" | "rejected";
+        setAgentStatus(status);
+        setAgentProfile({
+          name: payload?.name ?? "Agent",
+          email: payload?.email ?? "",
+          phone: payload?.agentProfile?.phone ?? payload?.phone ?? "",
+          role: payload?.agentProfile?.role ?? "Agent imobiliar",
+          location: payload?.agentProfile?.location ?? "Bucuresti",
+          createdAt: payload?.createdAt ?? null,
+        });
+        setProfileForm({
+          name: payload?.name ?? "Agent",
+          phone: payload?.agentProfile?.phone ?? payload?.phone ?? "",
+          role: payload?.agentProfile?.role ?? "Agent imobiliar",
+          location: payload?.agentProfile?.location ?? "Bucuresti",
+        });
+        setFormaOrganizare(payload?.agentApplication?.formaOrganizare ?? "");
+        setCui(payload?.agentApplication?.cui ?? "");
+        setBuletinUrl(payload?.agentApplication?.buletinUrl ?? "");
+        setGoogleCalendarConnected(Boolean(payload?.googleCalendar?.connected));
+        setGoogleCalendarEmail(payload?.googleCalendar?.googleCalendarEmail ?? null);
+      } catch (error) {
+        setProfileError(
+          error instanceof Error ? error.message : "Nu am putut încărca profilul de agent."
+        );
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchAgentProfile();
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const gc = params.get("google_calendar");
+    if (!gc) return;
+
+    const messages: Record<string, string> = {
+      connected: "Google Calendar a fost conectat.",
+      denied: "Autorizarea Google a fost anulată.",
+      invalid_state: "Sesiune OAuth invalidă. Încearcă din nou.",
+      no_session: "Trebuie să fii autentificat.",
+      no_clerk_email: "Contul nu are email. Adaugă un email în Clerk.",
+      no_agent:
+        "Nu există un rând Agent în baza de date cu emailul contului tău. Contactează administratorul.",
+      no_refresh_token:
+        "Nu s-a primit token de reînnoire. Încearcă din nou (revocă accesul aplicației din contul Google sau folosește alt cont).",
+      no_code: "Lipsește codul OAuth.",
+      error: "A apărut o eroare la conectarea Google.",
+    };
+    setGoogleCalendarMessage(messages[gc] ?? `Status: ${gc}`);
+    window.history.replaceState({}, "", "/agent");
+
+    if (gc === "connected") {
+      fetch("/api/agent/profile", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((p) => {
+          if (p?.googleCalendar) {
+            setGoogleCalendarConnected(Boolean(p.googleCalendar.connected));
+            setGoogleCalendarEmail(p.googleCalendar.googleCalendarEmail ?? null);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchAssignedListings = async () => {
+      try {
+        const response = await fetch("/api/agent/listings", {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          return;
+        }
+
+        const mapped: AgentListing[] = (payload.listings ?? []).map(
+          (listing: {
+            id: string;
+            title: string;
+            price: number;
+            currency: string;
+            sector?: string | null;
+            location: string;
+            images?: unknown;
+            createdAt: string;
+            details?: {
+              suprafataUtila?: number;
+              etaj?: number | string;
+            } | null;
+          }) => {
+            const imageArray = Array.isArray(listing.images)
+              ? listing.images
+              : [];
+            const firstImage = imageArray[0];
+            const imageUrl =
+              firstImage && typeof firstImage === "object" && "url" in firstImage
+                ? String((firstImage as { url?: string }).url ?? "")
+                : "/ap2.jpg";
+            const suprafata = listing.details?.suprafataUtila
+              ? `${listing.details.suprafataUtila} m²`
+              : undefined;
+            const etaj =
+              listing.details?.etaj !== undefined
+                ? `Etaj ${listing.details.etaj}`
+                : undefined;
+
+            return {
+              id: listing.id,
+              titlu: listing.title,
+              image: imageUrl || "/ap2.jpg",
+              pret: `${Number(listing.price ?? 0).toLocaleString("ro-RO")} ${listing.currency ?? "EUR"}`,
+              tags: [
+                suprafata,
+                listing.sector ?? listing.location,
+                etaj,
+              ].filter(Boolean) as string[],
+              createdAt: listing.createdAt,
+              imageCount: imageArray.length,
+            };
+          }
+        );
+
+        setActiveListingsData(mapped);
+      } catch {
+        setActiveListingsData([]);
+      }
+    };
+
+    if (agentStatus === "approved") {
+      fetchAssignedListings();
+    }
+  }, [agentStatus]);
+
+  const submitAgentApplication = async () => {
+    if (!formaOrganizare || !cui || !buletinUrl) {
+      setSubmitMessage("Completează toate câmpurile și încarcă buletinul.");
+      return;
+    }
+
+    try {
+      setSubmitLoading(true);
+      setSubmitMessage(null);
+
+      const response = await fetch("/api/agent/apply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          formaOrganizare,
+          cui,
+          buletinUrl,
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut trimite cererea.");
+      }
+
+      setAgentStatus("pending");
+      setSubmitMessage("Cererea a fost trimisă. Vei fi notificat după verificare.");
+    } catch (error) {
+      setSubmitMessage(error instanceof Error ? error.message : "A apărut o eroare.");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const saveAgentProfile = async () => {
+    if (!profileForm.name || !profileForm.phone || !profileForm.role || !profileForm.location) {
+      setProfileSaveMessage("Completeaza toate campurile profilului.");
+      return;
+    }
+
+    try {
+      setProfileSaveLoading(true);
+      setProfileSaveMessage(null);
+
+      const response = await fetch("/api/agent/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(profileForm),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut salva profilul.");
+      }
+
+      setAgentProfile((current) => ({
+        name: payload?.profile?.name ?? profileForm.name,
+        email: current?.email ?? "",
+        phone: payload?.profile?.phone ?? profileForm.phone,
+        role: payload?.profile?.role ?? profileForm.role,
+        location: payload?.profile?.location ?? profileForm.location,
+        createdAt: current?.createdAt ?? null,
+      }));
+      setIsEditingProfile(false);
+      setProfileSaveMessage("Profilul a fost actualizat.");
+    } catch (error) {
+      setProfileSaveMessage(
+        error instanceof Error ? error.message : "A aparut o eroare la salvarea profilului."
+      );
+    } finally {
+      setProfileSaveLoading(false);
+    }
+  };
 
   const todayISO = new Date().toISOString().split("T")[0];
   const todayAppointments = programari.filter((p) => p.data === todayISO);
   const upcomingAppointments = programari.filter((p) => p.data > todayISO);
+
+  const displayProfile = useMemo(() => {
+    if (!agentProfile) {
+      return {
+        name: "Agent",
+        firstName: "Agent",
+        initials: "AG",
+        email: "",
+        phone: "-",
+        role: "Agent imobiliar",
+        location: "Bucuresti",
+        monthsOnPlatform: 0,
+      };
+    }
+
+    const parts = agentProfile.name.trim().split(" ").filter(Boolean);
+    const initials = (parts[0]?.[0] ?? "A") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "G");
+    const createdAtDate = agentProfile.createdAt ? new Date(agentProfile.createdAt) : null;
+    const monthsOnPlatform = createdAtDate
+      ? Math.max(
+          0,
+          (new Date().getFullYear() - createdAtDate.getFullYear()) * 12 +
+            (new Date().getMonth() - createdAtDate.getMonth())
+        )
+      : 0;
+
+    return {
+      name: agentProfile.name,
+      firstName: parts[0] ?? "Agent",
+      initials: initials.toUpperCase(),
+      email: agentProfile.email,
+      phone: agentProfile.phone || "-",
+      role: agentProfile.role,
+      location: agentProfile.location,
+      monthsOnPlatform,
+    };
+  }, [agentProfile]);
 
   // State: filtre & search pentru anunțuri active
   const [activeSearch, setActiveSearch] = useState("");
@@ -534,26 +691,146 @@ export default function AgentDashboardPage() {
     },
     {
       titlu: "Proprietăți Vândute",
-      valoare: String(agent.tranzactiiInchise),
+      valoare: String(soldListings.length),
       icon: MdCheckCircle,
       culoare: "#3B82F6",
       trend: "+3 luna aceasta",
     },
     {
       titlu: "Scor Agent",
-      valoare: agent.scor.toFixed(1),
+      valoare: "5.0",
       icon: MdStar,
       culoare: "#F59E0B",
-      trend: `${agent.reviews} recenzii`,
+      trend: "Profil verificat",
     },
     {
       titlu: "Vizualizări / Lună",
-      valoare: agent.vizualizariLuna.toLocaleString("ro-RO"),
+      valoare: "0",
       icon: MdVisibility,
       culoare: "#C25A2B",
-      trend: "+18% față de luna trecută",
+      trend: "Date indisponibile momentan",
     },
   ];
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen text-foreground pt-20">
+        <Navbar />
+        <div className="w-full max-w-[1250px] mx-auto px-4 md:px-8 py-10">
+          Se încarcă profilul de agent...
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="min-h-screen text-foreground pt-20">
+        <Navbar />
+        <div className="w-full max-w-[1250px] mx-auto px-4 md:px-8 py-10 text-red-500">
+          {profileError}
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (agentStatus !== "approved") {
+    return (
+      <div className="min-h-screen text-foreground pt-20">
+        <Navbar />
+        <div className="w-full px-4 md:px-8 py-8 md:py-12">
+          <div className="w-full max-w-[760px] mx-auto">
+            <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 relative" style={glassCard(isDark)}>
+              <GlassShine isDark={isDark} />
+              <div className="relative z-1 space-y-5">
+                <h1 className="text-2xl md:text-4xl font-bold text-foreground">
+                  Verificare cont agent
+                </h1>
+                <p className="text-gray-500 dark:text-gray-400">
+                  Completează datele de verificare pentru aprobarea contului de agent.
+                </p>
+
+                {agentStatus === "pending" && (
+                  <div className="rounded-xl px-4 py-3 text-sm text-[#F59E0B] bg-[#F59E0B]/10">
+                    Cererea ta este în așteptare. Administratorul o va verifica.
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm mb-2">Forma de organizare</label>
+                  <input
+                    value={formaOrganizare}
+                    onChange={(e) => setFormaOrganizare(e.target.value)}
+                    disabled={agentStatus === "pending"}
+                    placeholder="Ex: PFA, SRL"
+                    className="w-full px-4 py-3 rounded-xl border bg-white/70 dark:bg-black/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm mb-2">CUI</label>
+                  <input
+                    value={cui}
+                    onChange={(e) => setCui(e.target.value)}
+                    disabled={agentStatus === "pending"}
+                    placeholder="Ex: RO12345678"
+                    className="w-full px-4 py-3 rounded-xl border bg-white/70 dark:bg-black/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm mb-2">Buletin (PDF, JPG, PNG)</label>
+                  {buletinUrl ? (
+                    <div className="text-sm mb-3">
+                      Document încărcat:{" "}
+                      <a href={buletinUrl} target="_blank" rel="noreferrer" className="text-[#C25A2B] underline">
+                        vezi fișier
+                      </a>
+                    </div>
+                  ) : null}
+                  {agentStatus !== "pending" && (
+                    <UploadButton
+                      endpoint="documentUploader"
+                      onClientUploadComplete={(res) => {
+                        const uploadedUrl = res?.[0]?.url;
+                        if (uploadedUrl) {
+                          setBuletinUrl(uploadedUrl);
+                        }
+                      }}
+                      onUploadError={(error: Error) => {
+                        setSubmitMessage(error.message);
+                      }}
+                    />
+                  )}
+                </div>
+
+                {submitMessage && (
+                  <div className="text-sm text-gray-600 dark:text-gray-300">{submitMessage}</div>
+                )}
+
+                {agentStatus !== "pending" && (
+                  <button
+                    type="button"
+                    onClick={submitAgentApplication}
+                    disabled={submitLoading}
+                    className="px-5 py-2.5 rounded-xl text-white font-medium hover:opacity-90 transition-opacity"
+                    style={{
+                      background: "#C25A2B",
+                    }}
+                  >
+                    {submitLoading ? "Se trimite..." : "Trimite cererea pentru aprobare"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-foreground pt-20">
@@ -579,7 +856,7 @@ export default function AgentDashboardPage() {
                 className="text-3xl md:text-5xl font-bold text-foreground"
                 style={{ fontFamily: "var(--font-galak-regular)" }}
               >
-                Bună, {agent.nume.split(" ")[0]}
+                Bună, {displayProfile.firstName}
               </h1>
               <p
                 className="text-gray-500 dark:text-gray-400 mt-1"
@@ -722,14 +999,14 @@ export default function AgentDashboardPage() {
                       boxShadow: "0 6px 20px rgba(194, 90, 43, 0.35)",
                     }}
                   >
-                    {agent.initiala}
+                    {displayProfile.initials}
                   </div>
                   <div className="min-w-0">
                     <h2 className="text-lg font-bold text-foreground truncate">
-                      {agent.nume}
+                      {displayProfile.name}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {agent.rol}
+                      {displayProfile.role}
                     </p>
                   </div>
                 </div>
@@ -739,17 +1016,17 @@ export default function AgentDashboardPage() {
                   <div className="flex items-center gap-3 text-sm">
                     <MdEmail size={16} className="text-gray-400 shrink-0" />
                     <span className="text-foreground truncate">
-                      {agent.email}
+                      {displayProfile.email || "Email indisponibil"}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <MdPhone size={16} className="text-gray-400 shrink-0" />
-                    <span className="text-foreground">{agent.telefon}</span>
+                    <span className="text-foreground">{displayProfile.phone}</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <MdLocationOn size={16} className="text-gray-400 shrink-0" />
                     <span className="text-foreground">
-                      {agent.locatie} · {agent.vechimeLuni} luni în platformă
+                      {displayProfile.location} · {displayProfile.monthsOnPlatform} luni in platforma
                     </span>
                   </div>
                 </div>
@@ -776,7 +1053,7 @@ export default function AgentDashboardPage() {
                           key={i}
                           size={16}
                           className={
-                            i < Math.round(agent.scor)
+                            i < 5
                               ? "text-yellow-400"
                               : "text-gray-300 dark:text-gray-600"
                           }
@@ -786,16 +1063,21 @@ export default function AgentDashboardPage() {
                   </div>
                   <div className="text-right">
                     <span className="text-2xl font-bold text-foreground">
-                      {agent.scor.toFixed(1)}
+                      5.0
                     </span>
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                      {agent.reviews} recenzii
+                      profil verificat
                     </p>
                   </div>
                 </div>
 
                 {/* Edit button */}
                 <button
+                  type="button"
+                  onClick={() => {
+                    setProfileSaveMessage(null);
+                    setIsEditingProfile((value) => !value);
+                  }}
                   className="mt-5 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
                   style={{
                     border: isDark
@@ -806,6 +1088,165 @@ export default function AgentDashboardPage() {
                   <MdEdit size={16} />
                   Editează profilul
                 </button>
+
+                {isEditingProfile && (
+                  <div className="mt-4 space-y-3">
+                    <input
+                      type="text"
+                      value={profileForm.name}
+                      onChange={(e) =>
+                        setProfileForm((current) => ({ ...current, name: e.target.value }))
+                      }
+                      placeholder="Nume complet"
+                      className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white/80 dark:bg-black/30"
+                    />
+                    <input
+                      type="text"
+                      value={profileForm.phone}
+                      onChange={(e) =>
+                        setProfileForm((current) => ({ ...current, phone: e.target.value }))
+                      }
+                      placeholder="Telefon"
+                      className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white/80 dark:bg-black/30"
+                    />
+                    <input
+                      type="text"
+                      value={profileForm.role}
+                      onChange={(e) =>
+                        setProfileForm((current) => ({ ...current, role: e.target.value }))
+                      }
+                      placeholder="Rol"
+                      className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white/80 dark:bg-black/30"
+                    />
+                    <input
+                      type="text"
+                      value={profileForm.location}
+                      onChange={(e) =>
+                        setProfileForm((current) => ({ ...current, location: e.target.value }))
+                      }
+                      placeholder="Locatie"
+                      className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white/80 dark:bg-black/30"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={saveAgentProfile}
+                        disabled={profileSaveLoading}
+                        className="flex-1 px-3 py-2.5 rounded-lg text-white text-sm font-medium"
+                        style={{ background: "#C25A2B" }}
+                      >
+                        {profileSaveLoading ? "Se salveaza..." : "Salveaza"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingProfile(false)}
+                        className="px-3 py-2.5 rounded-lg text-sm border"
+                      >
+                        Renunta
+                      </button>
+                    </div>
+                    {profileSaveMessage && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{profileSaveMessage}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-6 pt-6 border-t border-gray-200/40 dark:border-white/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MdCalendarToday size={18} className="text-[#4285F4]" />
+                    <span className="text-sm font-semibold text-foreground">
+                      Google Calendar
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Conectează contul Google: evenimentele de programare vor putea fi
+                    create în calendarul tău principal.
+                  </p>
+                  {googleCalendarMessage && (
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mb-2">
+                      {googleCalendarMessage}
+                    </p>
+                  )}
+                  {googleCalendarConnected ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        Conectat ca:{" "}
+                        <span className="font-medium text-foreground">
+                          {googleCalendarEmail ?? "—"}
+                        </span>
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setGoogleTestEventLoading(true);
+                            setGoogleCalendarMessage(null);
+                            try {
+                              const r = await fetch("/api/agent/google-calendar/test-event", {
+                                method: "POST",
+                              });
+                              const j = await r.json();
+                              if (!r.ok) throw new Error(j.error);
+                              setGoogleCalendarMessage(
+                                "Eveniment de test creat. Verifică în Google Calendar."
+                              );
+                            } catch (e) {
+                              setGoogleCalendarMessage(
+                                e instanceof Error ? e.message : "Eroare"
+                              );
+                            } finally {
+                              setGoogleTestEventLoading(false);
+                            }
+                          }}
+                          disabled={googleTestEventLoading}
+                          className="w-full px-3 py-2 rounded-lg text-xs border text-foreground disabled:opacity-50"
+                        >
+                          {googleTestEventLoading
+                            ? "Se creează..."
+                            : "Creează eveniment de test (30 min)"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setGoogleDisconnectLoading(true);
+                            setGoogleCalendarMessage(null);
+                            try {
+                              const r = await fetch("/api/agent/google-calendar/disconnect", {
+                                method: "POST",
+                              });
+                              const j = await r.json();
+                              if (!r.ok) throw new Error(j.error);
+                              setGoogleCalendarConnected(false);
+                              setGoogleCalendarEmail(null);
+                              setGoogleCalendarMessage("Google Calendar a fost deconectat.");
+                            } catch (e) {
+                              setGoogleCalendarMessage(
+                                e instanceof Error ? e.message : "Eroare"
+                              );
+                            } finally {
+                              setGoogleDisconnectLoading(false);
+                            }
+                          }}
+                          disabled={googleDisconnectLoading}
+                          className="w-full px-3 py-2 rounded-lg text-xs text-red-600 dark:text-red-400 border border-red-500/30 disabled:opacity-50"
+                        >
+                          {googleDisconnectLoading ? "Se deconectează..." : "Deconectează Google"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = "/api/agent/google-calendar/connect";
+                      }}
+                      className="w-full px-3 py-2.5 rounded-lg text-sm font-medium text-white"
+                      style={{ background: "#4285F4" }}
+                    >
+                      Conectează Google Calendar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1208,7 +1649,7 @@ export default function AgentDashboardPage() {
                         anunt.tags.find((t) => t.includes("Sector")) ??
                         "Zona centrală"
                       }
-                      imageCount={getImageCount(anunt.id)}
+                      imageCount={anunt.imageCount}
                       href={`/anunturi/${anunt.id}`}
                       status="active"
                     />
@@ -1332,7 +1773,7 @@ export default function AgentDashboardPage() {
                         anunt.tags.find((t) => t.includes("Sector")) ??
                         "Zona centrală"
                       }
-                      imageCount={getImageCount(anunt.id)}
+                      imageCount={anunt.imageCount}
                       href={`/anunturi/${anunt.id}`}
                       status="inactive"
                       deactivationReason="Vandut"

@@ -12,6 +12,18 @@ export const ourFileRouter = {
     // Poți salva aici informații despre fișier în DB dacă ai nevoie
     return { url: file.url };
   }),
+  documentUploader: f({
+    image: {
+      maxFileSize: "4MB",
+      maxFileCount: 1,
+    },
+    pdf: {
+      maxFileSize: "8MB",
+      maxFileCount: 1,
+    },
+  }).onUploadComplete(async ({ file }) => {
+    return { url: file.url, name: file.name };
+  }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
