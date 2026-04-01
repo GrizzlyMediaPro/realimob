@@ -200,6 +200,16 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                   </Link>
                 </SignedOut>
                 <SignedIn>
+                  <Link
+                    href="/cont"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                    style={pillButtonStyle(
+                      isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                      isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)",
+                    )}
+                  >
+                    Contul meu
+                  </Link>
                   {isAdmin && (
                     <Link
                       href="/admin"
@@ -340,7 +350,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
               {/* Adaugă anunț (doar pe mobil) */}
               <Link
                 href="/adauga-anunt"
-                className="flex items-center gap-2 text-sm text-black dark:text-foreground hover:opacity-80 transition-opacity mb-5 md:hidden"
+                className="flex items-center gap-2 text-sm text-black dark:text-foreground hover:opacity-80 transition-opacity mb-3 md:hidden"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <CiCirclePlus size={24} />
@@ -404,7 +414,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                   </Link>
                 </SignedOut>
                 <SignedIn>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     {isAdmin && (
                       <Link
                         href="/admin"
@@ -415,6 +425,17 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                         Admin
                       </Link>
                     )}
+                    <Link
+                      href="/cont"
+                      className="px-3 py-1.5 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                      style={pillButtonStyle(
+                        isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                        isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)",
+                      )}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Contul meu
+                    </Link>
                     {isAgent && (
                       <Link
                         href="/agent"
@@ -428,17 +449,14 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                         Agent
                       </Link>
                     )}
-                    <div className="flex items-center gap-2">
-                      <UserButton
-                        afterSignOutUrl="/"
-                        appearance={{
-                          elements: {
-                            avatarBox: "w-9 h-9",
-                          },
-                        }}
-                      />
-                      <span className="text-sm text-foreground">Contul meu</span>
-                    </div>
+                    <UserButton
+                      afterSignOutUrl="/"
+                      appearance={{
+                        elements: {
+                          avatarBox: "w-9 h-9",
+                        },
+                      }}
+                    />
                   </div>
                 </SignedIn>
               </div>

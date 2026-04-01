@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { MdMyLocation, MdFullscreen, MdArrowBack, MdClose } from "react-icons/md";
 import Map, { Marker, Popup, ViewState, Source, Layer } from "react-map-gl/mapbox";
@@ -20,7 +20,10 @@ type MarkerItem = {
 
 type PoiFilters = {
   mode: "all" | "custom";
-  metro: boolean;
+  /** Metrou / metrou ușor (light rail), stații Metrorex etc. */
+  transportMetrou: boolean;
+  transportTramvai: boolean;
+  transportAutobuz: boolean;
   scoli: boolean;
   restaurante: boolean;
   magazine: boolean;
@@ -76,12 +79,29 @@ export default function BucharestMap({
   const [drawingPoints, setDrawingPoints] = useState<number[][]>([]);
   const [pendingPolygon, setPendingPolygon] = useState<number[][] | null>(null);
   const mapRef = useRef<any>(null);
-  const poiLayersInitialized = useRef(false);
+  const poiFiltersRef = useRef<PoiFilters | undefined>(undefined);
+  const syncPoiLayersRef = useRef<(map: any) => void>(() => {});
+  const poiStyleDataHandlerRef = useRef<((e?: unknown) => void) | null>(null);
+  /** Filtre originale Mapbox pentru layere `transit_stop_label` (înainte de restrângere la metrou). */
+  const transitStopLayerFiltersBackupRef = useRef<globalThis.Map<string, unknown>>(
+    new globalThis.Map()
+  );
+
+  poiFiltersRef.current = poiFilters;
   
   // Obține anunțul complet pentru popup
-  const selectedAnunt = useMemo(() => {
+  /** Date pentru popup: markerul poate veni din DB (fără intrare în getAnuntById). */
+  const selectedPopup = useMemo(() => {
     if (!selected) return null;
-    return getAnuntById(selected.id);
+    const fromCatalog = getAnuntById(selected.id);
+    return {
+      image: selected.image || fromCatalog?.image || "/ap2.jpg",
+      titlu: selected.titlu,
+      descriere:
+        selected.descriere ||
+        (fromCatalog?.tags?.length ? fromCatalog.tags.join(" • ") : ""),
+      pret: selected.pret || fromCatalog?.pret || "N/A",
+    };
   }, [selected]);
 
   // Evită warning-ul React: nu facem setState în părinte în timpul update-ului intern al hărții.
@@ -91,199 +111,259 @@ export default function BucharestMap({
     setPendingPolygon(null);
   }, [pendingPolygon, onPolygonComplete]);
 
-  // Controlează ce POI-uri native Mapbox se văd pe hartă (metrou, școli, restaurante, magazine)
+  // Sincronizare POI: useEffect singur nu e suficient — mapRef e deseori null la primul mount.
+  // Folosim onLoad + styledata + ref la filtre + reîncercări scurte când se schimbă poiFilters.
   useEffect(() => {
-    if (!poiFilters) return;
-    const map = mapRef.current?.getMap?.() ?? mapRef.current;
-    if (!map) return;
+    syncPoiLayersRef.current = (map: any) => {
+      const pf = poiFiltersRef.current;
+      if (!pf || !map?.getStyle || !map.getStyle() || !map.isStyleLoaded?.()) return;
 
-    const initCustomLayers = () => {
-      if (poiLayersInitialized.current) return;
-      if (!(map as any).getStyle || !(map as any).getStyle()) return;
+      const beforeId = map.getLayer("poi-label") ? "poi-label" : undefined;
 
-      const hasPoiLabel = (map as any).getLayer?.("poi-label");
-      const beforeId = hasPoiLabel ? "poi-label" : undefined;
+      const symPaint = {
+        "text-color": "#111827",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1,
+      };
 
-      // Metrou din layer-ul de transit
-      if (!(map as any).getLayer?.("custom-poi-metro")) {
-        (map as any).addLayer(
-          {
-            id: "custom-poi-metro",
-            type: "symbol",
-            source: "composite",
-            "source-layer": "transit_stop_label",
-            filter: [
-              "in",
-              ["get", "subclass"],
-              ["literal", ["subway", "metro", "light_rail", "station"]],
-            ] as any,
-            layout: {
-              "icon-image": "rail-metro-15",
-              "icon-size": 1,
-              "icon-allow-overlap": false,
-              "text-field": ["get", "name"],
-              "text-size": 11,
-              "text-offset": [0, 0.8],
-            },
-            paint: {
-              "text-color": "#111827",
-              "text-halo-color": "#FFFFFF",
-              "text-halo-width": 1,
-            },
-          },
-          beforeId
-        );
-      }
+      const symLayout = (icon: string) => ({
+        "icon-image": icon,
+        "icon-size": 1,
+        "icon-optional": true,
+        "icon-allow-overlap": true,
+        "text-field": ["get", "name"],
+        "text-size": 11,
+        "text-offset": [0, 0.8],
+        "text-optional": false,
+      });
 
-      // Școli
-      if (!(map as any).getLayer?.("custom-poi-scoli")) {
-        (map as any).addLayer(
-          {
-            id: "custom-poi-scoli",
-            type: "symbol",
-            source: "composite",
-            "source-layer": "poi_label",
-            filter: [
-              "in",
-              ["get", "class"],
-              ["literal", ["school", "college", "university"]],
-            ] as any,
-            layout: {
-              "icon-image": "education-15",
-              "icon-size": 1,
-              "icon-allow-overlap": false,
-              "text-field": ["get", "name"],
-              "text-size": 11,
-              "text-offset": [0, 0.8],
-            },
-            paint: {
-              "text-color": "#111827",
-              "text-halo-color": "#FFFFFF",
-              "text-halo-width": 1,
-            },
-          },
-          beforeId
-        );
-      }
+      const addLayerIfMissing = (id: string, layer: object) => {
+        if (!map.getLayer(id)) map.addLayer(layer as any, beforeId);
+      };
 
-      // Restaurante
-      if (!(map as any).getLayer?.("custom-poi-restaurante")) {
-        (map as any).addLayer(
-          {
-            id: "custom-poi-restaurante",
-            type: "symbol",
-            source: "composite",
-            "source-layer": "poi_label",
-            filter: [
-              "in",
-              ["get", "class"],
+      /** Layere din stil care citesc direct `transit_stop_label` (etichete reale Mapbox). */
+      const transitStopLayerIds = (map.getStyle()?.layers ?? [])
+        .filter(
+          (l: { source?: string; id: string; "source-layer"?: string }) =>
+            l.source === "composite" && l["source-layer"] === "transit_stop_label"
+        )
+        .map((l: { id: string }) => l.id);
+
+      /**
+       * Metrou (inclusiv light rail, Metrorex, stații mapate ca rail în tile-uri).
+       * Tramvai / autobuz = `mode` din Streets v8.
+       */
+      const metroFilterBranches: any[] = [
+        ["==", ["get", "mode"], "metro_rail"],
+        ["==", ["get", "mode"], "light_rail"],
+        ["==", ["get", "maki"], "rail-metro"],
+        ["==", ["get", "maki"], "rail-light"],
+        [
+          "==",
+          ["downcase", ["to-string", ["coalesce", ["get", "network"], ""]]],
+          "metrorex",
+        ],
+        [
+          "all",
+          ["==", ["get", "stop_type"], "station"],
+          ["==", ["get", "mode"], "rail"],
+          ["in", ["get", "maki"], ["literal", ["rail", "rail-metro"]]],
+        ],
+      ];
+
+      const applyNativeTransitCustom = (opts: {
+        metrou: boolean;
+        tramvai: boolean;
+        autobuz: boolean;
+      }) => {
+        const backup = transitStopLayerFiltersBackupRef.current;
+        const branches: any[] = [];
+        if (opts.metrou) branches.push(...metroFilterBranches);
+        if (opts.tramvai) branches.push(["==", ["get", "mode"], "tram"]);
+        if (opts.autobuz) branches.push(["==", ["get", "mode"], "bus"]);
+        const anyOn = branches.length > 0;
+        const combinedFilter: any = ["any", ...branches];
+
+        for (const id of transitStopLayerIds) {
+          if (!map.getLayer(id)) continue;
+          if (anyOn) {
+            if (!backup.has(id)) {
+              try {
+                backup.set(id, map.getFilter(id));
+              } catch {
+                backup.set(id, null);
+              }
+            }
+            map.setFilter(id, combinedFilter);
+            map.setLayoutProperty(id, "visibility", "visible");
+          } else {
+            if (backup.has(id)) {
+              const orig = backup.get(id);
+              map.setFilter(id, (orig == null || orig === true ? null : orig) as any);
+              backup.delete(id);
+            }
+            map.setLayoutProperty(id, "visibility", "none");
+          }
+        }
+      };
+
+      const restoreAllTransitLayers = () => {
+        const backup = transitStopLayerFiltersBackupRef.current;
+        for (const id of transitStopLayerIds) {
+          if (!map.getLayer(id)) continue;
+          if (backup.has(id)) {
+            const orig = backup.get(id);
+            map.setFilter(id, (orig == null || orig === true ? null : orig) as any);
+            backup.delete(id);
+          }
+          map.setLayoutProperty(id, "visibility", "visible");
+        }
+      };
+
+      // Supliment: stații care apar doar în poi_label (rar, ex. fără nod în transit_stop_label)
+      addLayerIfMissing("custom-poi-metro-poi", {
+        id: "custom-poi-metro-poi",
+        type: "symbol",
+        source: "composite",
+        "source-layer": "poi_label",
+        filter: [
+          "any",
+          ["==", ["get", "maki"], "rail-metro"],
+          ["==", ["get", "maki"], "rail-light"],
+        ] as any,
+        layout: symLayout("rail-metro-15"),
+        paint: symPaint,
+      });
+
+      // Școli: class education SAU maki educație (OSM inconsistent)
+      addLayerIfMissing("custom-poi-scoli", {
+        id: "custom-poi-scoli",
+        type: "symbol",
+        source: "composite",
+        "source-layer": "poi_label",
+        filter: [
+          "any",
+          ["==", ["get", "class"], "education"],
+          [
+            "in",
+            ["get", "maki"],
+            [
+              "literal",
+              ["school", "college", "university", "kindergarten"],
+            ],
+          ],
+        ] as any,
+        layout: symLayout("school-15"),
+        paint: symPaint,
+      });
+
+      addLayerIfMissing("custom-poi-restaurante", {
+        id: "custom-poi-restaurante",
+        type: "symbol",
+        source: "composite",
+        "source-layer": "poi_label",
+        filter: ["==", ["get", "class"], "food_and_drink"] as any,
+        layout: symLayout("restaurant-15"),
+        paint: symPaint,
+      });
+
+      // Magazine alimentare: food_and_drink_stores + maki tip magazin
+      addLayerIfMissing("custom-poi-magazine", {
+        id: "custom-poi-magazine",
+        type: "symbol",
+        source: "composite",
+        "source-layer": "poi_label",
+        filter: [
+          "any",
+          ["==", ["get", "class"], "food_and_drink_stores"],
+          [
+            "in",
+            ["get", "maki"],
+            [
+              "literal",
               [
-                "literal",
-                ["food_and_drink", "restaurant", "fast_food", "cafe", "bar"],
+                "grocery",
+                "convenience",
+                "supermarket",
+                "bakery",
+                "alcohol-shop",
+                "marketplace",
               ],
-            ] as any,
-            layout: {
-              "icon-image": "restaurant-15",
-              "icon-size": 1,
-              "icon-allow-overlap": false,
-              "text-field": ["get", "name"],
-              "text-size": 11,
-              "text-offset": [0, 0.8],
-            },
-            paint: {
-              "text-color": "#111827",
-              "text-halo-color": "#FFFFFF",
-              "text-halo-width": 1,
-            },
-          },
-          beforeId
-        );
-      }
+            ],
+          ],
+        ] as any,
+        layout: symLayout("grocery-15"),
+        paint: symPaint,
+      });
 
-      // Magazine
-      if (!(map as any).getLayer?.("custom-poi-magazine")) {
-        (map as any).addLayer(
-          {
-            id: "custom-poi-magazine",
-            type: "symbol",
-            source: "composite",
-            "source-layer": "poi_label",
-            filter: [
-              "in",
-              ["get", "class"],
-              [
-                "literal",
-                ["grocery", "supermarket", "convenience", "marketplace", "shop"],
-              ],
-            ] as any,
-            layout: {
-              "icon-image": "grocery-15",
-              "icon-size": 1,
-              "icon-allow-overlap": false,
-              "text-field": ["get", "name"],
-              "text-size": 11,
-              "text-offset": [0, 0.8],
-            },
-            paint: {
-              "text-color": "#111827",
-              "text-halo-color": "#FFFFFF",
-              "text-halo-width": 1,
-            },
-          },
-          beforeId
-        );
-      }
-
-      poiLayersInitialized.current = true;
-    };
-
-    const applyVisibility = () => {
       const setVisibility = (layerId: string, visible: boolean) => {
-        if (!(map as any).getLayer?.(layerId)) return;
-        (map as any).setLayoutProperty(
-          layerId,
-          "visibility",
-          visible ? "visible" : "none"
-        );
+        if (!map.getLayer(layerId)) return;
+        map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
       };
 
       const poiLayerId = "poi-label";
-      const transitLayerId = "transit-label";
 
-      if (poiFilters.mode === "all") {
-        // Revenim la stilul implicit: doar layerele Mapbox, fără custom
+      if (pf.mode === "all") {
         setVisibility(poiLayerId, true);
-        setVisibility(transitLayerId, true);
-        setVisibility("custom-poi-metro", false);
+        restoreAllTransitLayers();
+        setVisibility("custom-poi-metro-poi", false);
         setVisibility("custom-poi-scoli", false);
         setVisibility("custom-poi-restaurante", false);
         setVisibility("custom-poi-magazine", false);
         return;
       }
 
-      // Mod custom: scoatem layerele default și arătăm doar categoriile bifate prin layerele custom
       setVisibility(poiLayerId, false);
-      setVisibility(transitLayerId, false);
 
-      setVisibility("custom-poi-metro", poiFilters.metro);
-      setVisibility("custom-poi-scoli", poiFilters.scoli);
-      setVisibility("custom-poi-restaurante", poiFilters.restaurante);
-      setVisibility("custom-poi-magazine", poiFilters.magazine);
+      applyNativeTransitCustom({
+        metrou: pf.transportMetrou,
+        tramvai: pf.transportTramvai,
+        autobuz: pf.transportAutobuz,
+      });
+      setVisibility("custom-poi-metro-poi", pf.transportMetrou);
+
+      setVisibility("custom-poi-scoli", pf.scoli);
+      setVisibility("custom-poi-restaurante", pf.restaurante);
+      setVisibility("custom-poi-magazine", pf.magazine);
     };
+  }, []);
 
-    if ((map as any).isStyleLoaded && (map as any).isStyleLoaded()) {
-      initCustomLayers();
-      applyVisibility();
-    } else {
-      const onStyle = () => {
-        initCustomLayers();
-        applyVisibility();
-      };
-      (map as any).on("styledata", onStyle);
-      return () => {
-        (map as any).off("styledata", onStyle);
-      };
+  const handleMapLoad = useCallback((e: { target: any }) => {
+    const map = e.target;
+    if (poiStyleDataHandlerRef.current) {
+      map.off("styledata", poiStyleDataHandlerRef.current);
     }
+    const onStyleData = () => syncPoiLayersRef.current(map);
+    poiStyleDataHandlerRef.current = onStyleData;
+    map.on("styledata", onStyleData);
+    syncPoiLayersRef.current(map);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      if (map && poiStyleDataHandlerRef.current) {
+        map.off("styledata", poiStyleDataHandlerRef.current);
+        poiStyleDataHandlerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!poiFilters) return;
+    const run = () => {
+      const map = mapRef.current?.getMap?.() ?? mapRef.current;
+      if (map) syncPoiLayersRef.current(map);
+    };
+    run();
+    const raf = requestAnimationFrame(run);
+    const t0 = window.setTimeout(run, 50);
+    const t1 = window.setTimeout(run, 300);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+    };
   }, [poiFilters]);
 
   const handleZoom = (delta: number) => {
@@ -381,7 +461,13 @@ export default function BucharestMap({
     // 3) Altfel, pe lateral (alegem partea cu mai mult spațiu)
     if (spaceRight >= POPUP_W || spaceRight >= spaceLeft) return "right";
     return "left";
-  }, [selected?.lng, selected?.lat, viewState.longitude, viewState.latitude, viewState.zoom]);
+  }, [
+    selected?.lng,
+    selected?.lat,
+    viewState.longitude,
+    viewState.latitude,
+    viewState.zoom,
+  ]);
 
   const handleClearDrawing = () => {
     setDrawingPoints([]);
@@ -480,6 +566,7 @@ export default function BucharestMap({
       <Map
         ref={mapRef}
         {...viewState}
+        onLoad={handleMapLoad}
         onMove={(evt) => setViewState(evt.viewState)}
         onClick={handleMapClick}
         mapStyle="mapbox://styles/mapbox/streets-v11"
@@ -517,7 +604,7 @@ export default function BucharestMap({
           </Marker>
         ))}
 
-        {selected && selectedAnunt && (
+        {selected && selectedPopup && (
           <Popup
             longitude={selected.lng}
             latitude={selected.lat}
@@ -550,8 +637,8 @@ export default function BucharestMap({
               {/* Imagine */}
               <div className="relative w-full h-48 overflow-hidden bg-gray-200">
                 <img
-                  src={selectedAnunt.image}
-                  alt={selected.titlu}
+                  src={selectedPopup.image}
+                  alt={selectedPopup.titlu}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -559,15 +646,15 @@ export default function BucharestMap({
               {/* Conținut */}
               <div className="w-full px-4 py-3 bg-white dark:bg-[#1B1B21]">
                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-tight" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                  {selected.titlu}
+                  {selectedPopup.titlu}
                 </h3>
-                {selected.descriere && (
+                {selectedPopup.descriere ? (
                   <p className="text-xs text-gray-700 dark:text-gray-300 mb-3 line-clamp-2">
-                    {selected.descriere}
+                    {selectedPopup.descriere}
                   </p>
-                )}
+                ) : null}
                 <div className="text-xl font-bold text-[#C25A2B]">
-                  {selected.pret || "N/A"}
+                  {selectedPopup.pret}
                 </div>
               </div>
             </div>

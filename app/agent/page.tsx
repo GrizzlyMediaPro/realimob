@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { UploadButton } from "../components/Uploadthing";
+import { UploadButton, UploadDropzone } from "../components/Uploadthing";
 import AdminListingCard from "../components/AdminListingCard";
 import {
   MdPerson,
@@ -23,10 +23,15 @@ import {
   MdLocationOn,
   MdNotifications,
   MdDone,
+  MdLock,
+  MdDownload,
+  MdUploadFile,
+  MdDescription,
 } from "react-icons/md";
 import {
   type Anunt,
 } from "../../lib/anunturiData";
+import { formatListingPriceDisplay } from "../../lib/listingToAnunt";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 
@@ -133,16 +138,54 @@ const getProgramareStatusConfig = (status: ProgramareStatus) => {
 
 const useAgentData = (activeListings: AgentListing[]) => {
   const soldListings: AgentListing[] = [];
-  const programari: Programare[] = [];
   const notificariInitiale: Notificare[] = [];
 
   return {
     activeListings,
     soldListings,
-    programari,
     notificariInitiale,
   };
 };
+
+type ViewingRequestRow = {
+  id: string;
+  status: string;
+  startAt: string;
+  endAt: string;
+  listingTitle: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string | null;
+  message: string | null;
+};
+
+function bucharestDateKey(iso: string): string {
+  return new Date(iso).toLocaleDateString("sv-SE", {
+    timeZone: "Europe/Bucharest",
+  });
+}
+
+function viewingRowToProgramare(r: ViewingRequestRow): Programare {
+  const start = new Date(r.startAt);
+  const ora = start.toLocaleTimeString("ro-RO", {
+    timeZone: "Europe/Bucharest",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  let status: ProgramareStatus = "in_asteptare";
+  if (r.status === "approved") status = "confirmata";
+  else if (r.status === "rejected") status = "anulata";
+  return {
+    id: r.id,
+    data: bucharestDateKey(r.startAt),
+    ora,
+    numeClient: r.clientName,
+    tip: "vizionare",
+    imobil: r.listingTitle,
+    status,
+  };
+}
 
 /* ═══════════════════════════════════════════
    Calendar component – full month
@@ -197,13 +240,13 @@ function MonthCalendar({
 
   return (
     <div
-      className="rounded-2xl md:rounded-3xl overflow-hidden relative"
+      className="rounded-2xl md:rounded-3xl overflow-hidden relative w-full lg:flex-1 lg:min-h-0 lg:flex lg:flex-col"
       style={glassCard(isDark)}
     >
       <GlassShine isDark={isDark} />
-      <div className="p-5 md:p-6 relative z-1">
+      <div className="p-5 md:p-6 relative z-1 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 shrink-0">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <MdCalendarToday size={20} className="text-[#C25A2B]" />
             Calendar
@@ -228,7 +271,7 @@ function MonthCalendar({
         </div>
 
         {/* Day names */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
+        <div className="grid grid-cols-7 gap-1 mb-1 shrink-0">
           {dayNames.map((dn) => (
             <div
               key={dn}
@@ -240,7 +283,7 @@ function MonthCalendar({
         </div>
 
         {/* Days */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1 shrink-0">
           {cells.map((day, idx) => {
             if (day === null) {
               return <div key={`empty-${idx}`} className="aspect-square" />;
@@ -284,6 +327,7 @@ function MonthCalendar({
             );
           })}
         </div>
+        <div className="hidden lg:block flex-1 min-h-0" aria-hidden />
       </div>
     </div>
   );
@@ -297,8 +341,38 @@ export default function AgentDashboardPage() {
   const { isSignedIn } = useUser();
   const isDark = useDarkMode();
   const [activeListingsData, setActiveListingsData] = useState<AgentListing[]>([]);
-  const { activeListings, soldListings, programari, notificariInitiale } =
+  const { activeListings, soldListings, notificariInitiale } =
     useAgentData(activeListingsData);
+
+  const [viewingRows, setViewingRows] = useState<ViewingRequestRow[]>([]);
+  const [viewingLoadError, setViewingLoadError] = useState<string | null>(null);
+  const [viewingActionId, setViewingActionId] = useState<string | null>(null);
+
+  const programari = useMemo(() => {
+    return viewingRows
+      .filter((r) => r.status !== "rejected")
+      .map(viewingRowToProgramare);
+  }, [viewingRows]);
+
+  const pendingViewingRows = useMemo(
+    () => viewingRows.filter((r) => r.status === "pending"),
+    [viewingRows],
+  );
+
+  const refreshViewingRequests = useCallback(async () => {
+    try {
+      const r = await fetch("/api/agent/viewing-requests", { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) {
+        setViewingLoadError(j?.error ?? "Nu am putut încărca cererile.");
+        return;
+      }
+      setViewingLoadError(null);
+      setViewingRows(j.requests ?? []);
+    } catch {
+      setViewingLoadError("Eroare la încărcarea cererilor.");
+    }
+  }, []);
 
   const [notificari, setNotificari] =
     useState<Notificare[]>(notificariInitiale);
@@ -318,13 +392,28 @@ export default function AgentDashboardPage() {
   const [formaOrganizare, setFormaOrganizare] = useState("");
   const [cui, setCui] = useState("");
   const [buletinUrl, setBuletinUrl] = useState("");
+  const [applicationPhone, setApplicationPhone] = useState("");
+  const [gdprConsent, setGdprConsent] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [signedContractUrlDraft, setSignedContractUrlDraft] = useState("");
+  const [signedContractDraftName, setSignedContractDraftName] = useState("");
+  const [signedContractLoading, setSignedContractLoading] = useState(false);
+  const [contractTemplateUrl, setContractTemplateUrl] = useState<string | null>(null);
+  const [contractTemplateFileName, setContractTemplateFileName] = useState<string | null>(null);
+  const [signedContractUrl, setSignedContractUrl] = useState<string | null>(null);
+  const [signedContractFileName, setSignedContractFileName] = useState<string | null>(null);
+  const [rejectionMessage, setRejectionMessage] = useState<string | null>(null);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [googleCalendarEmail, setGoogleCalendarEmail] = useState<string | null>(null);
   const [googleCalendarMessage, setGoogleCalendarMessage] = useState<string | null>(null);
   const [googleDisconnectLoading, setGoogleDisconnectLoading] = useState(false);
   const [googleTestEventLoading, setGoogleTestEventLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isSignedIn || agentStatus !== "approved") return;
+    refreshViewingRequests();
+  }, [isSignedIn, agentStatus, refreshViewingRequests]);
 
   useEffect(() => {
     const fetchAgentProfile = async () => {
@@ -361,9 +450,22 @@ export default function AgentDashboardPage() {
           role: payload?.agentProfile?.role ?? "Agent imobiliar",
           location: payload?.agentProfile?.location ?? "Bucuresti",
         });
-        setFormaOrganizare(payload?.agentApplication?.formaOrganizare ?? "");
+        {
+          const fo = (payload?.agentApplication?.formaOrganizare ?? "")
+            .trim()
+            .toUpperCase();
+          setFormaOrganizare(fo === "PFA" || fo === "SRL" ? fo : "");
+        }
         setCui(payload?.agentApplication?.cui ?? "");
         setBuletinUrl(payload?.agentApplication?.buletinUrl ?? "");
+        setApplicationPhone(payload?.agentApplication?.telefon ?? "");
+        setContractTemplateUrl(payload?.agentApplication?.contractTemplateUrl ?? null);
+        setContractTemplateFileName(
+          payload?.agentApplication?.contractTemplateFileName ?? null
+        );
+        setSignedContractUrl(payload?.agentApplication?.signedContractUrl ?? null);
+        setSignedContractFileName(payload?.agentApplication?.signedContractFileName ?? null);
+        setRejectionMessage(payload?.agentApplication?.rejectionMessage ?? null);
         setGoogleCalendarConnected(Boolean(payload?.googleCalendar?.connected));
         setGoogleCalendarEmail(payload?.googleCalendar?.googleCalendarEmail ?? null);
       } catch (error) {
@@ -459,7 +561,11 @@ export default function AgentDashboardPage() {
               id: listing.id,
               titlu: listing.title,
               image: imageUrl || "/ap2.jpg",
-              pret: `${Number(listing.price ?? 0).toLocaleString("ro-RO")} ${listing.currency ?? "EUR"}`,
+              pret: formatListingPriceDisplay(
+                Number(listing.price ?? 0),
+                listing.currency ?? "EUR",
+                (listing.details ?? null) as Record<string, unknown> | null,
+              ),
               tags: [
                 suprafata,
                 listing.sector ?? listing.location,
@@ -483,8 +589,12 @@ export default function AgentDashboardPage() {
   }, [agentStatus]);
 
   const submitAgentApplication = async () => {
-    if (!formaOrganizare || !cui || !buletinUrl) {
-      setSubmitMessage("Completează toate câmpurile și încarcă buletinul.");
+    if (!formaOrganizare || !cui || !buletinUrl || !applicationPhone.trim()) {
+      setSubmitMessage("Completează toate câmpurile, telefonul și încarcă buletinul.");
+      return;
+    }
+    if (!gdprConsent) {
+      setSubmitMessage("Bifează acordul GDPR pentru a trimite cererea.");
       return;
     }
 
@@ -501,6 +611,8 @@ export default function AgentDashboardPage() {
           formaOrganizare,
           cui,
           buletinUrl,
+          telefon: applicationPhone.trim(),
+          gdprAccepted: true,
         }),
       });
       const payload = await response.json();
@@ -510,11 +622,54 @@ export default function AgentDashboardPage() {
       }
 
       setAgentStatus("pending");
-      setSubmitMessage("Cererea a fost trimisă. Vei fi notificat după verificare.");
+      setRejectionMessage(null);
+      setContractTemplateUrl(null);
+      setContractTemplateFileName(null);
+      setSignedContractUrl(null);
+      setSignedContractFileName(null);
+      setSignedContractDraftName("");
+      setSubmitMessage(
+        "Cererea a fost trimisă. După validarea datelor vei primi contractul pentru semnare în această pagină."
+      );
+      setGdprConsent(false);
     } catch (error) {
       setSubmitMessage(error instanceof Error ? error.message : "A apărut o eroare.");
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const submitSignedContract = async () => {
+    if (!signedContractUrlDraft.trim()) {
+      setSubmitMessage("Încarcă mai întâi fișierul semnat.");
+      return;
+    }
+    try {
+      setSignedContractLoading(true);
+      setSubmitMessage(null);
+      const response = await fetch("/api/agent/signed-contract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedContractUrl: signedContractUrlDraft.trim(),
+          signedContractFileName: signedContractDraftName.trim() || undefined,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut salva documentul.");
+      }
+      setSignedContractUrl(signedContractUrlDraft.trim());
+      setSignedContractFileName(signedContractDraftName.trim() || null);
+      setSignedContractUrlDraft("");
+      setSignedContractDraftName("");
+      setSubmitMessage(
+        "Contractul semnat a fost încărcat. Administratorul îl verifică; vei fi notificat după decizie."
+      );
+    } catch (error) {
+      setSubmitMessage(error instanceof Error ? error.message : "Eroare la încărcare.");
+    } finally {
+      setSignedContractLoading(false);
     }
   };
 
@@ -560,7 +715,45 @@ export default function AgentDashboardPage() {
     }
   };
 
-  const todayISO = new Date().toISOString().split("T")[0];
+  const approveViewing = async (id: string) => {
+    setViewingActionId(id);
+    try {
+      const r = await fetch(`/api/agent/viewing-requests/${id}/approve`, {
+        method: "POST",
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setViewingLoadError(j?.error ?? "Nu am putut aproba cererea.");
+        return;
+      }
+      setViewingLoadError(null);
+      await refreshViewingRequests();
+    } finally {
+      setViewingActionId(null);
+    }
+  };
+
+  const rejectViewing = async (id: string) => {
+    setViewingActionId(id);
+    try {
+      const r = await fetch(`/api/agent/viewing-requests/${id}/reject`, {
+        method: "POST",
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setViewingLoadError(j?.error ?? "Nu am putut respinge cererea.");
+        return;
+      }
+      setViewingLoadError(null);
+      await refreshViewingRequests();
+    } finally {
+      setViewingActionId(null);
+    }
+  };
+
+  const todayISO = new Date().toLocaleDateString("sv-SE", {
+    timeZone: "Europe/Bucharest",
+  });
   const todayAppointments = programari.filter((p) => p.data === todayISO);
   const upcomingAppointments = programari.filter((p) => p.data > todayISO);
 
@@ -737,94 +930,403 @@ export default function AgentDashboardPage() {
   }
 
   if (agentStatus !== "approved") {
+    const onboardingEditable = agentStatus === "none" || agentStatus === "rejected";
+    const isPending = agentStatus === "pending";
+
+    const lockedTiles = [
+      { titlu: "Anunțuri și proprietăți", desc: "După aprobare vei putea gestiona anunțurile tale." },
+      { titlu: "Calendar & programări", desc: "Vizionările și integrarea Google Calendar devin disponibile aici." },
+      { titlu: "Statistici", desc: "Indicatorii de performanță se activează pentru conturi aprobate." },
+      { titlu: "Notificări operaționale", desc: "Alertele pentru cereri noi apar după validarea completă." },
+    ];
+
     return (
       <div className="min-h-screen text-foreground pt-20">
         <Navbar />
         <div className="w-full px-4 md:px-8 py-8 md:py-12">
-          <div className="w-full max-w-[760px] mx-auto">
-            <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 relative" style={glassCard(isDark)}>
-              <GlassShine isDark={isDark} />
-              <div className="relative z-1 space-y-5">
-                <h1 className="text-2xl md:text-4xl font-bold text-foreground">
-                  Verificare cont agent
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400">
-                  Completează datele de verificare pentru aprobarea contului de agent.
-                </p>
-
-                {agentStatus === "pending" && (
-                  <div className="rounded-xl px-4 py-3 text-sm text-[#F59E0B] bg-[#F59E0B]/10">
-                    Cererea ta este în așteptare. Administratorul o va verifica.
-                  </div>
+          <div className="w-full max-w-[1250px] mx-auto space-y-8">
+            <div>
+              <h1
+                className="text-2xl md:text-4xl font-bold text-foreground mb-2"
+                style={{ fontFamily: "var(--font-galak-regular)" }}
+              >
+                Panou agent
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400 max-w-3xl">
+                {onboardingEditable ? (
+                  <>
+                    Completează datele de verificare. După ce administratorul validează informațiile, vei primi
+                    un contract în această pagină: îl descarci, îl semnezi și îl încarci înapoi. Abia după
+                    verificarea contractului semnat contul devine complet activ.
+                  </>
+                ) : (
+                  <>
+                    Contul tău este în curs de verificare. Poți vedea datele trimise mai jos; restul funcțiilor
+                    se deblochează după aprobare.
+                  </>
                 )}
+              </p>
+            </div>
 
-                <div>
-                  <label className="block text-sm mb-2">Forma de organizare</label>
-                  <input
-                    value={formaOrganizare}
-                    onChange={(e) => setFormaOrganizare(e.target.value)}
-                    disabled={agentStatus === "pending"}
-                    placeholder="Ex: PFA, SRL"
-                    className="w-full px-4 py-3 rounded-xl border bg-white/70 dark:bg-black/20"
-                  />
-                </div>
+            {agentStatus === "rejected" && rejectionMessage && (
+              <div
+                className="rounded-2xl p-4 md:p-5 text-sm border border-red-500/30 bg-red-500/10 text-red-900 dark:text-red-100"
+                style={{ fontFamily: "var(--font-galak-regular)" }}
+              >
+                <p className="font-semibold mb-1">Cererea a fost respinsă</p>
+                <p className="opacity-95">{rejectionMessage}</p>
+                <p className="mt-3 text-xs opacity-80">
+                  Corectează datele de mai jos și trimite din nou cererea.
+                </p>
+              </div>
+            )}
 
-                <div>
-                  <label className="block text-sm mb-2">CUI</label>
-                  <input
-                    value={cui}
-                    onChange={(e) => setCui(e.target.value)}
-                    disabled={agentStatus === "pending"}
-                    placeholder="Ex: RO12345678"
-                    className="w-full px-4 py-3 rounded-xl border bg-white/70 dark:bg-black/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm mb-2">Buletin (PDF, JPG, PNG)</label>
-                  {buletinUrl ? (
-                    <div className="text-sm mb-3">
-                      Document încărcat:{" "}
-                      <a href={buletinUrl} target="_blank" rel="noreferrer" className="text-[#C25A2B] underline">
-                        vezi fișier
-                      </a>
+            {agentProfile && (
+              <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 relative" style={glassCard(isDark)}>
+                <GlassShine isDark={isDark} />
+                <div className="relative z-1">
+                  <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <MdPerson className="text-[#C25A2B]" size={22} />
+                    Datele contului tău
+                  </h2>
+                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Nume</span>
+                      <p className="font-medium">{agentProfile.name}</p>
                     </div>
-                  ) : null}
-                  {agentStatus !== "pending" && (
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Email</span>
+                      <p className="font-medium break-all">{agentProfile.email || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Telefon (din cerere)</span>
+                      <p className="font-medium">{applicationPhone || agentProfile.phone || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isPending && (
+              <>
+                <div className="rounded-xl px-4 py-3 text-sm text-[#F59E0B] bg-[#F59E0B]/10">
+                  Cererea este în așteptare. După validarea datelor vei primi contractul pentru semnare aici.
+                </div>
+
+                <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 relative" style={glassCard(isDark)}>
+                  <GlassShine isDark={isDark} />
+                  <div className="relative z-1 space-y-4">
+                    <h2 className="text-lg font-semibold">Date trimise spre verificare</h2>
+                    <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Formă organizare</span>
+                        <p>{formaOrganizare || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">CUI</span>
+                        <p>{cui || "—"}</p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-gray-500 dark:text-gray-400">Buletin</span>
+                        <p>
+                          {buletinUrl ? (
+                            <a
+                              href={buletinUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#C25A2B] underline"
+                            >
+                              vezi document
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 relative" style={glassCard(isDark)}>
+                  <GlassShine isDark={isDark} />
+                  <div className="relative z-1 space-y-4">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <MdDescription size={22} className="text-[#C25A2B]" />
+                      Contract
+                    </h2>
+                    {contractTemplateUrl ? (
+                      <>
+                        <div
+                          className="rounded-xl px-4 py-3 text-sm bg-[#C25A2B]/10 text-foreground border border-[#C25A2B]/25"
+                          role="status"
+                        >
+                          Ai primit contractul pentru semnare. Folosește „Descarcă contractul” pentru a salva
+                          fișierul pe dispozitiv, completează-l și semnează-l, apoi încarcă varianta finală mai jos.
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Fișier:{" "}
+                          <span className="font-medium text-foreground">
+                            {contractTemplateFileName ?? "contract-realimob.pdf"}
+                          </span>
+                        </p>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <a
+                            href="/api/agent/contract-files?kind=template"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium bg-[#C25A2B] hover:opacity-90"
+                          >
+                            <MdDownload size={20} />
+                            Descarcă contractul
+                          </a>
+                          <a
+                            href={contractTemplateUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-gray-500 underline"
+                          >
+                            Deschide în browser (previzualizare)
+                          </a>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        După ce administratorul validează datele, contractul va apărea aici pentru descărcare.
+                      </p>
+                    )}
+
+                    {contractTemplateUrl && !signedContractUrl && (
+                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                        <p className="text-sm font-medium flex items-center gap-2">
+                          <MdUploadFile className="text-[#C25A2B]" />
+                          Încarcă contractul semnat
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Trage PDF-ul / imaginea aici sau folosește butonul. După încărcare, apasă „Trimite
+                          contractul semnat”.
+                        </p>
+                        <div
+                          className="rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-4"
+                          data-testid="agent-signed-contract-upload"
+                        >
+                          <UploadDropzone
+                            endpoint="documentUploader"
+                            onClientUploadComplete={(res) => {
+                              const f = res?.[0];
+                              if (f?.url) {
+                                setSignedContractUrlDraft(f.url);
+                                setSignedContractDraftName(f.name ?? "");
+                              }
+                            }}
+                            onUploadError={(error: Error) => setSubmitMessage(error.message)}
+                            appearance={{
+                              container: "border-0 bg-transparent p-0",
+                              uploadIcon: "text-[#C25A2B]",
+                            }}
+                            content={{
+                              label: "Trage contractul semnat aici",
+                              allowedContent: "PDF sau imagine",
+                            }}
+                          />
+                          <div className="flex justify-center my-2">
+                            <span className="text-xs text-gray-400">sau</span>
+                          </div>
+                          <UploadButton
+                            endpoint="documentUploader"
+                            onClientUploadComplete={(res) => {
+                              const f = res?.[0];
+                              if (f?.url) {
+                                setSignedContractUrlDraft(f.url);
+                                setSignedContractDraftName(f.name ?? "");
+                              }
+                            }}
+                            onUploadError={(error: Error) => setSubmitMessage(error.message)}
+                            content={{
+                              button: "Alege fișier",
+                              allowedContent: "PDF / imagine",
+                            }}
+                          />
+                        </div>
+                        {signedContractUrlDraft ? (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                            Gata de trimitere:{" "}
+                            <strong>{signedContractDraftName || "document"}</strong>
+                          </p>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={submitSignedContract}
+                          disabled={signedContractLoading || !signedContractUrlDraft}
+                          className="px-5 py-2.5 rounded-xl text-white font-medium hover:opacity-90 disabled:opacity-45"
+                          style={{ background: "#1F2D44" }}
+                        >
+                          {signedContractLoading ? "Se trimite…" : "Trimite contractul semnat"}
+                        </button>
+                      </div>
+                    )}
+
+                    {signedContractUrl && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Contractul semnat a fost încărcat ({signedContractFileName ?? "document"}).
+                          Așteaptă verificarea finală din partea administratorului.
+                        </p>
+                        <a
+                          href="/api/agent/contract-files?kind=signed"
+                          className="inline-flex items-center gap-2 text-sm text-[#C25A2B] font-medium underline"
+                        >
+                          <MdDownload size={18} />
+                          Descarcă copia ta
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-semibold mb-4 text-gray-600 dark:text-gray-400">
+                    Disponibil după aprobare
+                  </h2>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {lockedTiles.map((tile) => (
+                      <div
+                        key={tile.titlu}
+                        className="rounded-2xl p-5 relative overflow-hidden opacity-60 pointer-events-none select-none"
+                        style={glassCard(isDark)}
+                      >
+                        <div className="absolute top-3 right-3 text-gray-400">
+                          <MdLock size={22} />
+                        </div>
+                        <h3 className="font-semibold text-foreground pr-8">{tile.titlu}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{tile.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {onboardingEditable && (
+              <div className="rounded-2xl md:rounded-3xl p-6 md:p-8 relative" style={glassCard(isDark)}>
+                <GlassShine isDark={isDark} />
+                <div className="relative z-1 space-y-5">
+                  <h2 className="text-lg font-semibold">Cerere de înregistrare</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Completează datele de mai jos. Telefonul este obligatoriu și este folosit pentru contact
+                    operațional; include prefix (ex. +40…).
+                  </p>
+
+                  <div>
+                    <label className="block text-sm mb-2">
+                      Telefon <span className="text-red-600 dark:text-red-400">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      autoComplete="tel"
+                      value={applicationPhone}
+                      onChange={(e) => setApplicationPhone(e.target.value)}
+                      placeholder="Ex: +40722111222"
+                      className="w-full px-4 py-3 rounded-xl border bg-white/70 dark:bg-black/20"
+                    />
+                  </div>
+
+                  <fieldset className="space-y-4 border-0 p-0 m-0">
+                    <legend className="block text-sm md:text-base font-semibold">
+                      Forma de organizare <span className="text-red-600 dark:text-red-400">*</span>
+                    </legend>
+                    <div className="flex flex-wrap items-center pb-10 pt-3 gap-8 sm:gap-12 md:gap-16">
+                      <label className="inline-flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-200 dark:border-white/15 px-4 py-3 sm:px-5 sm:py-3.5 bg-white/50 dark:bg-white/5 text-lg sm:text-xl font-semibold tracking-tight has-[:checked]:border-[#C25A2B] has-[:checked]:bg-[#C25A2B]/10 dark:has-[:checked]:bg-[#C25A2B]/15">
+                        <input
+                          type="radio"
+                          name="formaOrganizare"
+                          value="PFA"
+                          checked={formaOrganizare === "PFA"}
+                          onChange={() => setFormaOrganizare("PFA")}
+                          className="h-5 w-5 shrink-0 accent-[#C25A2B]"
+                        />
+                        PFA
+                      </label>
+                      <label className="inline-flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-200 dark:border-white/15 px-4 py-3 sm:px-5 sm:py-3.5 bg-white/50 dark:bg-white/5 text-lg sm:text-xl font-semibold tracking-tight has-[:checked]:border-[#C25A2B] has-[:checked]:bg-[#C25A2B]/10 dark:has-[:checked]:bg-[#C25A2B]/15">
+                        <input
+                          type="radio"
+                          name="formaOrganizare"
+                          value="SRL"
+                          checked={formaOrganizare === "SRL"}
+                          onChange={() => setFormaOrganizare("SRL")}
+                          className="h-5 w-5 shrink-0 accent-[#C25A2B]"
+                        />
+                        SRL
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <div>
+                    <label className="block text-sm mb-2">
+                      CUI <span className="text-red-600 dark:text-red-400">*</span>
+                    </label>
+                    <input
+                      value={cui}
+                      onChange={(e) => setCui(e.target.value)}
+                      placeholder="Ex: RO12345678"
+                      className="w-full px-4 py-3 rounded-xl border bg-white/70 dark:bg-black/20"
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-3 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={gdprConsent}
+                      onChange={(e) => setGdprConsent(e.target.checked)}
+                      className="mt-1 accent-[#C25A2B] shrink-0"
+                    />
+                    <span>
+                      Sunt de acord ca datele mele (inclusiv numărul de telefon și documentele încărcate) să
+                      fie prelucrate de Realimob în scopul evaluării cererii de înregistrare ca agent
+                      imobiliar, conform Regulamentului (UE) 2016/679 (GDPR).{" "}
+                      <span className="text-red-600 dark:text-red-400">*</span>
+                    </span>
+                  </label>
+
+                  <div>
+                    <label className="block text-sm mb-2">Buletin (PDF, JPG, PNG)</label>
+                    {buletinUrl ? (
+                      <div className="text-sm mb-3">
+                        Document încărcat:{" "}
+                        <a
+                          href={buletinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#C25A2B] underline"
+                        >
+                          vezi fișier
+                        </a>
+                      </div>
+                    ) : null}
                     <UploadButton
                       endpoint="documentUploader"
                       onClientUploadComplete={(res) => {
                         const uploadedUrl = res?.[0]?.url;
-                        if (uploadedUrl) {
-                          setBuletinUrl(uploadedUrl);
-                        }
+                        if (uploadedUrl) setBuletinUrl(uploadedUrl);
                       }}
-                      onUploadError={(error: Error) => {
-                        setSubmitMessage(error.message);
-                      }}
+                      onUploadError={(error: Error) => setSubmitMessage(error.message)}
                     />
+                  </div>
+
+                  {submitMessage && (
+                    <div className="text-sm text-gray-600 dark:text-gray-300">{submitMessage}</div>
                   )}
-                </div>
 
-                {submitMessage && (
-                  <div className="text-sm text-gray-600 dark:text-gray-300">{submitMessage}</div>
-                )}
-
-                {agentStatus !== "pending" && (
                   <button
                     type="button"
                     onClick={submitAgentApplication}
                     disabled={submitLoading}
-                    className="px-5 py-2.5 rounded-xl text-white font-medium hover:opacity-90 transition-opacity"
-                    style={{
-                      background: "#C25A2B",
-                    }}
+                    className="px-5 py-2.5 rounded-xl text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    style={{ background: "#C25A2B" }}
                   >
                     {submitLoading ? "Se trimite..." : "Trimite cererea pentru aprobare"}
                   </button>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
         <Footer />
@@ -969,12 +1471,13 @@ export default function AgentDashboardPage() {
           </div>
 
           {/* ──────────────── PROFILE + CALENDAR / TODAY ──────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 lg:items-stretch">
             {/* Profile card */}
-            <div
-              className="rounded-2xl md:rounded-3xl overflow-hidden relative lg:col-span-1"
-              style={glassCard(isDark)}
-            >
+            <div className="lg:col-span-1 flex flex-col lg:h-full lg:min-h-0 min-h-0">
+              <div
+                className="rounded-2xl md:rounded-3xl overflow-hidden relative flex-1 flex flex-col min-h-0 h-full lg:min-h-0"
+                style={glassCard(isDark)}
+              >
               <GlassShine isDark={isDark} />
               {/* Accent gradient */}
               <div
@@ -988,7 +1491,7 @@ export default function AgentDashboardPage() {
                   zIndex: 0,
                 }}
               />
-              <div className="p-6 md:p-7 relative z-1">
+              <div className="p-6 md:p-7 relative z-1 flex flex-col flex-1 min-h-0 overflow-y-auto">
                 {/* Avatar */}
                 <div className="flex items-center gap-4 mb-6">
                   <div
@@ -1159,8 +1662,10 @@ export default function AgentDashboardPage() {
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Conectează contul Google: evenimentele de programare vor putea fi
-                    create în calendarul tău principal.
+                    Clienții văd intervalele tale libere (L–V, 9–18) din acest calendar.
+                    După ce aprobi o cerere, se creează evenimentul în Google Calendar.
+                    Dacă ai conectat calendarul înainte de această funcție, reconectează-te
+                    o dată pentru permisiunea de citire (free/busy).
                   </p>
                   {googleCalendarMessage && (
                     <p className="text-xs text-gray-600 dark:text-gray-300 mb-2">
@@ -1248,231 +1753,317 @@ export default function AgentDashboardPage() {
                   )}
                 </div>
               </div>
+              </div>
             </div>
 
             {/* Programări azi + viitoare */}
-            <div className="lg:col-span-2 space-y-6 md:space-y-8">
-              {/* Today's appointments */}
-              <div
-                className="rounded-2xl md:rounded-3xl overflow-hidden relative"
-                style={glassCard(isDark)}
-              >
-                <GlassShine isDark={isDark} />
-                {/* Accent */}
+            <div className="lg:col-span-2 flex flex-col gap-6 md:gap-8 lg:h-full lg:min-h-0 min-h-0">
+              {viewingLoadError && (
+                <p className="text-sm text-amber-800 dark:text-amber-200 bg-amber-500/10 rounded-xl px-4 py-2">
+                  {viewingLoadError}
+                </p>
+              )}
+
+              {pendingViewingRows.length > 0 && (
                 <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: isDark
-                      ? "radial-gradient(circle at bottom right, rgba(80, 120, 190, 0.2), transparent 65%)"
-                      : "radial-gradient(circle at bottom right, rgba(80, 120, 190, 0.16), transparent 65%)",
-                    pointerEvents: "none",
-                  }}
-                />
-                <div className="p-5 md:p-6 relative z-1">
-                  <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <MdSchedule size={20} className="text-[#3B82F6]" />
-                      Programări astăzi
-                    </h2>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                      {new Date().toLocaleDateString("ro-RO", {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "long",
-                      })}
-                    </span>
-                  </div>
-
-                  {todayAppointments.length === 0 ? (
-                    <div className="py-6 text-center">
-                      <MdSchedule
-                        size={36}
-                        className="text-gray-300 dark:text-gray-600 mx-auto mb-2"
-                      />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Nu ai programări astăzi. Bucură-te de o zi liberă!
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {todayAppointments.map((p, i) => {
-                        const cfg = getProgramareStatusConfig(p.status);
-                        return (
-                          <div
-                            key={p.id}
-                            className="flex items-start gap-4 rounded-xl px-4 py-3.5 transition-colors"
-                            style={{
-                              background: isDark
-                                ? "rgba(27, 27, 33, 0.6)"
-                                : "rgba(255, 255, 255, 0.7)",
-                              borderLeft: `3px solid ${cfg.color}`,
-                            }}
-                          >
-                            {/* Time */}
-                            <div className="shrink-0 text-center pt-0.5">
-                              <span className="text-lg font-bold text-foreground leading-none block">
-                                {p.ora.split(":")[0]}
-                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
-                                  :{p.ora.split(":")[1]}
-                                </span>
-                              </span>
-                            </div>
-
-                            {/* Details */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm font-medium text-foreground">
-                                  {p.tip === "vizionare"
-                                    ? "Vizionare"
-                                    : "Consultație"}
-                                </span>
-                                <span
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                                  style={{
-                                    backgroundColor: cfg.bg,
-                                    color: cfg.color,
-                                  }}
-                                >
-                                  {cfg.label}
-                                </span>
-                              </div>
-                              <p
-                                className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate"
-                                title={p.imobil}
-                              >
-                                {p.imobil}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                <MdPerson
-                                  size={12}
-                                  className="inline mr-1 -mt-0.5"
-                                />
-                                {p.numeClient}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Upcoming appointments */}
-              {upcomingAppointments.length > 0 && (
-                <div
-                  className="rounded-2xl md:rounded-3xl overflow-hidden relative"
+                  className="rounded-2xl md:rounded-3xl overflow-hidden relative border border-amber-500/25"
                   style={glassCard(isDark)}
                 >
                   <GlassShine isDark={isDark} />
-                  <div className="p-5 md:p-6 relative z-1">
-                    <div className="flex items-center justify-between mb-5">
-                      <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                        <MdAccessTime size={20} className="text-[#C25A2B]" />
-                        Programări viitoare
-                      </h2>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {upcomingAppointments.length} programăr
-                        {upcomingAppointments.length === 1 ? "e" : "i"}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 hide-scrollbar">
-                      {upcomingAppointments.map((p) => {
-                        const cfg = getProgramareStatusConfig(p.status);
-                        const dateLabel = new Date(
-                          p.data
-                        ).toLocaleDateString("ro-RO", {
+                  <div className="p-5 md:p-6 relative z-1 space-y-3">
+                    <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <MdSchedule size={20} className="text-amber-500" />
+                      Cereri de vizionare (așteaptă aprobare)
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Aprobă pentru a crea evenimentul în Google Calendar și a trimite invitație la client.
+                      Respinge dacă intervalul nu mai convine.
+                    </p>
+                    <ul className="space-y-3">
+                      {pendingViewingRows.map((row) => {
+                        const start = new Date(row.startAt);
+                        const label = start.toLocaleString("ro-RO", {
+                          timeZone: "Europe/Bucharest",
                           weekday: "short",
                           day: "numeric",
                           month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
                         });
+                        const busy = viewingActionId === row.id;
                         return (
-                          <div
-                            key={p.id}
-                            className="flex items-center gap-4 rounded-xl px-4 py-3 transition-colors"
+                          <li
+                            key={row.id}
+                            className="rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
                             style={{
                               background: isDark
-                                ? "rgba(27, 27, 33, 0.5)"
-                                : "rgba(255, 255, 255, 0.6)",
+                                ? "rgba(27, 27, 33, 0.6)"
+                                : "rgba(255, 255, 255, 0.75)",
                             }}
                           >
-                            {/* Date chip */}
-                            <div
-                              className="shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center"
-                              style={{
-                                background: isDark
-                                  ? "rgba(194, 90, 43, 0.12)"
-                                  : "rgba(194, 90, 43, 0.08)",
-                              }}
-                            >
-                              <span className="text-lg font-bold text-foreground leading-none">
-                                {new Date(p.data).getDate()}
-                              </span>
-                              <span className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">
-                                {new Date(p.data).toLocaleDateString("ro-RO", {
-                                  month: "short",
-                                })}
-                              </span>
-                            </div>
-
-                            {/* Details */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-foreground">
-                                  {p.tip === "vizionare"
-                                    ? "Vizionare"
-                                    : "Consultație"}
-                                </span>
-                                <span className="text-xs text-gray-400">
-                                  {p.ora}
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                                {p.imobil}
+                            <div className="flex-1 min-w-0 text-sm">
+                              <p className="font-medium text-foreground truncate">
+                                {row.listingTitle}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {p.numeClient}
+                                {label} · {row.clientName} · {row.clientEmail}
                               </p>
+                              {row.message && (
+                                <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                  {row.message}
+                                </p>
+                              )}
                             </div>
-
-                            {/* Status */}
-                            <span
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0"
-                              style={{
-                                backgroundColor: cfg.bg,
-                                color: cfg.color,
-                              }}
-                            >
-                              {cfg.label}
-                            </span>
-                          </div>
+                            <div className="flex gap-2 shrink-0">
+                              <button
+                                type="button"
+                                disabled={busy || !googleCalendarConnected}
+                                onClick={() => approveViewing(row.id)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-45"
+                              >
+                                Aprobă
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => rejectViewing(row.id)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-white/20"
+                              >
+                                Respinge
+                              </button>
+                            </div>
+                          </li>
                         );
                       })}
-                    </div>
+                    </ul>
+                    {!googleCalendarConnected && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        Conectează Google Calendar mai sus pentru a putea aproba cereri.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
+
+              <div className="flex flex-col gap-6 md:gap-8 min-h-0 lg:flex-1 lg:min-h-0">
+                {/* Today's appointments */}
+                <div
+                  className="rounded-2xl md:rounded-3xl overflow-hidden relative flex flex-col min-h-0 lg:flex-1"
+                  style={glassCard(isDark)}
+                >
+                  <GlassShine isDark={isDark} />
+                  {/* Accent */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: isDark
+                        ? "radial-gradient(circle at bottom right, rgba(80, 120, 190, 0.2), transparent 65%)"
+                        : "radial-gradient(circle at bottom right, rgba(80, 120, 190, 0.16), transparent 65%)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <div className="p-5 md:p-6 relative z-1 flex flex-col flex-1 min-h-0">
+                    <div className="flex items-center justify-between mb-5 shrink-0">
+                      <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <MdSchedule size={20} className="text-[#3B82F6]" />
+                        Programări astăzi
+                      </h2>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                        {new Date().toLocaleDateString("ro-RO", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 hide-scrollbar">
+                      {todayAppointments.length === 0 ? (
+                        <div className="py-6 text-center lg:h-full lg:flex lg:flex-col lg:items-center lg:justify-center lg:min-h-0">
+                          <MdSchedule
+                            size={36}
+                            className="text-gray-300 dark:text-gray-600 mx-auto mb-2"
+                          />
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Nu ai programări astăzi. Bucură-te de o zi liberă!
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {todayAppointments.map((p, i) => {
+                            const cfg = getProgramareStatusConfig(p.status);
+                            return (
+                              <div
+                                key={p.id}
+                                className="flex items-start gap-4 rounded-xl px-4 py-3.5 transition-colors"
+                                style={{
+                                  background: isDark
+                                    ? "rgba(27, 27, 33, 0.6)"
+                                    : "rgba(255, 255, 255, 0.7)",
+                                  borderLeft: `3px solid ${cfg.color}`,
+                                }}
+                              >
+                                {/* Time */}
+                                <div className="shrink-0 text-center pt-0.5">
+                                  <span className="text-lg font-bold text-foreground leading-none block">
+                                    {p.ora.split(":")[0]}
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                                      :{p.ora.split(":")[1]}
+                                    </span>
+                                  </span>
+                                </div>
+
+                                {/* Details */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-medium text-foreground">
+                                      {p.tip === "vizionare"
+                                        ? "Vizionare"
+                                        : "Consultație"}
+                                    </span>
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                      style={{
+                                        backgroundColor: cfg.bg,
+                                        color: cfg.color,
+                                      }}
+                                    >
+                                      {cfg.label}
+                                    </span>
+                                  </div>
+                                  <p
+                                    className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate"
+                                    title={p.imobil}
+                                  >
+                                    {p.imobil}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    <MdPerson
+                                      size={12}
+                                      className="inline mr-1 -mt-0.5"
+                                    />
+                                    {p.numeClient}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Upcoming appointments */}
+                {upcomingAppointments.length > 0 && (
+                  <div
+                    className="rounded-2xl md:rounded-3xl overflow-hidden relative flex flex-col min-h-0 lg:flex-1"
+                    style={glassCard(isDark)}
+                  >
+                    <GlassShine isDark={isDark} />
+                    <div className="p-5 md:p-6 relative z-1 flex flex-col flex-1 min-h-0">
+                      <div className="flex items-center justify-between mb-5 shrink-0">
+                        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                          <MdAccessTime size={20} className="text-[#C25A2B]" />
+                          Programări viitoare
+                        </h2>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {upcomingAppointments.length} programăr
+                          {upcomingAppointments.length === 1 ? "e" : "i"}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 min-h-0 overflow-y-auto pr-1 hide-scrollbar space-y-2">
+                        {upcomingAppointments.map((p) => {
+                          const cfg = getProgramareStatusConfig(p.status);
+                          return (
+                            <div
+                              key={p.id}
+                              className="flex items-center gap-4 rounded-xl px-4 py-3 transition-colors"
+                              style={{
+                                background: isDark
+                                  ? "rgba(27, 27, 33, 0.5)"
+                                  : "rgba(255, 255, 255, 0.6)",
+                              }}
+                            >
+                              {/* Date chip */}
+                              <div
+                                className="shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center"
+                                style={{
+                                  background: isDark
+                                    ? "rgba(194, 90, 43, 0.12)"
+                                    : "rgba(194, 90, 43, 0.08)",
+                                }}
+                              >
+                                <span className="text-lg font-bold text-foreground leading-none">
+                                  {new Date(p.data).getDate()}
+                                </span>
+                                <span className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">
+                                  {new Date(p.data).toLocaleDateString("ro-RO", {
+                                    month: "short",
+                                  })}
+                                </span>
+                              </div>
+
+                              {/* Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">
+                                    {p.tip === "vizionare"
+                                      ? "Vizionare"
+                                      : "Consultație"}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    {p.ora}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                                  {p.imobil}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {p.numeClient}
+                                </p>
+                              </div>
+
+                              {/* Status */}
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0"
+                                style={{
+                                  backgroundColor: cfg.bg,
+                                  color: cfg.color,
+                                }}
+                              >
+                                {cfg.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* ──────────────── CALENDAR + NOTIFICĂRI ──────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 lg:items-stretch">
             {/* Calendar */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 lg:h-full lg:min-h-0 flex flex-col min-h-0">
               <MonthCalendar isDark={isDark} programari={programari} />
             </div>
 
             {/* Notificări */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 lg:h-full lg:min-h-0 flex flex-col min-h-0">
               <div
-                className="rounded-2xl md:rounded-3xl overflow-hidden relative"
+                className="rounded-2xl md:rounded-3xl overflow-hidden relative flex-1 flex flex-col min-h-0 h-full lg:min-h-0"
                 style={glassCard(isDark)}
               >
                 <GlassShine isDark={isDark} />
-                <div className="p-5 md:p-6 relative z-1 space-y-4">
-                  <div className="flex items-center justify-between">
+                <div className="p-5 md:p-6 relative z-1 flex flex-col flex-1 min-h-0 gap-4">
+                  <div className="flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2">
                       <MdNotifications
                         size={20}
@@ -1488,11 +2079,11 @@ export default function AgentDashboardPage() {
                   </div>
 
                   {notificari.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 lg:flex-1 lg:flex lg:items-center lg:min-h-0">
                       Nu ai notificări în acest moment.
                     </p>
                   ) : (
-                    <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1 hide-scrollbar">
+                    <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1 hide-scrollbar">
                       {notificari.map((n) => {
                         const isUnread = !n.citita;
                         const dateLabel = new Date(

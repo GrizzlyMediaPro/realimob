@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
+const FORME_ORGANIZARE = ["PFA", "SRL"] as const;
+
 type AgentApplicationPayload = {
   buletinUrl?: string;
   formaOrganizare?: string;
   cui?: string;
+  telefon?: string;
+  gdprAccepted?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -16,12 +20,25 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as AgentApplicationPayload;
     const buletinUrl = body.buletinUrl?.trim();
-    const formaOrganizare = body.formaOrganizare?.trim();
+    const formaRaw = body.formaOrganizare?.trim().toUpperCase();
+    const formaOrganizare =
+      formaRaw && FORME_ORGANIZARE.includes(formaRaw as (typeof FORME_ORGANIZARE)[number])
+        ? formaRaw
+        : "";
     const cui = body.cui?.trim();
+    const telefon = body.telefon?.trim();
+    const gdprAccepted = body.gdprAccepted === true;
 
-    if (!buletinUrl || !formaOrganizare || !cui) {
+    if (!buletinUrl || !formaOrganizare || !cui || !telefon) {
       return NextResponse.json(
-        { error: "Completează toate câmpurile obligatorii." },
+        { error: "Completează toate câmpurile obligatorii, inclusiv numărul de telefon." },
+        { status: 400 }
+      );
+    }
+
+    if (!gdprAccepted) {
+      return NextResponse.json(
+        { error: "Trebuie să accepți prelucrarea datelor cu caracter personal (GDPR) pentru a trimite cererea." },
         { status: 400 }
       );
     }
@@ -39,6 +56,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const publicMeta = (user.publicMetadata ?? {}) as { agentStatus?: string };
+    if (publicMeta.agentStatus === "approved") {
+      return NextResponse.json(
+        { error: "Contul este deja aprobat." },
+        { status: 400 }
+      );
+    }
+
     await client.users.updateUserMetadata(userId, {
       publicMetadata: {
         ...(user.publicMetadata ?? {}),
@@ -48,6 +73,8 @@ export async function POST(request: Request) {
           buletinUrl,
           formaOrganizare,
           cui,
+          telefon,
+          gdprAcceptedAt: new Date().toISOString(),
           submittedAt: new Date().toISOString(),
         },
       },

@@ -1,8 +1,8 @@
  "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CiUser, CiHome } from "react-icons/ci";
 import { MdBusinessCenter } from "react-icons/md";
 
@@ -11,9 +11,10 @@ import Footer from "../components/Footer";
 
 type RolUtilizator = "utilizator" | "agent";
 
-export default function InregistrarePage() {
+function InregistrarePageInner() {
   const [rolSelectat, setRolSelectat] = useState<RolUtilizator>("utilizator");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
 
@@ -142,13 +143,19 @@ export default function InregistrarePage() {
             <button
               type="button"
               disabled={!registrationsEnabled || settingsLoading}
-              onClick={() =>
-                router.push(
-                  rolSelectat === "agent"
-                    ? "/sign-up?role=agent"
-                    : "/sign-up?role=client"
-                )
-              }
+              onClick={() => {
+                const q = new URLSearchParams();
+                q.set("role", rolSelectat === "agent" ? "agent" : "client");
+                const back = searchParams.get("redirect_url");
+                if (
+                  typeof back === "string" &&
+                  back.startsWith("/") &&
+                  !back.startsWith("//")
+                ) {
+                  q.set("redirect_url", back);
+                }
+                router.push(`/sign-up?${q.toString()}`);
+              }}
               className="w-full mt-4 px-4 py-2.5 rounded-lg text-white font-medium text-sm md:text-base hover:opacity-90 transition-opacity disabled:opacity-45 disabled:cursor-not-allowed"
               style={{
                 backgroundColor:
@@ -175,6 +182,20 @@ export default function InregistrarePage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function InregistrarePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center pt-24 text-sm text-gray-500">
+          Se încarcă…
+        </div>
+      }
+    >
+      <InregistrarePageInner />
+    </Suspense>
   );
 }
 

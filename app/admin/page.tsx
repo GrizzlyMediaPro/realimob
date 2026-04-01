@@ -10,7 +10,6 @@ import {
   MdSettings,
   MdAnalytics,
   MdNotifications,
-  MdSecurity,
   MdTrendingUp,
   MdTrendingDown,
   MdCheckCircle,
@@ -236,34 +235,22 @@ export default function AdminPage() {
       badge: formatNumber(stats.users.total),
     },
     {
-      titlu: "Analitica",
-      descriere: "Statistici și rapoarte detaliate",
-      icon: MdAnalytics,
-      href: "/admin/analitica",
-    },
-    {
       titlu: "Notificări",
       descriere: "Sistem de notificări și alerte",
       icon: MdNotifications,
       href: "/admin/notificari",
     },
     {
+      titlu: "Statistici și rapoarte",
+      descriere: "Analitică, grafice și export CSV/PDF",
+      icon: MdAnalytics,
+      href: "/admin/statistici",
+    },
+    {
       titlu: "Setări",
-      descriere: "Configurare platformă",
+      descriere: "Platformă, securitate și roluri",
       icon: MdSettings,
       href: "/admin/setari",
-    },
-    {
-      titlu: "Securitate",
-      descriere: "Gestionare securitate și permisiuni",
-      icon: MdSecurity,
-      href: "/admin/securitate",
-    },
-    {
-      titlu: "Rapoarte",
-      descriere: "Generare rapoarte și export date",
-      icon: MdTrendingUp,
-      href: "/admin/rapoarte",
     },
   ];
 
@@ -477,7 +464,7 @@ export default function AdminPage() {
               />
 
               <div className="p-4 md:p-6 relative z-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {menuItems.map((item, index) => {
                     const Icon = item.icon;
                     return (

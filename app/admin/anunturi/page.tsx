@@ -19,6 +19,7 @@ import {
 } from "react-icons/md";
 import { CiFilter } from "react-icons/ci";
 import Link from "next/link";
+import { formatListingPriceDisplay } from "@/lib/listingToAnunt";
 
 type AnuntStatus = "active" | "inactive" | "pending";
 type DeactivationReason =
@@ -138,8 +139,6 @@ function cardFieldsFromListingDetails(details: unknown): {
   };
 }
 
-const formatPrice = (price: number, currency: string) =>
-  `${price.toLocaleString("ro-RO")} ${currency}`;
 
 export default function AdminAnunturiPage() {
   const [isDark, setIsDark] = useState(false);
@@ -357,7 +356,11 @@ export default function AdminAnunturiPage() {
         id: listing.id,
         titlu: listing.title,
         image: listingImages[0] || "/ap2.jpg",
-        pret: formatPrice(listing.price, listing.currency),
+        pret: formatListingPriceDisplay(
+          listing.price,
+          listing.currency,
+          listing.details as Record<string, unknown> | null,
+        ),
         priceNumber: listing.price,
         tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
         locationText: listing.sector || listing.location || "Zona centrală",
@@ -373,7 +376,11 @@ export default function AdminAnunturiPage() {
         id: listing.id,
         titlu: listing.title,
         image: listingImages[0] || "/ap2.jpg",
-        pret: formatPrice(listing.price, listing.currency),
+        pret: formatListingPriceDisplay(
+          listing.price,
+          listing.currency,
+          listing.details as Record<string, unknown> | null,
+        ),
         priceNumber: listing.price,
         tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
         locationText: listing.sector || listing.location || "Zona centrală",
@@ -1137,7 +1144,11 @@ export default function AdminAnunturiPage() {
                                   </h3>
                                   <div className="flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-gray-400 mb-2">
                                     <span className="font-bold text-foreground text-base">
-                                      {listing.price.toLocaleString("ro-RO")} {listing.currency}
+                                      {formatListingPriceDisplay(
+                                        listing.price,
+                                        listing.currency,
+                                        listing.details as Record<string, unknown> | null,
+                                      )}
                                     </span>
                                     {listing.sector && (
                                       <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">

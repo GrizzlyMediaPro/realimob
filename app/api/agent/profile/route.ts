@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "../../../../lib/prisma";
+import type { AgentApplicationMetadata } from "@/lib/agent-application";
 
 type AgentPublicMetadata = {
   isAgent?: boolean;
@@ -10,14 +11,7 @@ type AgentPublicMetadata = {
     role?: string;
     location?: string;
   };
-  agentApplication?: {
-    buletinUrl?: string;
-    formaOrganizare?: string;
-    cui?: string;
-    submittedAt?: string;
-    reviewedAt?: string;
-    reviewedBy?: string;
-  };
+  agentApplication?: AgentApplicationMetadata;
 };
 
 type UpdateAgentProfilePayload = {
@@ -63,6 +57,8 @@ export async function GET() {
       "";
     const email = user.emailAddresses[0]?.emailAddress ?? null;
     const phoneFromClerk = user.phoneNumbers[0]?.phoneNumber ?? null;
+    const phoneFromApplication =
+      publicMetadata.agentApplication?.telefon?.trim() || null;
     let phoneFromDb: string | null = null;
 
     let googleCalendarConnected = false;
@@ -84,6 +80,7 @@ export async function GET() {
       name: fullName || null,
       phone:
         publicMetadata.agentProfile?.phone ??
+        phoneFromApplication ??
         phoneFromDb ??
         phoneFromClerk,
       createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
@@ -93,6 +90,7 @@ export async function GET() {
       agentProfile: {
         phone:
           publicMetadata.agentProfile?.phone ??
+          phoneFromApplication ??
           phoneFromDb ??
           phoneFromClerk,
         role: publicMetadata.agentProfile?.role ?? "Agent imobiliar",

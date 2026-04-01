@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreatePlatformSettings } from "@/lib/platformSettings";
 
@@ -42,6 +43,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Autentifică-te pentru a publica un anunț." },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json();
 
     const {
@@ -95,6 +104,7 @@ export async function POST(request: Request) {
         latitude: latitude ? Number(latitude) : null,
         longitude: longitude ? Number(longitude) : null,
         status,
+        submittedByUserId: userId,
         details: details ?? {},
         images: images ?? [],
       },

@@ -31,9 +31,15 @@ model Listing {
   // Status moderare (pending / approved / denied)
   status    String  @default("pending")
 
+  /// Clerk user id — cine a trimis anunțul (cont utilizator)
+  submittedByUserId String?
+
   // Agent atribuit
   agentId   String? @db.ObjectId
   agent     Agent?  @relation(fields: [agentId], references: [id])
+
+  // Cereri de vizionare (programare prin Google Calendar)
+  viewingRequests ViewingBookingRequest[]
 
   // Alte detalii salvate flexibil
   details Json?
@@ -56,16 +62,40 @@ model Agent {
   // Rating agent (1-5, cu zecimale)
   rating    Float    @default(3.0)
 
-  // Link Calendly pentru programare vizionări (URL complet, ex. https://calendly.com/user/30min)
-  calendlyUrl String?
-
   // Google Calendar (OAuth) – refresh token în DB; evenimente în calendarul „primary” al contului conectat
   googleRefreshToken          String?
   googleCalendarEmail         String?
   googleCalendarConnectedAt   DateTime?
 
   // Anunțuri atribuite
-  listings  Listing[]
+  listings         Listing[]
+  viewingRequests  ViewingBookingRequest[]
+}
+
+/// Cerere de vizionare: clientul alege interval din disponibilitate; agentul aprobă → eveniment în Google Calendar.
+model ViewingBookingRequest {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String  @db.ObjectId
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  agentId   String  @db.ObjectId
+  agent     Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  startAt DateTime
+  endAt   DateTime
+
+  clientName  String
+  clientEmail String
+  clientPhone String?
+
+  message String?
+
+  /// pending | approved | rejected
+  status String @default("pending")
+
+  googleEventId String?
 }
 
 /// Preferințe globale: cine primește emailuri pe tip de conținut (agenți / clienți / admini).

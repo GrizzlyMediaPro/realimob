@@ -7,14 +7,11 @@ import Footer from "../../components/Footer";
 import {
   MdArrowBack,
   MdNotifications,
-  MdEmail,
   MdSave,
   MdDelete,
   MdAdd,
   MdClose,
   MdSend,
-  MdCheckCircle,
-  MdWarning,
 } from "react-icons/md";
 
 function glassOuterStyle(isDark: boolean): CSSProperties {
@@ -275,7 +272,6 @@ export default function AdminNotificariPage() {
       if (!res.ok) {
         throw new Error(data?.error || "Trimitere eșuată.");
       }
-      setTestMessage("Email trimis. Verifică inboxul (și spam).");
     } catch (e) {
       setTestMessage(
         e instanceof Error ? e.message : "Trimitere eșuată."
@@ -318,77 +314,9 @@ export default function AdminNotificariPage() {
                 >
                   Notificări &amp; email
                 </h1>
-                <p
-                  className="text-gray-500 dark:text-gray-400 max-w-2xl"
-                  style={{ fontFamily: "var(--font-galak-regular)" }}
-                >
-                  Alegi cine primește mesaje pe categorii, creezi șabloane HTML și
-                  testezi trimiterea prin Resend.
-                </p>
               </div>
             </div>
           </div>
-
-          {/* Status Resend */}
-          <section
-            className="rounded-2xl md:rounded-3xl overflow-hidden relative p-4 md:p-5"
-            style={glassOuterStyle(isDark)}
-          >
-            <GlassReflection isDark={isDark} />
-            <div
-              className="relative z-[1] flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-center sm:justify-between"
-              style={{ fontFamily: "var(--font-galak-regular)" }}
-            >
-              <div className="flex items-center gap-2 text-sm">
-                <MdEmail className="text-[#C25A2B] shrink-0" size={20} />
-                <span className="font-semibold text-foreground">
-                  Configurare trimitere
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full"
-                  style={{
-                    background: emailConfigured.resend
-                      ? "rgba(16, 185, 129, 0.15)"
-                      : "rgba(239, 68, 68, 0.12)",
-                    color: emailConfigured.resend ? "#10B981" : "#EF4444",
-                  }}
-                >
-                  {emailConfigured.resend ? (
-                    <MdCheckCircle size={14} />
-                  ) : (
-                    <MdWarning size={14} />
-                  )}
-                  RESEND_API_KEY
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full"
-                  style={{
-                    background: emailConfigured.from
-                      ? "rgba(16, 185, 129, 0.15)"
-                      : "rgba(239, 68, 68, 0.12)",
-                    color: emailConfigured.from ? "#10B981" : "#EF4444",
-                  }}
-                >
-                  {emailConfigured.from ? (
-                    <MdCheckCircle size={14} />
-                  ) : (
-                    <MdWarning size={14} />
-                  )}
-                  EMAIL_FROM
-                </span>
-              </div>
-            </div>
-            {!cfgOk && (
-              <p className="relative z-[1] mt-3 text-xs text-gray-600 dark:text-gray-400">
-                Adaugă în <code className="text-[#C25A2B]">.env</code>{" "}
-                <code>RESEND_API_KEY</code> și <code>EMAIL_FROM</code> (ex.{" "}
-                <code>Realimob &lt;noreply@domeniul-tău.ro&gt;</code>), apoi
-                repornește serverul de dezvoltare.
-              </p>
-            )}
-          </section>
 
           {error && (
             <div
@@ -678,13 +606,6 @@ export default function AdminNotificariPage() {
                 >
                   Trimite email de test
                 </h2>
-                <p
-                  className="relative z-[1] text-sm text-gray-600 dark:text-gray-400"
-                  style={{ fontFamily: "var(--font-galak-regular)" }}
-                >
-                  Verifică cheia Resend și domeniul. Opțional, alege un șablon
-                  salvat pentru a testa HTML-ul.
-                </p>
                 <div
                   className="relative z-[1] flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end"
                   style={{ fontFamily: "var(--font-galak-regular)" }}
@@ -727,13 +648,11 @@ export default function AdminNotificariPage() {
                   </button>
                 </div>
                 {testMessage && (
-                  <p className="relative z-[1] text-sm text-gray-700 dark:text-gray-300">
+                  <p
+                    className="relative z-[1] text-sm text-red-700 dark:text-red-300"
+                    style={{ fontFamily: "var(--font-galak-regular)" }}
+                  >
                     {testMessage}
-                  </p>
-                )}
-                {!cfgOk && (
-                  <p className="relative z-[1] text-xs text-amber-700 dark:text-amber-300">
-                    Configurează RESEND_API_KEY și EMAIL_FROM pentru a putea trimite.
                   </p>
                 )}
               </section>

@@ -17,6 +17,13 @@ function useDarkMode() {
   return isDark;
 }
 
+function normalizeSpecValue(value: ReactNode): ReactNode {
+  if (typeof value === "number" && Number.isNaN(value)) {
+    return "—";
+  }
+  return value;
+}
+
 /* ── Spec Card individual ── */
 export function GlassSpecCard({
   icon,
@@ -65,7 +72,7 @@ export function GlassSpecCard({
       />
       <div className="relative z-2">{icon}</div>
       <div className="relative z-2 font-semibold text-foreground text-sm md:text-base">
-        {value}
+        {normalizeSpecValue(value)}
       </div>
       <div className="relative z-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
         {label}

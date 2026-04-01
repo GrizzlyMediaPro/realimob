@@ -1,11 +1,10 @@
-/** Agent atribuit anunțului (din DB), pentru contact / Calendly / WhatsApp */
+/** Agent atribuit anunțului (din DB), pentru contact / programări / WhatsApp */
 export type AssignedAgentPublic = {
   id: string;
   name: string;
   phone?: string;
   avatar?: string;
   rating: number;
-  calendlyUrl?: string;
 };
 
 export type Anunt = {

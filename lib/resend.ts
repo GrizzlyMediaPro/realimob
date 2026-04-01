@@ -4,7 +4,7 @@ let cached: Resend | null | undefined;
 
 export function getResendClient(): Resend | null {
   if (cached !== undefined) return cached;
-  const key = process.env.RESEND_API_KEY;
+  const key = process.env.RESEND_API_KEY?.trim();
   if (!key) {
     cached = null;
     return null;
@@ -17,8 +17,15 @@ export function isResendConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY?.trim());
 }
 
+/** Acceptă EMAIL_FROM sau RESEND_FROM_EMAIL (alias folosit în unele ghiduri Resend). */
+function getTransactionalEmailFrom(): string | undefined {
+  const a = process.env.EMAIL_FROM?.trim();
+  const b = process.env.RESEND_FROM_EMAIL?.trim();
+  return a || b || undefined;
+}
+
 export function isEmailFromConfigured(): boolean {
-  return Boolean(process.env.EMAIL_FROM?.trim());
+  return Boolean(getTransactionalEmailFrom());
 }
 
 export async function sendTransactionalEmail(opts: {
@@ -27,10 +34,10 @@ export async function sendTransactionalEmail(opts: {
   html: string;
 }) {
   const resend = getResendClient();
-  const from = process.env.EMAIL_FROM?.trim();
+  const from = getTransactionalEmailFrom();
   if (!resend || !from) {
     throw new Error(
-      "Email nu este configurat. Setează RESEND_API_KEY și EMAIL_FROM în variabile de mediu."
+      "Email nu este configurat. Setează RESEND_API_KEY și EMAIL_FROM sau RESEND_FROM_EMAIL în variabile de mediu."
     );
   }
 

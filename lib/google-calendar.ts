@@ -19,12 +19,13 @@ export function createGoogleOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, getGoogleOAuthRedirectUri());
 }
 
-/** Scope-uri OAuth: profil + email + creare evenimente în Calendar */
+/** Scope-uri OAuth: profil + email + evenimente + citire freebusy/disponibilitate */
 export const GOOGLE_OAUTH_SCOPES = [
   "openid",
   "email",
   "profile",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.readonly",
 ].join(" ");
 
 export async function exchangeCodeForTokens(code: string) {
@@ -37,6 +38,32 @@ export function getCalendarClientFromRefreshToken(refreshToken: string) {
   const oauth2 = createGoogleOAuth2Client();
   oauth2.setCredentials({ refresh_token: refreshToken });
   return google.calendar({ version: "v3", auth: oauth2 });
+}
+
+export type FreeBusyBlock = { start: Date; end: Date };
+
+export async function getPrimaryCalendarFreeBusy(
+  refreshToken: string,
+  timeMin: Date,
+  timeMax: Date,
+): Promise<FreeBusyBlock[]> {
+  const calendar = getCalendarClientFromRefreshToken(refreshToken);
+  const res = await calendar.freebusy.query({
+    requestBody: {
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      items: [{ id: "primary" }],
+    },
+  });
+  const busy = res.data.calendars?.primary?.busy ?? [];
+  return busy
+    .filter((b): b is { start?: string | null; end?: string | null } =>
+      Boolean(b?.start && b?.end),
+    )
+    .map((b) => ({
+      start: new Date(b.start as string),
+      end: new Date(b.end as string),
+    }));
 }
 
 export async function createPrimaryCalendarEventForAgentEmail(
@@ -52,6 +79,43 @@ export async function createPrimaryCalendarEventForAgentEmail(
   const agent = await prisma.agent.findFirst({
     where: { email: clerkEmail },
     select: { id: true, googleRefreshToken: true },
+  });
+  if (!agent?.googleRefreshToken) {
+    throw new Error("Agentul nu are Google Calendar conectat.");
+  }
+  const calendar = getCalendarClientFromRefreshToken(agent.googleRefreshToken);
+  const { data } = await calendar.events.insert({
+    calendarId: "primary",
+    requestBody: {
+      summary: body.summary,
+      description: body.description,
+      start: {
+        dateTime: body.start.toISOString(),
+        timeZone: "Europe/Bucharest",
+      },
+      end: {
+        dateTime: body.end.toISOString(),
+        timeZone: "Europe/Bucharest",
+      },
+      attendees: body.attendeeEmails?.map((email) => ({ email })),
+    },
+  });
+  return data;
+}
+
+export async function createPrimaryCalendarEventForAgentId(
+  agentId: string,
+  body: {
+    summary: string;
+    description?: string;
+    start: Date;
+    end: Date;
+    attendeeEmails?: string[];
+  },
+) {
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: { googleRefreshToken: true },
   });
   if (!agent?.googleRefreshToken) {
     throw new Error("Agentul nu are Google Calendar conectat.");

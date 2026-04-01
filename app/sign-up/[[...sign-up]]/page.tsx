@@ -5,10 +5,18 @@ import Link from "next/link";
 import { SignUp } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 
+function safePostAuthPath(raw: string | null): string | null {
+  if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) {
+    return null;
+  }
+  return raw;
+}
+
 export default function SignUpPage() {
   const searchParams = useSearchParams();
   const role = searchParams.get("role");
   const isAgentSignup = role === "agent";
+  const redirectAfter = safePostAuthPath(searchParams.get("redirect_url"));
   const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +70,9 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center pt-24 pb-10 px-4">
       <SignUp
         signInUrl="/sign-in"
-        afterSignUpUrl={isAgentSignup ? "/agent" : "/"}
+        afterSignUpUrl={
+          isAgentSignup ? "/agent" : redirectAfter ?? "/"
+        }
         unsafeMetadata={{
           requestedRole: isAgentSignup ? "agent" : "client",
         }}

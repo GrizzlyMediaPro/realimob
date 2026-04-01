@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, email, phone, avatar, sectors, rating, calendlyUrl } = body;
+    const { name, email, phone, avatar, sectors, rating } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -102,7 +102,6 @@ export async function POST(request: NextRequest) {
         avatar: avatar || null,
         sectors: sectors || [],
         rating: rating ? Number(rating) : 3.0,
-        calendlyUrl: calendlyUrl?.trim() || null,
       },
     });
 

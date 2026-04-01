@@ -34,6 +34,7 @@ import {
   type Anunt,
   type SortOption,
 } from "../../lib/anunturiData";
+import { transformListingToAnunt as listingFromDb } from "../../lib/listingToAnunt";
 
 const BucharestMap = dynamic(() => import("../components/BucharestMap"), {
   ssr: false,
@@ -89,48 +90,9 @@ function getDbListingImageCount(images: any): number {
 }
 
 function transformListingToAnunt(listing: any): Anunt & { realImageCount?: number } {
-  const details = listing.details || {};
-  const images = listing.images || [];
-  
-  // Extrage prima imagine sau folosește o imagine default
-  const firstImage = images.length > 0 && images[0].urls && images[0].urls.length > 0
-    ? images[0].urls[0]
-    : "/ap2.jpg";
-  
-  // Construiește tags din datele disponibile
-  const tags: string[] = [];
-  if (details.suprafataUtila) tags.push(`${details.suprafataUtila} m²`);
-  if (listing.sector) tags.push(listing.sector);
-  if (details.etaj !== undefined && details.etaj !== "") {
-    tags.push(`Etaj ${details.etaj}`);
-  }
-  if (details.stare) tags.push(details.stare);
-  if (details.mobilare) tags.push(details.mobilare);
-  
-  // Calculează zilePostat
-  const createdAt = new Date(listing.createdAt);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - createdAt.getTime());
-  const zilePostat = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
   return {
-    id: listing.id,
-    titlu: listing.title,
-    image: firstImage,
-    pret: `${listing.price.toLocaleString("ro-RO")} ${listing.currency}`,
-    tags,
-    createdAt: listing.createdAt,
-    lat: details.lat || undefined,
-    lng: details.lng || undefined,
-    dormitoare: details.camere ? (details.camere === "Studio" ? 1 : Number(details.camere)) : undefined,
-    bai: details.nrBai ? Number(details.nrBai) : undefined,
-    suprafataUtil: details.suprafataUtila ? Number(details.suprafataUtila) : undefined,
-    etaj: details.etaj || undefined,
-    anConstructie: details.anConstructie ? Number(details.anConstructie) : undefined,
-    zilePostat,
-    vizualizari: 0,
-    favorite: 0,
-    realImageCount: getDbListingImageCount(images),
+    ...listingFromDb(listing),
+    realImageCount: getDbListingImageCount(listing.images),
   };
 }
 

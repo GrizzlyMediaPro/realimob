@@ -4,9 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MdInfoOutline, MdStar, MdAccessTime, MdThumbUp, MdClose } from "react-icons/md";
 import { FaLinkedin, FaWhatsapp } from "react-icons/fa";
-import { PopupModal } from "react-calendly";
-
 import { GlassContactCard, GlassCTAButton } from "./LiquidGlassCards";
+import ViewingBookingModal from "./ViewingBookingModal";
 import type { Anunt } from "../../lib/anunturiData";
 
 /* ── Tipuri & date agenți demo ── */
@@ -69,7 +68,6 @@ type DisplayAgent = {
   linkedin?: string;
   phone?: string | null;
   avatar?: string | null;
-  calendlyUrl?: string | null;
   isAssigned: boolean;
 };
 
@@ -86,7 +84,6 @@ function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
       linkedin: undefined,
       phone: a.phone ?? null,
       avatar: a.avatar ?? null,
-      calendlyUrl: a.calendlyUrl ?? null,
       isAssigned: true,
     };
   }
@@ -101,9 +98,12 @@ function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
     linkedin: mock.linkedin,
     phone: null,
     avatar: null,
-    calendlyUrl: null,
     isAssigned: false,
   };
+}
+
+function isMongoListingId(id: string): boolean {
+  return /^[a-f\d]{24}$/i.test(id);
 }
 
 function normalizePhoneForWhatsApp(phone: string): string | null {
@@ -113,12 +113,6 @@ function normalizePhoneForWhatsApp(phone: string): string | null {
   if (d.startsWith("0")) return `40${d.slice(1)}`;
   if (d.length === 9) return `40${d}`;
   return d;
-}
-
-function resolveCalendlyUrl(agent: DisplayAgent): string {
-  const fromAgent = agent.calendlyUrl?.trim();
-  if (fromAgent) return fromAgent;
-  return (process.env.NEXT_PUBLIC_CALENDLY_URL || "").trim();
 }
 
 function resolveWhatsAppPhone(agent: DisplayAgent): string | null {
@@ -341,21 +335,16 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
   const [showNameTooltip, setShowNameTooltip] = useState(false);
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [calendlyOpen, setCalendlyOpen] = useState(false);
-  const [rootEl, setRootEl] = useState<HTMLElement | null>(null);
+  const [viewingOpen, setViewingOpen] = useState(false);
 
   const nameRef = useRef<HTMLButtonElement>(null);
   const infoRef = useRef<HTMLButtonElement>(null);
 
   const agent = useMemo(() => resolveDisplayAgent(anunt), [anunt]);
-  const calendlyUrl = useMemo(() => resolveCalendlyUrl(agent), [agent]);
-  const canSchedule = Boolean(calendlyUrl);
+  const canSchedule =
+    agent.isAssigned && isMongoListingId(String(anunt.id));
   const waDigits = useMemo(() => resolveWhatsAppPhone(agent), [agent]);
   const canWhatsApp = Boolean(waDigits);
-
-  useEffect(() => {
-    setRootEl(document.body);
-  }, []);
 
   const agentInitials = agent.name
     .split(" ")
@@ -382,7 +371,7 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
   }, [waDigits, anunt.titlu]);
 
   const onScheduleClick = useCallback(() => {
-    if (canSchedule) setCalendlyOpen(true);
+    if (canSchedule) setViewingOpen(true);
   }, [canSchedule]);
 
   return (
@@ -444,9 +433,9 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
         </GlassCTAButton>
         {!canSchedule && (
           <p className="relative z-2 text-[11px] text-amber-700/90 dark:text-amber-400/90 mt-1">
-            Link Calendly indisponibil. Setează URL-ul în panoul admin (agent)
-            sau variabila{" "}
-            <code className="text-[10px]">NEXT_PUBLIC_CALENDLY_URL</code>.
+            {agent.isAssigned
+              ? "Programarea online necesită un anunț din platformă și un agent cu Google Calendar conectat."
+              : "Pentru acest anunț nu este încă atribuit un agent — folosește WhatsApp sau contactul din descriere."}
           </p>
         )}
 
@@ -504,14 +493,12 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
         />
       )}
 
-      {rootEl && canSchedule && (
-        <PopupModal
-          url={calendlyUrl}
-          open={calendlyOpen}
-          onModalClose={() => setCalendlyOpen(false)}
-          rootElement={rootEl}
-        />
-      )}
+      <ViewingBookingModal
+        open={viewingOpen}
+        onClose={() => setViewingOpen(false)}
+        listingId={String(anunt.id)}
+        listingTitle={anunt.titlu}
+      />
     </>
   );
 }
@@ -520,20 +507,15 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
 export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [calendlyOpen, setCalendlyOpen] = useState(false);
-  const [rootEl, setRootEl] = useState<HTMLElement | null>(null);
+  const [viewingOpen, setViewingOpen] = useState(false);
 
   const infoRef = useRef<HTMLButtonElement>(null);
 
   const agent = useMemo(() => resolveDisplayAgent(anunt), [anunt]);
-  const calendlyUrl = useMemo(() => resolveCalendlyUrl(agent), [agent]);
-  const canSchedule = Boolean(calendlyUrl);
+  const canSchedule =
+    agent.isAssigned && isMongoListingId(String(anunt.id));
   const waDigits = useMemo(() => resolveWhatsAppPhone(agent), [agent]);
   const canWhatsApp = Boolean(waDigits);
-
-  useEffect(() => {
-    setRootEl(document.body);
-  }, []);
 
   const agentInitials = agent.name
     .split(" ")
@@ -609,7 +591,7 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
               <button
                 type="button"
                 disabled={!canSchedule}
-                onClick={() => canSchedule && setCalendlyOpen(true)}
+                onClick={() => canSchedule && setViewingOpen(true)}
                 className="flex-1 px-4 py-3 rounded-2xl text-white font-medium text-xs transition-all duration-300 disabled:opacity-45 disabled:cursor-not-allowed"
                 style={{
                   background:
@@ -661,14 +643,12 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
         />
       )}
 
-      {rootEl && canSchedule && (
-        <PopupModal
-          url={calendlyUrl}
-          open={calendlyOpen}
-          onModalClose={() => setCalendlyOpen(false)}
-          rootElement={rootEl}
-        />
-      )}
+      <ViewingBookingModal
+        open={viewingOpen}
+        onClose={() => setViewingOpen(false)}
+        listingId={String(anunt.id)}
+        listingTitle={anunt.titlu}
+      />
     </>
   );
 }

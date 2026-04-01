@@ -1,12 +1,25 @@
 import type { Anunt, AssignedAgentPublic, RoomImage } from "./anunturiData";
 
+/** Afișare preț cu mențiune TVA (din `details.tvaInclus`). */
+export function formatListingPriceDisplay(
+  price: number,
+  currency: string,
+  details?: Record<string, unknown> | null,
+): string {
+  const base = `${Number(price).toLocaleString("ro-RO")} ${currency}`;
+  if (!details || typeof details !== "object") return base;
+  const tva = details.tvaInclus;
+  if (tva === true) return `${base} (TVA inclus)`;
+  if (tva === false) return `${base} (TVA neinclus)`;
+  return base;
+}
+
 function mapDbAgentToPublic(agent: {
   id: string;
   name: string;
   phone?: string | null;
   avatar?: string | null;
   rating: number;
-  calendlyUrl?: string | null;
 }): AssignedAgentPublic {
   return {
     id: agent.id,
@@ -14,7 +27,6 @@ function mapDbAgentToPublic(agent: {
     phone: agent.phone ?? undefined,
     avatar: agent.avatar ?? undefined,
     rating: agent.rating,
-    calendlyUrl: agent.calendlyUrl ?? undefined,
   };
 }
 
@@ -24,6 +36,23 @@ export function transformListingToAnunt(
 ): Anunt & { description?: string; dbDetails?: any } {
   const details = listing.details || {};
   const images = listing.images || [];
+
+  const latFromRoot =
+    listing.latitude != null && Number.isFinite(Number(listing.latitude))
+      ? Number(listing.latitude)
+      : undefined;
+  const lngFromRoot =
+    listing.longitude != null && Number.isFinite(Number(listing.longitude))
+      ? Number(listing.longitude)
+      : undefined;
+  const latFromDetails =
+    details.lat != null && Number.isFinite(Number(details.lat))
+      ? Number(details.lat)
+      : undefined;
+  const lngFromDetails =
+    details.lng != null && Number.isFinite(Number(details.lng))
+      ? Number(details.lng)
+      : undefined;
 
   const firstImage =
     images.length > 0 && images[0].urls && images[0].urls.length > 0
@@ -53,11 +82,15 @@ export function transformListingToAnunt(
     id: listing.id,
     titlu: listing.title,
     image: firstImage,
-    pret: `${listing.price.toLocaleString("ro-RO")} ${listing.currency}`,
+    pret: formatListingPriceDisplay(
+      listing.price,
+      listing.currency,
+      listing.details as Record<string, unknown> | null,
+    ),
     tags,
     createdAt: listing.createdAt,
-    lat: details.lat || undefined,
-    lng: details.lng || undefined,
+    lat: latFromRoot ?? latFromDetails,
+    lng: lngFromRoot ?? lngFromDetails,
     dormitoare: details.camere
       ? details.camere === "Studio"
         ? 1
