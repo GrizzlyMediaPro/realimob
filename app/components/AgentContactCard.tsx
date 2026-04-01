@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MdInfoOutline, MdStar, MdAccessTime, MdThumbUp, MdClose } from "react-icons/md";
 import { FaLinkedin, FaWhatsapp } from "react-icons/fa";
-
 import { GlassContactCard, GlassCTAButton } from "./LiquidGlassCards";
+import ViewingBookingModal from "./ViewingBookingModal";
 import type { Anunt } from "../../lib/anunturiData";
 
-/* ── Tipuri & date agenți ── */
-type Agent = {
+/* ── Tipuri & date agenți demo ── */
+type MockAgent = {
   id: number;
   name: string;
   role: string;
@@ -19,7 +19,7 @@ type Agent = {
   linkedin?: string;
 };
 
-const AGENTS: Agent[] = [
+const AGENTS: MockAgent[] = [
   {
     id: 1,
     name: "Andrei Ionescu",
@@ -49,7 +49,7 @@ const AGENTS: Agent[] = [
   },
 ];
 
-export function pickAgentForAnunt(anunt: Anunt): Agent {
+export function pickAgentForAnunt(anunt: Anunt): MockAgent {
   const numericId =
     typeof anunt.id === "string"
       ? parseInt(anunt.id.replace(/\D/g, "") || "0", 10)
@@ -58,7 +58,75 @@ export function pickAgentForAnunt(anunt: Anunt): Agent {
   return AGENTS[index];
 }
 
-/* ── Tooltip Portal: se randează pe body, nu în card ── */
+type DisplayAgent = {
+  id: string;
+  name: string;
+  role: string;
+  deals: number;
+  rating: number;
+  responseTime: string;
+  linkedin?: string;
+  phone?: string | null;
+  avatar?: string | null;
+  isAssigned: boolean;
+};
+
+function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
+  const a = anunt.assignedAgent;
+  if (a) {
+    return {
+      id: a.id,
+      name: a.name,
+      role: "Agent imobiliar RealImob",
+      deals: 0,
+      rating: a.rating,
+      responseTime: "< 24 h",
+      linkedin: undefined,
+      phone: a.phone ?? null,
+      avatar: a.avatar ?? null,
+      isAssigned: true,
+    };
+  }
+  const mock = pickAgentForAnunt(anunt);
+  return {
+    id: String(mock.id),
+    name: mock.name,
+    role: mock.role,
+    deals: mock.deals,
+    rating: mock.rating,
+    responseTime: mock.responseTime,
+    linkedin: mock.linkedin,
+    phone: null,
+    avatar: null,
+    isAssigned: false,
+  };
+}
+
+function isMongoListingId(id: string): boolean {
+  return /^[a-f\d]{24}$/i.test(id);
+}
+
+function normalizePhoneForWhatsApp(phone: string): string | null {
+  const d = phone.replace(/\D/g, "");
+  if (!d) return null;
+  if (d.startsWith("40")) return d;
+  if (d.startsWith("0")) return `40${d.slice(1)}`;
+  if (d.length === 9) return `40${d}`;
+  return d;
+}
+
+function resolveWhatsAppPhone(agent: DisplayAgent): string | null {
+  const raw = agent.phone?.trim();
+  if (raw) {
+    const digits = normalizePhoneForWhatsApp(raw);
+    if (digits) return digits;
+  }
+  const fallback = (process.env.NEXT_PUBLIC_WHATSAPP_FALLBACK || "").trim();
+  if (!fallback) return null;
+  return normalizePhoneForWhatsApp(fallback);
+}
+
+/* ── Tooltip Portal ── */
 function TooltipPortal({
   anchorRef,
   show,
@@ -84,7 +152,7 @@ function TooltipPortal({
     const top =
       placement === "bottom"
         ? rect.bottom + 8
-        : rect.top - 8; // va fi compensat cu translateY(-100%)
+        : rect.top - 8;
 
     setPos({
       top,
@@ -114,16 +182,18 @@ function TooltipPortal({
   );
 }
 
-/* ── Modal agent (portal pe body) ── */
+/* ── Modal agent ── */
 function AgentModal({
   agent,
   agentInitials,
   locationTag,
+  isAssigned,
   onClose,
 }: {
-  agent: Agent;
+  agent: DisplayAgent;
   agentInitials: string;
   locationTag: string;
+  isAssigned: boolean;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -150,9 +220,17 @@ function AgentModal({
         <div className="relative z-10 p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#C25A2B]/15 flex items-center justify-center text-sm font-semibold text-[#C25A2B]">
-                {agentInitials}
-              </div>
+              {agent.avatar ? (
+                <img
+                  src={agent.avatar}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border border-white/20"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-[#C25A2B]/15 flex items-center justify-center text-sm font-semibold text-[#C25A2B]">
+                  {agentInitials}
+                </div>
+              )}
               <div>
                 <div className="text-sm font-semibold text-foreground">
                   {agent.name}
@@ -188,7 +266,7 @@ function AgentModal({
                 Tranzacții
               </span>
               <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                {agent.deals}+ finalize
+                {agent.deals > 0 ? `${agent.deals}+ finalize` : "—"}
               </span>
             </div>
             <div className="flex flex-col gap-1 rounded-xl bg-gray-50/80 dark:bg-zinc-900/70 px-3 py-2">
@@ -203,26 +281,38 @@ function AgentModal({
           </div>
 
           <div className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-            Agentul tău este specializat pe zona{" "}
-            <span className="font-semibold">{locationTag}</span> și pe
-            proprietăți similare cu acest anunț. Sistemul nostru recomandă
-            automat agentul cu cea mai bună potrivire între tipul
-            proprietății, buget și istoricul de performanță.
+            {isAssigned ? (
+              <>
+                <span className="font-semibold">{agent.name}</span> este agentul
+                atribuit acestui anunț și te poate ajuta cu vizionarea și
+                detaliile despre proprietate în zona{" "}
+                <span className="font-semibold">{locationTag}</span>.
+              </>
+            ) : (
+              <>
+                Agentul afișat este un exemplu pentru anunțurile demo. Pentru
+                proprietăți reale din platformă, vei vedea agentul atribuit
+                de echipa RealImob, specializat pe zona{" "}
+                <span className="font-semibold">{locationTag}</span>.
+              </>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0A66C2] hover:underline"
-              onClick={() => {
-                if (agent.linkedin) {
+            {agent.linkedin && agent.linkedin !== "#" ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0A66C2] hover:underline"
+                onClick={() => {
                   window.open(agent.linkedin, "_blank", "noopener,noreferrer");
-                }
-              }}
-            >
-              <FaLinkedin size={14} />
-              Vezi profilul LinkedIn
-            </button>
+                }}
+              >
+                <FaLinkedin size={14} />
+                Vezi profilul LinkedIn
+              </button>
+            ) : (
+              <span />
+            )}
 
             <div className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
               <MdInfoOutline size={12} />
@@ -245,11 +335,16 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
   const [showNameTooltip, setShowNameTooltip] = useState(false);
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewingOpen, setViewingOpen] = useState(false);
 
   const nameRef = useRef<HTMLButtonElement>(null);
   const infoRef = useRef<HTMLButtonElement>(null);
 
-  const agent = useMemo(() => pickAgentForAnunt(anunt), [anunt]);
+  const agent = useMemo(() => resolveDisplayAgent(anunt), [anunt]);
+  const canSchedule =
+    agent.isAssigned && isMongoListingId(String(anunt.id));
+  const waDigits = useMemo(() => resolveWhatsAppPhone(agent), [agent]);
+  const canWhatsApp = Boolean(waDigits);
 
   const agentInitials = agent.name
     .split(" ")
@@ -265,27 +360,48 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
 
   const closeModal = useCallback(() => setIsModalOpen(false), []);
 
+  const openWhatsApp = useCallback(() => {
+    if (!waDigits) return;
+    const text = `Bună, sunt interesat de anunțul: ${anunt.titlu}. Link: ${window.location.href}`;
+    window.open(
+      `https://wa.me/${waDigits}?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }, [waDigits, anunt.titlu]);
+
+  const onScheduleClick = useCallback(() => {
+    if (canSchedule) setViewingOpen(true);
+  }, [canSchedule]);
+
   return (
     <>
       <GlassContactCard>
-        {/* Header: Agent + info icon */}
         <div className="relative z-2 flex items-center justify-between gap-2 mb-1">
           <button
             ref={nameRef}
             type="button"
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-2 group text-left min-w-0"
             onMouseEnter={() => setShowNameTooltip(true)}
             onMouseLeave={() => setShowNameTooltip(false)}
             onClick={() => setIsModalOpen(true)}
           >
-            <div className="w-8 h-8 rounded-full bg-[#C25A2B]/10 flex items-center justify-center text-xs font-semibold text-[#C25A2B]">
-              {agentInitials}
-            </div>
-            <div className="flex flex-col items-start">
+            {agent.avatar ? (
+              <img
+                src={agent.avatar}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/30"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#C25A2B]/10 flex items-center justify-center text-xs font-semibold text-[#C25A2B] shrink-0">
+                {agentInitials}
+              </div>
+            )}
+            <div className="flex flex-col items-start min-w-0">
               <span className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Contact agent
+                {agent.isAssigned ? "Agent atribuit" : "Contact agent"}
               </span>
-              <span className="text-[15px] font-semibold text-foreground group-hover:underline">
+              <span className="text-[15px] font-semibold text-foreground group-hover:underline truncate max-w-[200px]">
                 {agent.name}
               </span>
             </div>
@@ -294,31 +410,50 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
           <button
             ref={infoRef}
             type="button"
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-white/40 bg-white/40 dark:bg-zinc-900/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-white/70 hover:dark:bg-zinc-900/80 transition-colors"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-white/40 bg-white/40 dark:bg-zinc-900/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-white/70 hover:dark:bg-zinc-900/80 transition-colors shrink-0"
             onMouseEnter={() => setShowInfoTooltip(true)}
             onMouseLeave={() => setShowInfoTooltip(false)}
             onClick={() => setShowInfoTooltip((v) => !v)}
-            aria-label="Cum este ales agentul pentru acest anunț"
+            aria-label="Informații despre agentul acestui anunț"
           >
             <MdInfoOutline size={16} />
           </button>
         </div>
 
-        {/* Subtitlu */}
         <div className="relative z-2 text-sm text-gray-500 dark:text-gray-400">
           Programare vizionare
         </div>
 
-        <GlassCTAButton primary>Programează-te acum</GlassCTAButton>
-        <GlassCTAButton>
+        <GlassCTAButton
+          primary
+          onClick={onScheduleClick}
+          disabled={!canSchedule}
+        >
+          Programează o vizionare
+        </GlassCTAButton>
+        {!canSchedule && (
+          <p className="relative z-2 text-[11px] text-amber-700/90 dark:text-amber-400/90 mt-1">
+            {agent.isAssigned
+              ? "Programarea online necesită un anunț din platformă și un agent cu Google Calendar conectat."
+              : "Pentru acest anunț nu este încă atribuit un agent — folosește WhatsApp sau contactul din descriere."}
+          </p>
+        )}
+
+        <GlassCTAButton onClick={openWhatsApp} disabled={!canWhatsApp}>
           <div className="flex items-center justify-center gap-2">
             <FaWhatsapp className="text-lg text-[#25D366]" />
-            <span className="text-sm">Contactează pe WhatsApp</span>
+            <span className="text-sm">Mesaj WhatsApp</span>
           </div>
         </GlassCTAButton>
+        {!canWhatsApp && (
+          <p className="relative z-2 text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+            Adaugă număr de telefon la agent sau setează{" "}
+            <code className="text-[10px]">NEXT_PUBLIC_WHATSAPP_FALLBACK</code>{" "}
+            pentru anunțuri demo.
+          </p>
+        )}
       </GlassContactCard>
 
-      {/* Tooltip-uri: randate ca portal pe body, fără restricții de stacking context */}
       <TooltipPortal anchorRef={nameRef} show={showNameTooltip} align="left">
         <div className="flex items-center justify-between mb-1.5">
           <span className="font-semibold text-[14px]">{agent.name}</span>
@@ -329,7 +464,9 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
         </div>
         <div className="flex items-center justify-between text-[11px] text-gray-200">
           <span>
-            {agent.deals}+ tranzacții în {locationTag}
+            {agent.isAssigned
+              ? "Agent dedicat acestui anunț"
+              : `${agent.deals}+ tranzacții în ${locationTag}`}
           </span>
           <span className="flex items-center gap-1">
             <MdAccessTime size={12} />
@@ -340,33 +477,45 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
 
       <TooltipPortal anchorRef={infoRef} show={showInfoTooltip} align="right">
         <p className="leading-relaxed text-[11px]">
-          Pentru fiecare anunț selectăm un agent printr-un algoritm intern, pe
-          baza zonei, relevanței, performanței agentului și a prețului
-          proprietății.
+          {agent.isAssigned
+            ? "Agentul este atribuit explicit acestui anunț în platforma RealImob."
+            : "Pentru anunțurile demo afișăm un agent exemplu. Pe anunțurile reale vezi agentul atribuit de echipă."}
         </p>
       </TooltipPortal>
 
-      {/* Modal agent */}
       {isModalOpen && (
         <AgentModal
           agent={agent}
           agentInitials={agentInitials}
           locationTag={locationTag}
+          isAssigned={agent.isAssigned}
           onClose={closeModal}
         />
       )}
+
+      <ViewingBookingModal
+        open={viewingOpen}
+        onClose={() => setViewingOpen(false)}
+        listingId={String(anunt.id)}
+        listingTitle={anunt.titlu}
+      />
     </>
   );
 }
 
-/* ── Bara mobilă cu agent (înlocuiește vechea bară fixă de contact) ── */
+/* ── Bara mobilă ── */
 export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewingOpen, setViewingOpen] = useState(false);
 
   const infoRef = useRef<HTMLButtonElement>(null);
 
-  const agent = useMemo(() => pickAgentForAnunt(anunt), [anunt]);
+  const agent = useMemo(() => resolveDisplayAgent(anunt), [anunt]);
+  const canSchedule =
+    agent.isAssigned && isMongoListingId(String(anunt.id));
+  const waDigits = useMemo(() => resolveWhatsAppPhone(agent), [agent]);
+  const canWhatsApp = Boolean(waDigits);
 
   const agentInitials = agent.name
     .split(" ")
@@ -382,6 +531,16 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
 
   const closeModal = useCallback(() => setIsModalOpen(false), []);
 
+  const openWhatsApp = useCallback(() => {
+    if (!waDigits) return;
+    const text = `Bună, sunt interesat de anunțul: ${anunt.titlu}. Link: ${window.location.href}`;
+    window.open(
+      `https://wa.me/${waDigits}?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }, [waDigits, anunt.titlu]);
+
   return (
     <>
       <div
@@ -390,21 +549,28 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
       >
         <div className="px-4 pt-2.5 pb-2.5">
           <div className="max-w-[1250px] mx-auto space-y-4">
-            {/* Agent row */}
             <div className="flex items-center justify-between">
               <button
                 type="button"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 min-w-0 text-left"
                 onClick={() => setIsModalOpen(true)}
               >
-                <div className="w-7 h-7 rounded-full bg-[#C25A2B]/10 flex items-center justify-center text-[10px] font-semibold text-[#C25A2B]">
-                  {agentInitials}
-                </div>
-                <div className="flex flex-col items-start">
+                {agent.avatar ? (
+                  <img
+                    src={agent.avatar}
+                    alt=""
+                    className="w-7 h-7 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-[#C25A2B]/10 flex items-center justify-center text-[10px] font-semibold text-[#C25A2B] shrink-0">
+                    {agentInitials}
+                  </div>
+                )}
+                <div className="flex flex-col items-start min-w-0">
                   <span className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Contact agent
+                    {agent.isAssigned ? "Agent atribuit" : "Contact agent"}
                   </span>
-                  <span className="text-sm font-semibold text-foreground">
+                  <span className="text-sm font-semibold text-foreground truncate max-w-[180px]">
                     {agent.name}
                   </span>
                 </div>
@@ -413,19 +579,20 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
               <button
                 ref={infoRef}
                 type="button"
-                className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-gray-300/60 dark:border-white/10 bg-gray-100/60 dark:bg-zinc-900/60 text-gray-600 dark:text-gray-300"
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-gray-300/60 dark:border-white/10 bg-gray-100/60 dark:bg-zinc-900/60 text-gray-600 dark:text-gray-300 shrink-0"
                 onClick={() => setShowInfoTooltip((v) => !v)}
-                aria-label="Cum este ales agentul"
+                aria-label="Informații despre agent"
               >
                 <MdInfoOutline size={14} />
               </button>
             </div>
 
-            {/* Butoane */}
             <div className="flex gap-3">
               <button
                 type="button"
-                className="flex-1 px-4 py-3 rounded-2xl text-white font-medium text-xs transition-all duration-300"
+                disabled={!canSchedule}
+                onClick={() => canSchedule && setViewingOpen(true)}
+                className="flex-1 px-4 py-3 rounded-2xl text-white font-medium text-xs transition-all duration-300 disabled:opacity-45 disabled:cursor-not-allowed"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(194, 90, 43, 0.95) 0%, rgba(180, 75, 35, 0.9) 100%)",
@@ -434,11 +601,13 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
                     "0 4px 16px rgba(194, 90, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
                 }}
               >
-                Programează-te acum
+                Vizionare
               </button>
               <button
                 type="button"
-                className="flex-1 px-4 py-3 rounded-2xl font-medium text-xs transition-all duration-300 flex items-center justify-center gap-2 text-foreground"
+                disabled={!canWhatsApp}
+                onClick={openWhatsApp}
+                className="flex-1 px-4 py-3 rounded-2xl font-medium text-xs transition-all duration-300 flex items-center justify-center gap-2 text-foreground disabled:opacity-45 disabled:cursor-not-allowed"
                 style={{
                   background: "rgba(50, 50, 65, 0.4)",
                   border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -456,24 +625,30 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
         </div>
       </div>
 
-      {/* Info tooltip - portal */}
       <TooltipPortal anchorRef={infoRef} show={showInfoTooltip} align="right" placement="top">
         <p className="leading-relaxed text-[11px]">
-          Pentru fiecare anunț selectăm un agent printr-un algoritm intern, pe
-          baza zonei, relevanței, performanței agentului și a prețului
-          proprietății.
+          {agent.isAssigned
+            ? "Agentul este atribuit explicit acestui anunț în platforma RealImob."
+            : "Pentru anunțurile demo afișăm un agent exemplu. Pe anunțurile reale vezi agentul atribuit de echipă."}
         </p>
       </TooltipPortal>
 
-      {/* Modal agent */}
       {isModalOpen && (
         <AgentModal
           agent={agent}
           agentInitials={agentInitials}
           locationTag={locationTag}
+          isAssigned={agent.isAssigned}
           onClose={closeModal}
         />
       )}
+
+      <ViewingBookingModal
+        open={viewingOpen}
+        onClose={() => setViewingOpen(false)}
+        listingId={String(anunt.id)}
+        listingTitle={anunt.titlu}
+      />
     </>
   );
 }

@@ -5,6 +5,7 @@ import { CiCirclePlus, CiUser, CiLogin } from "react-icons/ci";
 import { MdClose, MdMenu, MdApartment, MdHomeWork, MdLocationCity } from "react-icons/md";
 import Link from "next/link";
 import Image from "next/image";
+import { SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
 
 type NavbarProps = {
   /** Dacă este true, conținutul intern NU mai este limitat la max-w-[1250px] și se întinde full-width. */
@@ -17,6 +18,11 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
   const [isMobile, setIsMobile] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { user } = useUser();
+  const isAdmin = Boolean((user?.publicMetadata as { isAdmin?: boolean } | undefined)?.isAdmin);
+  const agentMetadata = (user?.publicMetadata as { isAgent?: boolean; agentStatus?: string } | undefined);
+  const isAgent = Boolean(agentMetadata?.isAgent);
+  const isAgentApproved = agentMetadata?.agentStatus === "approved";
 
   // Detectare dark mode
   useEffect(() => {
@@ -175,22 +181,65 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                   <CiCirclePlus size={24} />
                   Adaugă anunț
                 </Link>
-                <Link 
-                  href="/inregistrare" 
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
-                  style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
-                >
-                  <CiUser size={24} />
-                  Cont nou
-                </Link>
-                <Link 
-                  href="/login" 
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
-                  style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
-                >
-                  <CiLogin size={24} />
-                  Intră în cont
-                </Link>
+                <SignedOut>
+                  <Link 
+                    href="/inregistrare" 
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
+                    style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
+                  >
+                    <CiUser size={24} />
+                    Cont nou
+                  </Link>
+                  <Link 
+                    href="/sign-in" 
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-white hover:opacity-90 transition-opacity"
+                    style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
+                  >
+                    <CiLogin size={24} />
+                    Intră în cont
+                  </Link>
+                </SignedOut>
+                <SignedIn>
+                  <Link
+                    href="/cont"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                    style={pillButtonStyle(
+                      isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                      isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)",
+                    )}
+                  >
+                    Contul meu
+                  </Link>
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                      style={pillButtonStyle("rgba(194, 90, 43, 0.9)", "rgba(194, 90, 43, 0.35)")}
+                    >
+                      Admin
+                    </Link>
+                  )}
+                  {isAgent && (
+                    <Link
+                      href="/agent"
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                      style={pillButtonStyle(
+                        isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                        isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)"
+                      )}
+                    >
+                      Agent
+                    </Link>
+                  )}
+                  <UserButton
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        avatarBox: "w-9 h-9",
+                      },
+                    }}
+                  />
+                </SignedIn>
                 <Image 
                   src="/Flag_of_Romania.svg.webp" 
                   alt="România" 
@@ -301,7 +350,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
               {/* Adaugă anunț (doar pe mobil) */}
               <Link
                 href="/adauga-anunt"
-                className="flex items-center gap-2 text-sm text-black dark:text-foreground hover:opacity-80 transition-opacity mb-5 md:hidden"
+                className="flex items-center gap-2 text-sm text-black dark:text-foreground hover:opacity-80 transition-opacity mb-3 md:hidden"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <CiCirclePlus size={24} />
@@ -344,22 +393,72 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
               </div>
               {/* Cont nou și Intră în cont (doar pe mobil) */}
               <div className="flex flex-row gap-3 mt-6 md:hidden">
-                <Link 
-                  href="/inregistrare" 
-                  className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
-                  style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
-                >
-                  <CiUser size={24} />
-                  Cont nou
-                </Link>
-                <Link 
-                  href="/login" 
-                  className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
-                  style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
-                >
-                  <CiLogin size={24} />
-                  Intră în cont
-                </Link>
+                <SignedOut>
+                  <Link 
+                    href="/inregistrare" 
+                    className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
+                    style={pillButtonStyle("rgba(59, 31, 58, 0.8)", "rgba(59, 31, 58, 0.3)")}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <CiUser size={24} />
+                    Cont nou
+                  </Link>
+                  <Link 
+                    href="/sign-in" 
+                    className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-white text-sm md:text-base hover:opacity-90 transition-opacity justify-center grow"
+                    style={pillButtonStyle("rgba(31, 45, 68, 0.8)", "rgba(31, 45, 68, 0.3)")}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <CiLogin size={24} />
+                    Intră în cont
+                  </Link>
+                </SignedOut>
+                <SignedIn>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        className="px-3 py-1.5 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                        style={pillButtonStyle("rgba(194, 90, 43, 0.9)", "rgba(194, 90, 43, 0.35)")}
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Admin
+                      </Link>
+                    )}
+                    <Link
+                      href="/cont"
+                      className="px-3 py-1.5 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                      style={pillButtonStyle(
+                        isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                        isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)",
+                      )}
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Contul meu
+                    </Link>
+                    {isAgent && (
+                      <Link
+                        href="/agent"
+                        className="px-3 py-1.5 rounded-full text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                        style={pillButtonStyle(
+                          isAgentApproved ? "rgba(59, 130, 246, 0.9)" : "rgba(245, 158, 11, 0.9)",
+                          isAgentApproved ? "rgba(59, 130, 246, 0.35)" : "rgba(245, 158, 11, 0.35)"
+                        )}
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Agent
+                      </Link>
+                    )}
+                    <UserButton
+                      afterSignOutUrl="/"
+                      appearance={{
+                        elements: {
+                          avatarBox: "w-9 h-9",
+                        },
+                      }}
+                    />
+                  </div>
+                </SignedIn>
               </div>
             </div>
           </div>

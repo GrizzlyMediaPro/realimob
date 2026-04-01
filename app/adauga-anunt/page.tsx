@@ -9,9 +9,6 @@ import {
   MdAddPhotoAlternate,
   MdAdd,
   MdDelete,
-  MdExpandMore,
-  MdExpandLess,
-  MdTune,
   MdCheckCircle,
   MdDragIndicator,
   MdHome,
@@ -21,9 +18,20 @@ import {
   MdArrowForward,
   MdArrowBack,
   MdCameraAlt,
+  MdLocationOn,
+  MdMyLocation,
 } from "react-icons/md";
+import dynamic from "next/dynamic";
+import { useAuth } from "@clerk/nextjs";
+import { useUploadThing } from "../components/Uploadthing";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+
+// Încarcă harta doar pe client
+const LocationPickerMap = dynamic(
+  () => import("../components/LocationPickerMap"),
+  { ssr: false, loading: () => <div className="h-[350px] rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse flex items-center justify-center text-gray-400">Se încarcă harta...</div> }
+);
 
 // ─── Tipuri ──────────────────────────────────────────────────────────────
 type TipProprietate = "Apartament" | "Casă/Vilă" | "Teren" | "Comercial";
@@ -32,7 +40,7 @@ type SubtipComercial = "" | "Stradal/Retail" | "Birouri" | "Depozit/Hala";
 interface Camera {
   id: string;
   nume: string;
-  imagini: { id: string; file: File; preview: string }[];
+  imagini: { id: string; url: string }[];
 }
 
 // ─── Componente helper reutilizabile ─────────────────────────────────────
@@ -232,14 +240,19 @@ function ToggleField({
   label,
   value,
   onChange,
+  required = false,
 }: {
   label: string;
   value: boolean | null;
   onChange: (v: boolean | null) => void;
+  required?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-300">
+        {label}
+        {required && <span className="text-[#C25A2B] ml-0.5">*</span>}
+      </span>
       <div className="flex gap-1">
         {(["Da", "Nu"] as const).map((opt) => {
           const boolVal = opt === "Da";
@@ -358,11 +371,12 @@ const CAMERE_PREDEFINITE = [
 // ─── Componenta principală ───────────────────────────────────────────────
 
 export default function AdaugaAnuntPage() {
+  const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
   const [isDark, setIsDark] = useState(false);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // ── Info de bază ──
   const [titlu, setTitlu] = useState("");
@@ -371,7 +385,9 @@ export default function AdaugaAnuntPage() {
   const [tipProprietate, setTipProprietate] = useState<TipProprietate>("Apartament");
   const [subtipComercial, setSubtipComercial] = useState<SubtipComercial>("");
   const [pret, setPret] = useState("");
-  const [moneda, setMoneda] = useState("€");
+  const [moneda, setMoneda] = useState("RON");
+  /** true = TVA inclus în preț; false = TVA nu e inclus */
+  const [tvaInclus, setTvaInclus] = useState<boolean | null>(null);
   const [locatie, setLocatie] = useState("");
   const [adresa, setAdresa] = useState("");
   const [sector, setSector] = useState("");
@@ -454,11 +470,43 @@ export default function AdaugaAnuntPage() {
   const [birouriIncluse, setBirouriIncluse] = useState<boolean | null>(null);
   const [mpBirouri, setMpBirouri] = useState("");
 
+  // ── Coordonate hartă ──
+  const [pinLat, setPinLat] = useState<number | null>(null);
+  const [pinLng, setPinLng] = useState<number | null>(null);
+
   // ── Imagini per cameră ──
   const [camereImagini, setCamereImagini] = useState<Camera[]>([]);
   const [numeCamera, setNumeCamera] = useState("");
   const [showCamerePresets, setShowCamerePresets] = useState(false);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+  const [uploadingCameraId, setUploadingCameraId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const { startUpload, isUploading } = useUploadThing("imageUploader", {
+    onUploadProgress: (progress) => {
+      setUploadProgress(progress);
+    },
+  });
+
+  const handleFileSelect = async (cameraId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingCameraId(cameraId);
+    setUploadProgress(0);
+    try {
+      const fileArray = Array.from(files);
+      const res = await startUpload(fileArray);
+      if (res) {
+        const urls = res.map((f) => f.url);
+        addImaginiToCamera(cameraId, urls);
+      }
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setSubmitError("Eroare la încărcarea imaginilor. Încearcă din nou.");
+    } finally {
+      setUploadingCameraId(null);
+      setUploadProgress(0);
+    }
+  };
 
   // ── Dark mode ──
   useEffect(() => {
@@ -475,14 +523,26 @@ export default function AdaugaAnuntPage() {
   }, []);
 
   useEffect(() => {
+    const loadDefaultCurrency = async () => {
+      try {
+        const res = await fetch("/api/settings/public", { cache: "no-store" });
+        const data = await res.json();
+        const c = String(data.defaultCurrency || "RON").toUpperCase();
+        if (c === "EUR") setMoneda("€");
+        else if (c === "USD") setMoneda("RON");
+        else setMoneda("RON");
+      } catch {
+        // păstrează implicitul din useState
+      }
+    };
+    loadDefaultCurrency();
+  }, []);
+
+  useEffect(() => {
     if (tipProprietate !== "Comercial") {
       setSubtipComercial("");
     }
   }, [tipProprietate]);
-
-  useEffect(() => {
-    setShowMoreFilters(false);
-  }, [tipProprietate, subtipComercial]);
 
   const controlStyle: React.CSSProperties = {
     background: isDark ? "rgba(35, 35, 48, 0.5)" : "rgba(255, 255, 255, 0.6)",
@@ -506,23 +566,18 @@ export default function AdaugaAnuntPage() {
   };
 
   const removeCamera = (cameraId: string) => {
-    setCamereImagini((prev) => {
-      const camera = prev.find((c) => c.id === cameraId);
-      if (camera) {
-        camera.imagini.forEach((img) => URL.revokeObjectURL(img.preview));
-      }
-      return prev.filter((c) => c.id !== cameraId);
-    });
+    setCamereImagini((prev) => prev.filter((c) => c.id !== cameraId));
   };
 
-  const addImaginiToCamera = (cameraId: string, files: FileList) => {
+  const addImaginiToCamera = (cameraId: string, urls: string[]) => {
     setCamereImagini((prev) =>
       prev.map((camera) => {
         if (camera.id !== cameraId) return camera;
-        const newImages = Array.from(files).map((file) => ({
-          id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          file,
-          preview: URL.createObjectURL(file),
+        const newImages = urls.map((url) => ({
+          id: `img-${Date.now()}-${Math.random()
+            .toString(36)
+            .substr(2, 9)}`,
+          url,
         }));
         return { ...camera, imagini: [...camera.imagini, ...newImages] };
       })
@@ -533,8 +588,6 @@ export default function AdaugaAnuntPage() {
     setCamereImagini((prev) =>
       prev.map((camera) => {
         if (camera.id !== cameraId) return camera;
-        const img = camera.imagini.find((i) => i.id === imagineId);
-        if (img) URL.revokeObjectURL(img.preview);
         return {
           ...camera,
           imagini: camera.imagini.filter((i) => i.id !== imagineId),
@@ -544,14 +597,159 @@ export default function AdaugaAnuntPage() {
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    // Simulare submit
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsSubmitting(false);
-    setSubmitSuccess(true);
-    setTimeout(() => {
-      router.push("/");
-    }, 3000);
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      if (!isSignedIn) {
+        setSubmitError(
+          "Trebuie să fii autentificat pentru a publica un anunț. Intră în cont și încearcă din nou.",
+        );
+        return;
+      }
+
+      if (!descriere.trim()) {
+        setSubmitError("Completează descrierea anunțului.");
+        return;
+      }
+      if (!locatie.trim()) {
+        setSubmitError("Completează locația / zona.");
+        return;
+      }
+      if (!sector) {
+        setSubmitError("Selectează sectorul sau localitatea.");
+        return;
+      }
+      if (tvaInclus === null) {
+        setSubmitError(
+          "Indică dacă prețul afișat include TVA sau nu (secțiunea Preț).",
+        );
+        return;
+      }
+
+      const detailsErr = validatePropertyDetails();
+      if (detailsErr) {
+        setSubmitError(detailsErr);
+        return;
+      }
+
+      const details = {
+        tipProprietate,
+        subtipComercial,
+        tipTranzactie,
+        camere,
+        suprafataUtila,
+        suprafataConstruita,
+        etaj,
+        etajTotal,
+        compartimentare,
+        anConstructie,
+        stare,
+        mobilare,
+        confort,
+        lift,
+        balcon,
+        nrBalcoane,
+        incalzire,
+        locParcare,
+        tipParcare,
+        boxa,
+        orientare,
+        tipCladire,
+        suprafataTeren,
+        nrCamere,
+        nrBai,
+        regimInaltime,
+        tipCasa,
+        incalzireCasa,
+        utilitati,
+        garaj,
+        materialCasa,
+        acoperis,
+        deschidereStrada,
+        drumAcces,
+        suprafata,
+        intravilan,
+        destinatieTeren,
+        deschidere,
+        utilitatiTeren,
+        puzPud,
+        tipAccesTeren,
+        tipTeren,
+        inApropriere,
+        traficPietonal,
+        compartimentareComercial,
+        grupSanitar,
+        inaltimeLibera,
+        putereElectrica,
+        ventilatie,
+        terasa,
+        locuriParcare,
+        accesMarfa,
+        clasaCladire,
+        nrBirouri,
+        locuriParcareBirouri,
+        liftBirouri,
+        receptie,
+        securitate,
+        acCentralizat,
+        suprafataCurte,
+        inaltimeHala,
+        accesTir,
+        nrRampe,
+        sarcinaPardoseala,
+        putereElectricaHala,
+        incalzireHala,
+        birouriIncluse,
+        mpBirouri,
+        tvaInclus,
+      };
+
+      const images = camereImagini.map((camera) => ({
+        cameraId: camera.id,
+        cameraName: camera.nume,
+        urls: camera.imagini.map((img) => img.url),
+      }));
+
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          titlu,
+          descriere,
+          tipTranzactie,
+          tipProprietate,
+          subtipComercial,
+          pret: pret.replace(/[^0-9]/g, ""),
+          moneda,
+          locatie,
+          adresa,
+          sector,
+          latitude: pinLat,
+          longitude: pinLng,
+          details,
+          images,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Nu am putut salva anunțul");
+      }
+
+      setSubmitSuccess(true);
+      setTimeout(() => {
+        router.push("/");
+      }, 3000);
+    } catch (error: any) {
+      console.error(error);
+      setSubmitError(error.message || "A apărut o eroare neașteptată");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const totalImagini = camereImagini.reduce(
@@ -602,6 +800,7 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="m²"
+        required
       />
       <InputField
         label="Etaj"
@@ -618,6 +817,7 @@ export default function AdaugaAnuntPage() {
         onChange={setEtajTotal}
         style={controlStyle}
         type="number"
+        required
       />
       <SelectField
         label="Compartimentare"
@@ -634,6 +834,7 @@ export default function AdaugaAnuntPage() {
         onChange={setAnConstructie}
         style={controlStyle}
         type="number"
+        required
       />
       <SelectField
         label="Stare"
@@ -649,6 +850,7 @@ export default function AdaugaAnuntPage() {
         onChange={setMobilare}
         options={["Nemobilat", "Parțial mobilat", "Complet mobilat"]}
         style={controlStyle}
+        required
       />
     </div>
   );
@@ -662,9 +864,19 @@ export default function AdaugaAnuntPage() {
         options={["Confort I", "Confort II", "Confort III"]}
         style={controlStyle}
       />
-      <ToggleField label="Lift" value={lift} onChange={setLift} />
+      <ToggleField
+        label="Lift"
+        value={lift}
+        onChange={setLift}
+        required
+      />
       <div className="space-y-3">
-        <ToggleField label="Balcon" value={balcon} onChange={setBalcon} />
+        <ToggleField
+          label="Balcon"
+          value={balcon}
+          onChange={setBalcon}
+          required
+        />
         {balcon && (
           <InputField
             label="Număr balcoane"
@@ -673,6 +885,7 @@ export default function AdaugaAnuntPage() {
             onChange={setNrBalcoane}
             style={controlStyle}
             type="number"
+            required
           />
         )}
       </div>
@@ -686,12 +899,14 @@ export default function AdaugaAnuntPage() {
           "Încălzire în pardoseală",
         ]}
         style={controlStyle}
+        required
       />
       <div className="space-y-3">
         <ToggleField
           label="Loc parcare"
           value={locParcare}
           onChange={setLocParcare}
+          required
         />
         {locParcare && (
           <SelectField
@@ -700,10 +915,16 @@ export default function AdaugaAnuntPage() {
             onChange={setTipParcare}
             options={["Subteran", "Suprateran"]}
             style={controlStyle}
+            required
           />
         )}
       </div>
-      <ToggleField label="Boxă / Debara" value={boxa} onChange={setBoxa} />
+      <ToggleField
+        label="Boxă / Debara"
+        value={boxa}
+        onChange={setBoxa}
+        required
+      />
       <ChipGroup
         label="Orientare"
         options={["N", "S", "E", "V"]}
@@ -717,6 +938,7 @@ export default function AdaugaAnuntPage() {
         onChange={setTipCladire}
         options={["Bloc", "Vilă", "Ansamblu rezidențial"]}
         style={controlStyle}
+        required
       />
     </div>
   );
@@ -759,6 +981,7 @@ export default function AdaugaAnuntPage() {
         onChange={setNrBai}
         style={controlStyle}
         type="number"
+        required
       />
       <SelectField
         label="Regim înălțime"
@@ -782,6 +1005,7 @@ export default function AdaugaAnuntPage() {
         onChange={setTipCasa}
         options={["Individuală", "Duplex", "Înșiruită"]}
         style={controlStyle}
+        required
       />
       <InputField
         label="An construcție"
@@ -790,6 +1014,7 @@ export default function AdaugaAnuntPage() {
         onChange={setAnConstructie}
         style={controlStyle}
         type="number"
+        required
       />
     </div>
   );
@@ -802,6 +1027,7 @@ export default function AdaugaAnuntPage() {
         onChange={setIncalzireCasa}
         options={["Centrală termică", "Pompă de căldură", "Sobă", "Electrică"]}
         style={controlStyle}
+        required
       />
       <ChipGroup
         label="Utilități"
@@ -809,14 +1035,21 @@ export default function AdaugaAnuntPage() {
         selected={utilitati}
         onChange={(v) => setUtilitati(v as string[])}
         multi
+        required
       />
-      <ToggleField label="Garaj / Parcare" value={garaj} onChange={setGaraj} />
+      <ToggleField
+        label="Garaj / Parcare"
+        value={garaj}
+        onChange={setGaraj}
+        required
+      />
       <SelectField
         label="Material construcție"
         value={materialCasa}
         onChange={setMaterialCasa}
         options={["Cărămidă", "BCA", "Lemn", "Beton"]}
         style={controlStyle}
+        required
       />
       <SelectField
         label="Acoperiș"
@@ -824,6 +1057,7 @@ export default function AdaugaAnuntPage() {
         onChange={setAcoperis}
         options={["Țiglă", "Tablă", "Terasă"]}
         style={controlStyle}
+        required
       />
       <InputField
         label="Deschidere la stradă"
@@ -833,6 +1067,7 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="m"
+        required
       />
       <SelectField
         label="Drum de acces"
@@ -840,6 +1075,7 @@ export default function AdaugaAnuntPage() {
         onChange={setDrumAcces}
         options={["Asfalt", "Pietruit", "Pământ"]}
         style={controlStyle}
+        required
       />
     </div>
   );
@@ -879,6 +1115,7 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="m"
+        required
       />
       <ChipGroup
         label="Utilități disponibile"
@@ -886,6 +1123,7 @@ export default function AdaugaAnuntPage() {
         selected={utilitatiTeren}
         onChange={(v) => setUtilitatiTeren(v as string[])}
         multi
+        required
       />
     </div>
   );
@@ -898,6 +1136,7 @@ export default function AdaugaAnuntPage() {
         onChange={setPuzPud}
         options={["Da", "Nu", "În lucru"]}
         style={controlStyle}
+        required
       />
       <SelectField
         label="Tip acces"
@@ -905,6 +1144,7 @@ export default function AdaugaAnuntPage() {
         onChange={setTipAccesTeren}
         options={["Asfalt", "Pietruit", "Pământ"]}
         style={controlStyle}
+        required
       />
       <SelectField
         label="Tip teren"
@@ -912,6 +1152,7 @@ export default function AdaugaAnuntPage() {
         onChange={setTipTeren}
         options={["Plat", "În pantă"]}
         style={controlStyle}
+        required
       />
       <ChipGroup
         label="În apropiere"
@@ -919,6 +1160,7 @@ export default function AdaugaAnuntPage() {
         selected={inApropriere}
         onChange={(v) => setInApropriere(v as string[])}
         multi
+        required
       />
     </div>
   );
@@ -971,6 +1213,7 @@ export default function AdaugaAnuntPage() {
         onChange={setTraficPietonal}
         options={["Mic", "Mediu", "Mare"]}
         style={controlStyle}
+        required
       />
       <SelectField
         label="Compartimentare"
@@ -978,11 +1221,13 @@ export default function AdaugaAnuntPage() {
         onChange={setCompartimentareComercial}
         options={["Open space", "Compartimentat"]}
         style={controlStyle}
+        required
       />
       <ToggleField
         label="Grup sanitar"
         value={grupSanitar}
         onChange={setGrupSanitar}
+        required
       />
     </div>
   );
@@ -997,6 +1242,7 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="m"
+        required
       />
       <InputField
         label="Putere electrică"
@@ -1006,13 +1252,20 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="kW"
+        required
       />
       <ToggleField
         label="Ventilație / Hotă"
         value={ventilatie}
         onChange={setVentilatie}
+        required
       />
-      <ToggleField label="Terasă" value={terasa} onChange={setTerasa} />
+      <ToggleField
+        label="Terasă"
+        value={terasa}
+        onChange={setTerasa}
+        required
+      />
       <InputField
         label="Locuri parcare"
         placeholder="Ex: 5"
@@ -1020,11 +1273,13 @@ export default function AdaugaAnuntPage() {
         onChange={setLocuriParcare}
         style={controlStyle}
         type="number"
+        required
       />
       <ToggleField
         label="Acces marfă"
         value={accesMarfa}
         onChange={setAccesMarfa}
+        required
       />
     </div>
   );
@@ -1047,6 +1302,7 @@ export default function AdaugaAnuntPage() {
         onChange={setClasaCladire}
         options={["A", "B", "C"]}
         style={controlStyle}
+        required
       />
       <InputField
         label="Nr. camere / birouri"
@@ -1054,6 +1310,7 @@ export default function AdaugaAnuntPage() {
         value={nrBirouri}
         onChange={setNrBirouri}
         style={controlStyle}
+        required
       />
       <InputField
         label="Locuri parcare"
@@ -1062,27 +1319,36 @@ export default function AdaugaAnuntPage() {
         onChange={setLocuriParcareBirouri}
         style={controlStyle}
         type="number"
+        required
       />
     </div>
   );
 
   const renderBirouriAdvanced = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-200/50 dark:border-gray-700/50">
-      <ToggleField label="Lift" value={liftBirouri} onChange={setLiftBirouri} />
+      <ToggleField
+        label="Lift"
+        value={liftBirouri}
+        onChange={setLiftBirouri}
+        required
+      />
       <ToggleField
         label="Recepție"
         value={receptie}
         onChange={setReceptie}
+        required
       />
       <ToggleField
         label="Securitate"
         value={securitate}
         onChange={setSecuritate}
+        required
       />
       <ToggleField
         label="Aer condiționat centralizat"
         value={acCentralizat}
         onChange={setAcCentralizat}
+        required
       />
       <InputField
         label="An construcție / renovare"
@@ -1091,6 +1357,7 @@ export default function AdaugaAnuntPage() {
         onChange={setAnConstructie}
         style={controlStyle}
         type="number"
+        required
       />
     </div>
   );
@@ -1115,6 +1382,7 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="m²"
+        required
       />
       <InputField
         label="Înălțime"
@@ -1124,11 +1392,13 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="m"
+        required
       />
       <ToggleField
         label="Acces TIR"
         value={accesTir}
         onChange={setAccesTir}
+        required
       />
       <InputField
         label="Nr. rampe / uși"
@@ -1137,6 +1407,7 @@ export default function AdaugaAnuntPage() {
         onChange={setNrRampe}
         style={controlStyle}
         type="number"
+        required
       />
     </div>
   );
@@ -1150,6 +1421,7 @@ export default function AdaugaAnuntPage() {
         onChange={setSarcinaPardoseala}
         style={controlStyle}
         suffix="t/m²"
+        required
       />
       <InputField
         label="Putere electrică"
@@ -1159,17 +1431,20 @@ export default function AdaugaAnuntPage() {
         style={controlStyle}
         type="number"
         suffix="kW"
+        required
       />
       <ToggleField
         label="Încălzire"
         value={incalzireHala}
         onChange={setIncalzireHala}
+        required
       />
       <div className="space-y-3">
         <ToggleField
           label="Birouri incluse"
           value={birouriIncluse}
           onChange={setBirouriIncluse}
+          required
         />
         {birouriIncluse && (
           <InputField
@@ -1180,6 +1455,7 @@ export default function AdaugaAnuntPage() {
             style={controlStyle}
             type="number"
             suffix="m²"
+            required
           />
         )}
       </div>
@@ -1231,8 +1507,139 @@ export default function AdaugaAnuntPage() {
     }
   };
 
-  const hasAdvancedFields =
-    tipProprietate !== "Comercial" || subtipComercial !== "";
+  const validatePropertyDetails = (): string | null => {
+    if (tipProprietate === "Comercial" && !subtipComercial) {
+      return "Selectează subtipul spațiului comercial.";
+    }
+
+    if (tipProprietate === "Apartament") {
+      if (!camere) return "Selectează numărul de camere.";
+      if (!suprafataUtila.trim()) return "Completează suprafața utilă.";
+      if (!suprafataConstruita.trim()) return "Completează suprafața construită.";
+      if (!etaj.trim()) return "Completează etajul.";
+      if (!etajTotal.trim()) return "Completează etajul total al clădirii.";
+      if (!compartimentare) return "Selectează compartimentarea.";
+      if (!anConstructie.trim()) return "Completează anul construcției.";
+      if (!stare) return "Selectează starea proprietății.";
+      if (!mobilare) return "Selectează mobilarea.";
+      if (lift === null) return "Indică dacă există lift.";
+      if (balcon === null) return "Indică dacă există balcon.";
+      if (balcon === true && !nrBalcoane.trim()) {
+        return "Completează numărul de balcoane.";
+      }
+      if (!incalzire) return "Selectează tipul de încălzire.";
+      if (locParcare === null) return "Indică dacă există loc de parcare.";
+      if (locParcare === true && !tipParcare) {
+        return "Selectează tipul de parcare.";
+      }
+      if (boxa === null) return "Indică dacă există boxă / debară.";
+      if (!tipCladire) return "Selectează tipul clădirii.";
+      return null;
+    }
+
+    if (tipProprietate === "Casă/Vilă") {
+      if (!suprafataUtila.trim()) return "Completează suprafața utilă.";
+      if (!suprafataTeren.trim()) return "Completează suprafața terenului.";
+      if (!nrCamere.trim()) return "Completează numărul de camere.";
+      if (!nrBai.trim()) return "Completează numărul de băi.";
+      if (!regimInaltime) return "Selectează regimul de înălțime.";
+      if (!stare) return "Selectează starea proprietății.";
+      if (!tipCasa) return "Selectează tipul casei.";
+      if (!anConstructie.trim()) return "Completează anul construcției.";
+      if (!incalzireCasa) return "Selectează tipul de încălzire.";
+      if (utilitati.length === 0) {
+        return "Selectează cel puțin o utilitate disponibilă.";
+      }
+      if (garaj === null) return "Indică dacă există garaj / parcare.";
+      if (!materialCasa) return "Selectează materialul de construcție.";
+      if (!acoperis) return "Selectează tipul de acoperiș.";
+      if (!deschidereStrada.trim()) {
+        return "Completează deschiderea la stradă.";
+      }
+      if (!drumAcces) return "Selectează drumul de acces.";
+      return null;
+    }
+
+    if (tipProprietate === "Teren") {
+      if (!suprafata.trim()) return "Completează suprafața terenului.";
+      if (!intravilan) {
+        return "Selectează clasificarea (intravilan / extravilan).";
+      }
+      if (!destinatieTeren) return "Selectează destinația terenului.";
+      if (!deschidere.trim()) return "Completează deschiderea.";
+      if (utilitatiTeren.length === 0) {
+        return "Selectează cel puțin o utilitate disponibilă.";
+      }
+      if (!puzPud) return "Selectează situația PUZ / PUD.";
+      if (!tipAccesTeren) return "Selectează tipul de acces.";
+      if (!tipTeren) return "Selectează tipul terenului.";
+      if (inApropriere.length === 0) {
+        return 'Selectează cel puțin o opțiune la „În apropiere”.';
+      }
+      return null;
+    }
+
+    if (tipProprietate === "Comercial") {
+      if (subtipComercial === "Stradal/Retail") {
+        if (!suprafataUtila.trim()) return "Completează suprafața utilă.";
+        if (!traficPietonal) return "Selectează traficul pietonal.";
+        if (!compartimentareComercial) return "Selectează compartimentarea.";
+        if (grupSanitar === null) return "Indică dacă există grup sanitar.";
+        if (!inaltimeLibera.trim()) return "Completează înălțimea liberă.";
+        if (!putereElectrica.trim()) return "Completează puterea electrică.";
+        if (ventilatie === null) return "Indică dacă există ventilație / hotă.";
+        if (terasa === null) return "Indică dacă există terasă.";
+        if (!locuriParcare.trim()) {
+          return "Completează numărul de locuri de parcare.";
+        }
+        if (accesMarfa === null) return "Indică dacă există acces marfă.";
+        return null;
+      }
+      if (subtipComercial === "Birouri") {
+        if (!suprafataUtila.trim()) return "Completează suprafața.";
+        if (!clasaCladire) return "Selectează clasa clădirii.";
+        if (!nrBirouri.trim()) return "Completează numărul de birouri.";
+        if (!locuriParcareBirouri.trim()) {
+          return "Completează locurile de parcare.";
+        }
+        if (liftBirouri === null) return "Indică dacă există lift.";
+        if (receptie === null) return "Indică dacă există recepție.";
+        if (securitate === null) return "Indică dacă există securitate.";
+        if (acCentralizat === null) {
+          return "Indică dacă există aer condiționat centralizat.";
+        }
+        if (!anConstructie.trim()) {
+          return "Completează anul construcției / renovării.";
+        }
+        return null;
+      }
+      if (subtipComercial === "Depozit/Hala") {
+        if (!suprafataUtila.trim()) return "Completează suprafața halei.";
+        if (!suprafataCurte.trim()) {
+          return "Completează suprafața curții / platformei.";
+        }
+        if (!inaltimeHala.trim()) return "Completează înălțimea.";
+        if (accesTir === null) return "Indică dacă există acces TIR.";
+        if (!nrRampe.trim()) return "Completează numărul de rampe / uși.";
+        if (!sarcinaPardoseala.trim()) {
+          return "Completează sarcina admisă pe pardoseală.";
+        }
+        if (!putereElectricaHala.trim()) {
+          return "Completează puterea electrică.";
+        }
+        if (incalzireHala === null) return "Indică dacă există încălzire.";
+        if (birouriIncluse === null) {
+          return "Indică dacă există birouri incluse.";
+        }
+        if (birouriIncluse === true && !mpBirouri.trim()) {
+          return "Completează suprafața birourilor.";
+        }
+        return null;
+      }
+    }
+
+    return null;
+  };
 
   // ── Success screen ──
   if (submitSuccess) {
@@ -1306,6 +1713,38 @@ export default function AdaugaAnuntPage() {
             <span className="mx-2">/</span>
             <span className="text-foreground font-medium">Adaugă anunț</span>
           </nav>
+
+          {isLoaded && !isSignedIn && (
+            <div
+              className="mb-6 rounded-xl border px-4 py-3 text-sm"
+              style={{
+                borderColor: isDark
+                  ? "rgba(245, 158, 11, 0.35)"
+                  : "rgba(245, 158, 11, 0.45)",
+                background: isDark
+                  ? "rgba(245, 158, 11, 0.08)"
+                  : "rgba(245, 158, 11, 0.1)",
+              }}
+              role="status"
+            >
+              <span className="text-foreground">
+                Pentru a publica un anunț trebuie să fii autentificat.{" "}
+              </span>
+              <Link
+                href={`/sign-in?redirect_url=${encodeURIComponent("/adauga-anunt")}`}
+                className="font-medium text-[#C25A2B] hover:underline"
+              >
+                Intră în cont
+              </Link>
+              {" · "}
+              <Link
+                href={`/inregistrare?redirect_url=${encodeURIComponent("/adauga-anunt")}`}
+                className="font-medium text-[#C25A2B] hover:underline"
+              >
+                Cont nou
+              </Link>
+            </div>
+          )}
 
           {/* Titlu pagină */}
           <div className="mb-6 md:mb-8">
@@ -1451,13 +1890,14 @@ export default function AdaugaAnuntPage() {
                     placeholder={
                       tipTranzactie === "Închiriere"
                         ? "Ex: 500"
-                        : "Ex: 85.000"
+                        : "Ex: 85000"
                     }
                     value={pret}
-                    onChange={setPret}
+                    onChange={(v) => setPret(v.replace(/[^0-9]/g, ""))}
                     style={controlStyle}
-                    type="number"
+                    type="text"
                     required
+                    suffix={moneda}
                   />
                   <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -1481,6 +1921,17 @@ export default function AdaugaAnuntPage() {
                     </div>
                   </div>
                 </div>
+
+                <ToggleField
+                  label="Prețul afișat include TVA"
+                  value={tvaInclus}
+                  onChange={setTvaInclus}
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+                  Alege „Da” dacă suma introdusă la preț este deja cu TVA; „Nu”
+                  dacă prețul este fără TVA (se va afișa clar pe anunț).
+                </p>
               </div>
             </GlassSection>
 
@@ -1493,32 +1944,7 @@ export default function AdaugaAnuntPage() {
             >
               <div className="space-y-4">
                 {renderEssentials()}
-
-                {/* More details toggle */}
-                {hasAdvancedFields && (
-                  <div className="flex items-center justify-center pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowMoreFilters((p) => !p)}
-                      className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-[#C25A2B] dark:hover:text-[#C25A2B] transition-colors"
-                    >
-                      {showMoreFilters ? (
-                        <>
-                          <MdExpandLess size={18} />
-                          <span>Mai puține detalii</span>
-                        </>
-                      ) : (
-                        <>
-                          <MdTune size={16} />
-                          <span>Mai multe detalii</span>
-                          <MdExpandMore size={18} />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-
-                {showMoreFilters && renderAdvanced()}
+                {renderAdvanced()}
               </div>
             </GlassSection>
 
@@ -1583,7 +2009,7 @@ export default function AdaugaAnuntPage() {
                           className="relative aspect-square rounded-lg overflow-hidden group bg-gray-200 dark:bg-gray-800"
                         >
                           <Image
-                            src={img.preview}
+                            src={img.url}
                             alt={`${camera.nume}`}
                             fill
                             className="object-cover"
@@ -1602,39 +2028,51 @@ export default function AdaugaAnuntPage() {
                         </div>
                       ))}
 
-                      {/* Buton adaugă imagini */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          fileInputRefs.current[camera.id]?.click()
-                        }
-                        className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all duration-200 hover:border-[#C25A2B]/50"
+                      {/* Upload imagini — buton custom cu file input ascuns */}
+                      <div
+                        className="aspect-square rounded-lg border-2 border-dashed overflow-hidden flex flex-col items-center justify-center transition-all duration-200 hover:border-[#C25A2B]/50 cursor-pointer"
                         style={{
                           borderColor: isDark
                             ? "rgba(255, 255, 255, 0.15)"
                             : "rgba(0, 0, 0, 0.12)",
                         }}
-                      >
-                        <MdAddPhotoAlternate className="text-gray-400 text-xl" />
-                        <span className="text-[10px] text-gray-400">
-                          Adaugă
-                        </span>
-                      </button>
-                      <input
-                        ref={(el) => {
-                          fileInputRefs.current[camera.id] = el;
-                        }}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files) {
-                            addImaginiToCamera(camera.id, e.target.files);
-                            e.target.value = "";
+                        onClick={() => {
+                          if (!isUploading) {
+                            fileInputRefs.current[camera.id]?.click();
                           }
                         }}
-                      />
+                      >
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="hidden"
+                          ref={(el) => { fileInputRefs.current[camera.id] = el; }}
+                          onChange={(e) => {
+                            handleFileSelect(camera.id, e.target.files);
+                            e.target.value = "";
+                          }}
+                        />
+                        {uploadingCameraId === camera.id ? (
+                          <div className="flex flex-col items-center gap-1 px-2">
+                            <svg
+                              className="animate-spin h-5 w-5 text-[#C25A2B]"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">{uploadProgress}%</span>
+                          </div>
+                        ) : (
+                          <>
+                            <MdAddPhotoAlternate className="text-gray-400 dark:text-gray-500" size={22} />
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Adaugă</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1707,6 +2145,13 @@ export default function AdaugaAnuntPage() {
                   )}
                 </div>
 
+                {/* Mesaj eroare submit */}
+                {submitError && (
+                  <div className="text-xs text-red-500 text-center">
+                    {submitError}
+                  </div>
+                )}
+
                 {/* Contor total imagini */}
                 {totalImagini > 0 && (
                   <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
@@ -1714,6 +2159,54 @@ export default function AdaugaAnuntPage() {
                     {totalImagini === 1 ? "imagine" : "imagini"} în{" "}
                     {camereImagini.length}{" "}
                     {camereImagini.length === 1 ? "cameră" : "camere"}
+                  </div>
+                )}
+              </div>
+            </GlassSection>
+
+            {/* ═══ SECȚIUNEA 4: Locație pe hartă ═══ */}
+            <GlassSection
+              title="Locație pe hartă"
+              icon={<MdLocationOn size={22} />}
+              isDark={isDark}
+              step={4}
+            >
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Apasă pe hartă pentru a fixa locația proprietății. Poți da zoom și trage harta pentru a găsi locația exactă.
+                </p>
+
+                <div className="rounded-xl overflow-hidden border" style={{
+                  borderColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)",
+                }}>
+                  <LocationPickerMap
+                    lat={pinLat}
+                    lng={pinLng}
+                    onLocationSelect={(lat, lng) => {
+                      setPinLat(lat);
+                      setPinLng(lng);
+                    }}
+                  />
+                </div>
+
+                {pinLat !== null && pinLng !== null ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <MdCheckCircle size={16} />
+                      <span>Locație selectată: {pinLat.toFixed(5)}, {pinLng.toFixed(5)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setPinLat(null); setPinLng(null); }}
+                      className="text-xs text-red-400 hover:text-red-500 transition-colors"
+                    >
+                      Șterge pin
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                    <MdMyLocation size={16} />
+                    <span>Apasă pe hartă pentru a selecta locația</span>
                   </div>
                 )}
               </div>

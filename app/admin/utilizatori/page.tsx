@@ -30,91 +30,14 @@ interface User {
   dataInregistrare: string;
 }
 
-// Funcție deterministă pentru a genera valori pseudo-aleatoare bazate pe index
-const deterministicValue = (index: number, seed: number, max: number) => {
-  return ((index * seed + seed * 7) % max);
-};
-
-// Date dummy pentru utilizatori
-const generateUtilizatori = (): User[] => {
-  const nume = [
-    "Andrei Popescu",
-    "Elena Ionescu",
-    "Mihai Georgescu",
-    "Ana Radu",
-    "Alexandru Stan",
-    "Maria Dumitrescu",
-    "Cristian Nistor",
-    "Ioana Munteanu",
-    "Bogdan Vasile",
-    "Diana Constantinescu",
-    "Radu Petrescu",
-    "Simona Gheorghe",
-    "Florin Marin",
-    "Andreea Toma",
-    "Adrian Popa",
-    "Laura Stoica",
-    "Gabriel Enache",
-    "Raluca Barbu",
-    "Catalin Dinu",
-    "Monica Serban",
-  ];
-
-  const statusuri: UserStatus[] = ["activ", "activ", "activ", "activ", "inactiv", "suspendat"];
-
-  const telefonBase = [
-    "0793193877",
-    "0718593727",
-    "0723456789",
-    "0734567890",
-    "0745678901",
-    "0756789012",
-    "0767890123",
-    "0778901234",
-    "0789012345",
-    "0790123456",
-    "0711234567",
-    "0722345678",
-    "0733456789",
-    "0744567890",
-    "0755678901",
-    "0766789012",
-    "0777890123",
-    "0788901234",
-    "0799012345",
-    "0710123456",
-  ];
-
-  return nume.map((n, index) => {
-    const numeParts = n.split(" ");
-    const email = `${numeParts[0].toLowerCase()}.${numeParts[1].toLowerCase()}@gmail.com`;
-    const telefon = index % 3 === 0 ? undefined : telefonBase[index % telefonBase.length];
-    const status = statusuri[index % statusuri.length];
-    const anunturiFavorite = deterministicValue(index, 13, 30);
-    const anunturiVizualizate = deterministicValue(index, 19, 200) + 10;
-    const daysAgo = deterministicValue(index, 31, 365);
-    const dataInregistrare = new Date(
-      Date.now() - daysAgo * 24 * 60 * 60 * 1000
-    ).toISOString();
-
-    return {
-      id: `user-${index + 1}`,
-      nume: n,
-      email,
-      telefon,
-      anunturiFavorite,
-      anunturiVizualizate,
-      status,
-      dataInregistrare,
-    };
-  });
-};
-
 export default function AdminUtilizatoriPage() {
   const [isDark, setIsDark] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<UserStatus | "toate">("toate");
+  const [allUtilizatori, setAllUtilizatori] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -129,7 +52,36 @@ export default function AdminUtilizatoriPage() {
     return () => observer.disconnect();
   }, []);
 
-  const allUtilizatori = useMemo(() => generateUtilizatori(), []);
+  useEffect(() => {
+    const fetchUtilizatori = async () => {
+      try {
+        setIsLoadingUsers(true);
+        setUsersError(null);
+
+        const response = await fetch("/api/admin/users", {
+          cache: "no-store",
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "Nu am putut încărca utilizatorii.");
+        }
+
+        setAllUtilizatori(payload.users ?? []);
+      } catch (error) {
+        setUsersError(
+          error instanceof Error
+            ? error.message
+            : "Nu am putut încărca utilizatorii."
+        );
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    fetchUtilizatori();
+  }, []);
 
   const filteredUtilizatori = useMemo(() => {
     let filtered = allUtilizatori;
@@ -446,7 +398,25 @@ export default function AdminUtilizatoriPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUtilizatori.length === 0 ? (
+                  {isLoadingUsers ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-12 text-center text-gray-500 dark:text-gray-400"
+                      >
+                        Se încarcă utilizatorii reali...
+                      </td>
+                    </tr>
+                  ) : usersError ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-12 text-center text-red-500"
+                      >
+                        {usersError}
+                      </td>
+                    </tr>
+                  ) : filteredUtilizatori.length === 0 ? (
                     <tr>
                       <td
                         colSpan={6}

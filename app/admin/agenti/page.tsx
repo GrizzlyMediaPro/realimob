@@ -14,12 +14,17 @@ import {
   MdBusiness,
   MdCheckCircle,
   MdCancel,
-  MdMoreVert,
   MdPending,
+  MdEdit,
+  MdDelete,
+  MdDescription,
+  MdOpenInNew,
+  MdDownload,
 } from "react-icons/md";
 import Link from "next/link";
+import { UploadButton, UploadDropzone } from "../../components/Uploadthing";
 
-type AgentStatus = "activ" | "inactiv" | "suspendat" | "pending";
+type AgentStatus = "activ" | "inactiv" | "suspendat" | "pending" | "respins";
 
 interface Agent {
   id: string;
@@ -31,87 +36,36 @@ interface Agent {
   anunturiTotal: number;
   status: AgentStatus;
   dataInregistrare: string;
+  buletinUrl?: string | null;
+  cui?: string | null;
+  submittedAt?: string | null;
+  rejectionMessage?: string | null;
+  contractTemplateUrl?: string | null;
+  contractTemplateFileName?: string | null;
+  contractSentAt?: string | null;
+  signedContractUrl?: string | null;
+  signedContractFileName?: string | null;
+  signedUploadedAt?: string | null;
 }
 
-// Funcție deterministă pentru a genera valori pseudo-aleatoare bazate pe index
-const deterministicValue = (index: number, seed: number, max: number) => {
-  return ((index * seed + seed * 7) % max);
-};
-
-// Date dummy pentru agenți
-const generateAgenti = (): Agent[] => {
-  const nume = [
-    "Ion Popescu",
-    "Maria Ionescu",
-    "Alexandru Georgescu",
-    "Elena Radu",
-    "Mihai Stan",
-    "Ana Dumitrescu",
-    "Cristian Nistor",
-    "Andreea Munteanu",
-    "Bogdan Vasile",
-    "Ioana Constantinescu",
-    "Radu Petrescu",
-    "Diana Gheorghe",
-    "Florin Marin",
-    "Simona Toma",
-    "Adrian Popa",
-  ];
-
-  const companii = [
-    "Imobiliare Premium",
-    "Casa Perfectă",
-    "Real Estate Pro",
-    "Luxury Properties",
-    "Smart Living",
-    undefined,
-    undefined,
-  ];
-
-  const statusuri: AgentStatus[] = ["activ", "activ", "activ", "inactiv", "suspendat", "pending"];
-
-  const telefonBase = [
-    "0793193877",
-    "0718593727",
-    "0723456789",
-    "0734567890",
-    "0745678901",
-    "0756789012",
-    "0767890123",
-    "0778901234",
-    "0789012345",
-    "0790123456",
-    "0711234567",
-    "0722345678",
-    "0733456789",
-    "0744567890",
-    "0755678901",
-  ];
-
-  return nume.map((n, index) => {
-    const numeParts = n.split(" ");
-    const email = `${numeParts[0].toLowerCase()}.${numeParts[1].toLowerCase()}@realimob.ro`;
-    const telefon = telefonBase[index % telefonBase.length];
-    const status = statusuri[index % statusuri.length];
-    const anunturiActive = deterministicValue(index, 17, 50) + 5;
-    const anunturiTotal = anunturiActive + deterministicValue(index, 23, 20);
-    const daysAgo = deterministicValue(index, 31, 365);
-    const dataInregistrare = new Date(
-      Date.now() - daysAgo * 24 * 60 * 60 * 1000
-    ).toISOString();
-
-    return {
-      id: `agent-${index + 1}`,
-      nume: n,
-      email,
-      telefon,
-      companie: companii[index % companii.length],
-      anunturiActive,
-      anunturiTotal,
-      status,
-      dataInregistrare,
-    };
-  });
+type AgentApiItem = {
+  id: string;
+  nume?: string;
+  email?: string;
+  telefon?: string;
+  status?: "pending" | "approved" | "rejected";
+  dataInregistrare?: string;
+  formaOrganizare?: string | null;
+  buletinUrl?: string | null;
+  cui?: string | null;
+  submittedAt?: string | null;
+  rejectionMessage?: string | null;
+  contractTemplateUrl?: string | null;
+  contractTemplateFileName?: string | null;
+  contractSentAt?: string | null;
+  signedContractUrl?: string | null;
+  signedContractFileName?: string | null;
+  signedUploadedAt?: string | null;
 };
 
 export default function AdminAgentiPage() {
@@ -121,6 +75,78 @@ export default function AdminAgentiPage() {
   const [statusFilter, setStatusFilter] = useState<AgentStatus | "toate">("toate");
   const [companieFilter, setCompanieFilter] = useState("");
   const [showPending, setShowPending] = useState(false);
+  const [allAgenti, setAllAgenti] = useState<Agent[]>([]);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [detailAgent, setDetailAgent] = useState<Agent | null>(null);
+  const [editAgent, setEditAgent] = useState<Agent | null>(null);
+  const [editForm, setEditForm] = useState({
+    nume: "",
+    telefon: "",
+    formaOrganizare: "",
+    cui: "",
+  });
+  const [rejectAgentId, setRejectAgentId] = useState<string | null>(null);
+  const [rejectMessage, setRejectMessage] = useState("");
+  const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [contractUrlDraft, setContractUrlDraft] = useState("");
+  const [contractFileNameDraft, setContractFileNameDraft] = useState("");
+
+  const fetchAgenti = async () => {
+    try {
+      setIsLoadingAgents(true);
+      setAgentsError(null);
+
+      const response = await fetch("/api/admin/agent-requests", {
+        cache: "no-store",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut încărca agenții.");
+      }
+
+      const mappedAgents: Agent[] = (payload.agents ?? []).map((agent: AgentApiItem) => {
+        const status: AgentStatus =
+          agent.status === "pending"
+            ? "pending"
+            : agent.status === "rejected"
+            ? "respins"
+            : "activ";
+
+        return {
+          id: agent.id,
+          nume: agent.nume ?? "Agent fără nume",
+          email: agent.email ?? "-",
+          telefon: agent.telefon ?? "-",
+          companie: agent.formaOrganizare ?? undefined,
+          anunturiActive: 0,
+          anunturiTotal: 0,
+          status,
+          dataInregistrare: agent.dataInregistrare ?? new Date().toISOString(),
+          buletinUrl: agent.buletinUrl ?? null,
+          cui: agent.cui ?? null,
+          submittedAt: agent.submittedAt ?? null,
+          rejectionMessage: agent.rejectionMessage ?? null,
+          contractTemplateUrl: agent.contractTemplateUrl ?? null,
+          contractTemplateFileName: agent.contractTemplateFileName ?? null,
+          contractSentAt: agent.contractSentAt ?? null,
+          signedContractUrl: agent.signedContractUrl ?? null,
+          signedContractFileName: agent.signedContractFileName ?? null,
+          signedUploadedAt: agent.signedUploadedAt ?? null,
+        };
+      });
+
+      setAllAgenti(mappedAgents);
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut încărca agenții."
+      );
+    } finally {
+      setIsLoadingAgents(false);
+    }
+  };
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -135,7 +161,174 @@ export default function AdminAgentiPage() {
     return () => observer.disconnect();
   }, []);
 
-  const allAgenti = useMemo(() => generateAgenti(), []);
+  useEffect(() => {
+    fetchAgenti();
+  }, []);
+
+  useEffect(() => {
+    setDetailAgent((prev) => {
+      if (!prev) return null;
+      const fresh = allAgenti.find((a) => a.id === prev.id);
+      return fresh ?? prev;
+    });
+  }, [allAgenti]);
+
+  const patchAgentRequest = async (body: Record<string, unknown>) => {
+    const response = await fetch("/api/admin/agent-requests", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload?.error || "Operațiune eșuată.");
+    }
+  };
+
+  const approveAgent = async (targetUserId: string) => {
+    try {
+      setActionLoading(true);
+      setAgentsError(null);
+      await patchAgentRequest({ targetUserId, action: "approve" });
+      setDetailAgent(null);
+      await fetchAgenti();
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut aproba cererea."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const submitReject = async () => {
+    if (!rejectAgentId || !rejectMessage.trim()) {
+      setAgentsError("Scrie un mesaj pentru agent înainte de respingere.");
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setAgentsError(null);
+      await patchAgentRequest({
+        targetUserId: rejectAgentId,
+        action: "reject",
+        message: rejectMessage.trim(),
+      });
+      setRejectAgentId(null);
+      setRejectMessage("");
+      setDetailAgent(null);
+      await fetchAgenti();
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut respinge cererea."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const sendContractForAgent = async (
+    targetUserId: string,
+    url: string,
+    fileName?: string
+  ) => {
+    if (!url.trim()) {
+      setAgentsError("Încarcă mai întâi fișierul contractului (PDF sau imagine).");
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setAgentsError(null);
+      await patchAgentRequest({
+        targetUserId,
+        action: "send_contract",
+        contractTemplateUrl: url.trim(),
+        contractTemplateFileName: fileName?.trim(),
+      });
+      setContractUrlDraft("");
+      setContractFileNameDraft("");
+      await fetchAgenti();
+      setDetailAgent((prev) =>
+        prev && prev.id === targetUserId
+          ? {
+              ...prev,
+              contractTemplateUrl: url.trim(),
+              contractTemplateFileName: fileName?.trim() ?? prev.contractTemplateFileName,
+              contractSentAt: new Date().toISOString(),
+            }
+          : prev
+      );
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut trimite contractul."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const saveEditAgent = async () => {
+    if (!editAgent) return;
+    try {
+      setActionLoading(true);
+      setAgentsError(null);
+      await patchAgentRequest({
+        targetUserId: editAgent.id,
+        action: "update",
+        updates: {
+          nume: editForm.nume.trim() || undefined,
+          telefon: editForm.telefon.trim() || undefined,
+          formaOrganizare: editForm.formaOrganizare.trim() || undefined,
+          cui: editForm.cui.trim() || undefined,
+        },
+      });
+      setEditAgent(null);
+      await fetchAgenti();
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut salva modificările."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const deleteAgent = async () => {
+    if (!deleteAgentId) return;
+    try {
+      setActionLoading(true);
+      setAgentsError(null);
+      const response = await fetch("/api/admin/agent-requests", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: deleteAgentId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Ștergerea a eșuat.");
+      }
+      setDeleteAgentId(null);
+      setDetailAgent(null);
+      setEditAgent(null);
+      await fetchAgenti();
+    } catch (error) {
+      setAgentsError(
+        error instanceof Error ? error.message : "Nu am putut șterge înregistrarea."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openEdit = (agent: Agent) => {
+    setEditAgent(agent);
+    setEditForm({
+      nume: agent.nume,
+      telefon: agent.telefon === "-" ? "" : agent.telefon,
+      formaOrganizare: agent.companie ?? "",
+      cui: agent.cui ?? "",
+    });
+  };
 
   const filteredAgenti = useMemo(() => {
     let filtered = allAgenti;
@@ -205,6 +398,11 @@ export default function AdminAgentiPage() {
           background: "rgba(245, 158, 11, 0.15)",
           color: "#F59E0B",
         };
+      case "respins":
+        return {
+          background: "rgba(239, 68, 68, 0.15)",
+          color: "#EF4444",
+        };
       case "pending":
         return {
           background: "rgba(245, 158, 11, 0.15)",
@@ -221,6 +419,8 @@ export default function AdminAgentiPage() {
         return "Inactiv";
       case "suspendat":
         return "Suspendat";
+      case "respins":
+        return "Respins";
       case "pending":
         return "În Așteptare";
     }
@@ -546,7 +746,25 @@ export default function AdminAgentiPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAgenti.length === 0 ? (
+                  {isLoadingAgents ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-12 text-center text-gray-500 dark:text-gray-400"
+                      >
+                        Se încarcă agenții reali...
+                      </td>
+                    </tr>
+                  ) : agentsError ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-12 text-center text-red-500"
+                      >
+                        {agentsError}
+                      </td>
+                    </tr>
+                  ) : filteredAgenti.length === 0 ? (
                     <tr>
                       <td
                         colSpan={7}
@@ -617,14 +835,31 @@ export default function AdminAgentiPage() {
                           </td>
                           <td className="px-4 py-4">
                             {agent.companie ? (
-                              <div className="flex items-center gap-2">
-                                <MdBusiness
-                                  size={16}
-                                  className="text-gray-400"
-                                />
-                                <span className="text-sm text-foreground">
-                                  {agent.companie}
-                                </span>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <MdBusiness
+                                    size={16}
+                                    className="text-gray-400"
+                                  />
+                                  <span className="text-sm text-foreground">
+                                    {agent.companie}
+                                  </span>
+                                </div>
+                                {agent.cui && (
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    CUI: {agent.cui}
+                                  </div>
+                                )}
+                                {agent.buletinUrl && (
+                                  <a
+                                    href={agent.buletinUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs text-[#C25A2B] underline"
+                                  >
+                                    Vezi buletin
+                                  </a>
+                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">
@@ -667,16 +902,72 @@ export default function AdminAgentiPage() {
                             </div>
                           </td>
                           <td className="px-4 py-4">
-                            <div className="flex justify-end">
+                            <div className="flex justify-end flex-wrap gap-1.5">
                               <button
+                                type="button"
                                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                aria-label="Mai multe opțiuni"
+                                aria-label="Detalii agent"
+                                title="Detalii"
+                                onClick={() => {
+                                  setContractUrlDraft("");
+                                  setContractFileNameDraft("");
+                                  setDetailAgent(agent);
+                                }}
                               >
-                                <MdMoreVert
+                                <MdDescription
                                   size={20}
                                   className="text-gray-500 dark:text-gray-400"
                                 />
                               </button>
+                              <button
+                                type="button"
+                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                aria-label="Editează"
+                                title="Editează"
+                                onClick={() => openEdit(agent)}
+                              >
+                                <MdEdit
+                                  size={20}
+                                  className="text-gray-500 dark:text-gray-400"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                className="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                                aria-label="Șterge din agenți"
+                                title="Șterge"
+                                onClick={() => setDeleteAgentId(agent.id)}
+                              >
+                                <MdDelete
+                                  size={20}
+                                  className="text-red-500 dark:text-red-400"
+                                />
+                              </button>
+                              {agent.status === "pending" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#10B981] hover:opacity-90 transition-opacity disabled:opacity-50"
+                                    disabled={actionLoading || !agent.signedContractUrl}
+                                    title={
+                                      agent.signedContractUrl
+                                        ? "Aprobă după verificarea contractului"
+                                        : "Necesită contract semnat încărcat de agent"
+                                    }
+                                    onClick={() => approveAgent(agent.id)}
+                                  >
+                                    Aprobă
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#EF4444] hover:opacity-90 transition-opacity disabled:opacity-50"
+                                    disabled={actionLoading}
+                                    onClick={() => setRejectAgentId(agent.id)}
+                                  >
+                                    Respinge
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -689,6 +980,412 @@ export default function AdminAgentiPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal detalii + contract */}
+      {detailAgent && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="detail-agent-title"
+        >
+          <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-xl text-foreground"
+            style={{
+              fontFamily: "var(--font-galak-regular)",
+              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+              border: isDark
+                ? "1px solid rgba(255, 255, 255, 0.12)"
+                : "1px solid rgba(0, 0, 0, 0.08)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h2 id="detail-agent-title" className="text-xl font-bold">
+                Detalii cerere
+              </h2>
+              <button
+                type="button"
+                className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => setDetailAgent(null)}
+                aria-label="Închide"
+              >
+                <MdClose size={22} />
+              </button>
+            </div>
+            <dl className="space-y-2 text-sm">
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Nume</dt>
+                <dd>{detailAgent.nume}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Email</dt>
+                <dd>{detailAgent.email}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Telefon</dt>
+                <dd>{detailAgent.telefon}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Formă organizare</dt>
+                <dd>{detailAgent.companie ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">CUI</dt>
+                <dd>{detailAgent.cui ?? "—"}</dd>
+              </div>
+              {detailAgent.buletinUrl && (
+                <div>
+                  <dt className="text-gray-500 dark:text-gray-400">Buletin</dt>
+                  <dd>
+                    <a
+                      href={detailAgent.buletinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[#C25A2B] underline"
+                    >
+                      Deschide <MdOpenInNew size={14} />
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {detailAgent.submittedAt && (
+                <div>
+                  <dt className="text-gray-500 dark:text-gray-400">Trimis la</dt>
+                  <dd>{new Date(detailAgent.submittedAt).toLocaleString("ro-RO")}</dd>
+                </div>
+              )}
+              {detailAgent.rejectionMessage && (
+                <div className="rounded-lg p-3 bg-red-500/10 text-red-700 dark:text-red-300">
+                  <dt className="font-medium mb-1">Mesaj respingere</dt>
+                  <dd>{detailAgent.rejectionMessage}</dd>
+                </div>
+              )}
+            </dl>
+
+            {detailAgent.status === "pending" && (
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                <h3 className="font-semibold text-sm">Contract de trimis agentului</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  1) Încarcă PDF-ul (sau imaginea) contractului. 2) Apasă „Trimite contractul agentului” — agentul îl
+                  poate descărca din panoul său ca fișier atașat.
+                </p>
+                {detailAgent.contractTemplateUrl ? (
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Fișier curent: {detailAgent.contractTemplateFileName ?? "contract"}
+                    </span>
+                    <a
+                      href={`/api/admin/agent-contract-file?targetUserId=${encodeURIComponent(
+                        detailAgent.id
+                      )}&kind=template`}
+                      className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg text-white bg-[#C25A2B] hover:opacity-90"
+                    >
+                      <MdDownload size={16} />
+                      Descarcă contractul
+                    </a>
+                    <a
+                      href={detailAgent.contractTemplateUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-gray-500 underline"
+                    >
+                      Deschide în tab nou <MdOpenInNew size={14} />
+                    </a>
+                  </div>
+                ) : null}
+
+                <div
+                  className="rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-4 space-y-3"
+                  data-testid="admin-contract-upload"
+                >
+                  <p className="text-xs font-medium text-foreground">Încărcare fișier</p>
+                  <UploadDropzone
+                    endpoint="documentUploader"
+                    onClientUploadComplete={(res) => {
+                      const f = res?.[0];
+                      if (f?.url) {
+                        setContractUrlDraft(f.url);
+                        setContractFileNameDraft(f.name ?? "");
+                      }
+                    }}
+                    onUploadError={(e: Error) => setAgentsError(e.message)}
+                    appearance={{
+                      container: "border-0 bg-transparent p-0",
+                      uploadIcon: "text-[#C25A2B]",
+                    }}
+                    content={{
+                      label: "Trage fișierul aici sau click pentru a alege",
+                      allowedContent: "PDF sau imagine (max. 8 MB pentru PDF)",
+                    }}
+                  />
+                  <div className="flex justify-center">
+                    <span className="text-xs text-gray-400">sau</span>
+                  </div>
+                  <UploadButton
+                    endpoint="documentUploader"
+                    onClientUploadComplete={(res) => {
+                      const f = res?.[0];
+                      if (f?.url) {
+                        setContractUrlDraft(f.url);
+                        setContractFileNameDraft(f.name ?? "");
+                      }
+                    }}
+                    onUploadError={(e: Error) => setAgentsError(e.message)}
+                    content={{
+                      button: "Încarcă din buton",
+                      allowedContent: "PDF / imagine",
+                    }}
+                  />
+                </div>
+
+                {contractUrlDraft ? (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Pregătit pentru trimitere:{" "}
+                    <strong>{contractFileNameDraft || "document"}</strong>
+                  </p>
+                ) : null}
+
+                <button
+                  type="button"
+                  disabled={actionLoading || !contractUrlDraft}
+                  onClick={() =>
+                    sendContractForAgent(
+                      detailAgent.id,
+                      contractUrlDraft,
+                      contractFileNameDraft
+                    )
+                  }
+                  className="w-full py-2.5 rounded-xl text-white text-sm font-medium bg-[#C25A2B] hover:opacity-90 disabled:opacity-45"
+                >
+                  Trimite contractul agentului
+                </button>
+                {detailAgent.signedContractUrl ? (
+                  <div>
+                    <h4 className="text-sm font-medium mb-1">Contract semnat (agent)</h4>
+                    <p className="text-xs text-gray-500 mb-2">
+                      {detailAgent.signedContractFileName ?? "document încărcat"}
+                    </p>
+                    <a
+                      href={`/api/admin/agent-contract-file?targetUserId=${encodeURIComponent(
+                        detailAgent.id
+                      )}&kind=signed`}
+                      className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg text-white bg-[#1F2D44] hover:opacity-90 mr-2"
+                    >
+                      <MdDownload size={16} />
+                      Descarcă semnat
+                    </a>
+                    <a
+                      href={detailAgent.signedContractUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-[#C25A2B] underline"
+                    >
+                      Deschide în tab <MdOpenInNew size={14} />
+                    </a>
+                    {detailAgent.signedUploadedAt && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Încărcat:{" "}
+                        {new Date(detailAgent.signedUploadedAt).toLocaleString("ro-RO")}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Agentul nu a încărcat încă varianta semnată.</p>
+                )}
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={actionLoading || !detailAgent.signedContractUrl}
+                    onClick={() => approveAgent(detailAgent.id)}
+                    className="flex-1 min-w-[120px] py-2 rounded-xl text-white text-sm font-medium bg-[#10B981] hover:opacity-90 disabled:opacity-45"
+                  >
+                    Aprobă (final)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => setRejectAgentId(detailAgent.id)}
+                    className="flex-1 min-w-[120px] py-2 rounded-xl text-white text-sm font-medium bg-[#EF4444] hover:opacity-90 disabled:opacity-45"
+                  >
+                    Respinge
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal editare */}
+      {editAgent && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-6 shadow-xl text-foreground space-y-4"
+            style={{
+              fontFamily: "var(--font-galak-regular)",
+              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+              border: isDark
+                ? "1px solid rgba(255, 255, 255, 0.12)"
+                : "1px solid rgba(0, 0, 0, 0.08)",
+            }}
+          >
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold">Editează agent</h2>
+              <button
+                type="button"
+                className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => setEditAgent(null)}
+              >
+                <MdClose size={22} />
+              </button>
+            </div>
+            <label className="block text-sm">
+              <span className="text-gray-500 dark:text-gray-400">Nume</span>
+              <input
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent"
+                value={editForm.nume}
+                onChange={(e) => setEditForm((f) => ({ ...f, nume: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-gray-500 dark:text-gray-400">Telefon</span>
+              <input
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent"
+                value={editForm.telefon}
+                onChange={(e) => setEditForm((f) => ({ ...f, telefon: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-gray-500 dark:text-gray-400">Formă organizare</span>
+              <input
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent"
+                value={editForm.formaOrganizare}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, formaOrganizare: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-gray-500 dark:text-gray-400">CUI</span>
+              <input
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent"
+                value={editForm.cui}
+                onChange={(e) => setEditForm((f) => ({ ...f, cui: e.target.value }))}
+              />
+            </label>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600"
+                onClick={() => setEditAgent(null)}
+              >
+                Anulează
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                className="flex-1 py-2.5 rounded-xl text-white bg-[#C25A2B] hover:opacity-90 disabled:opacity-45"
+                onClick={saveEditAgent}
+              >
+                Salvează
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal respingere */}
+      {rejectAgentId && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-6 shadow-xl text-foreground space-y-4"
+            style={{
+              fontFamily: "var(--font-galak-regular)",
+              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+            }}
+          >
+            <h2 className="text-lg font-bold">Respinge cererea</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Explică agentului ce trebuie să corecteze sau să trimită pentru a fi aprobat.
+            </p>
+            <textarea
+              className="w-full min-h-[120px] px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent text-sm"
+              placeholder="Mesaj pentru agent…"
+              value={rejectMessage}
+              onChange={(e) => setRejectMessage(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600"
+                onClick={() => {
+                  setRejectAgentId(null);
+                  setRejectMessage("");
+                }}
+              >
+                Anulează
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading || !rejectMessage.trim()}
+                className="flex-1 py-2.5 rounded-xl text-white bg-[#EF4444] hover:opacity-90 disabled:opacity-45"
+                onClick={submitReject}
+              >
+                Trimite respingerea
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmare ștergere */}
+      {deleteAgentId && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6 shadow-xl text-foreground space-y-4"
+            style={{
+              fontFamily: "var(--font-galak-regular)",
+              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+            }}
+          >
+            <h2 className="text-lg font-bold">Ștergi înregistrarea?</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Contul Clerk rămâne, dar rolul de agent și datele cererii sunt eliminate. Anunțurile
+              atribuite acestui agent sunt detașate.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600"
+                onClick={() => setDeleteAgentId(null)}
+              >
+                Anulează
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                className="flex-1 py-2.5 rounded-xl text-white bg-red-600 hover:opacity-90 disabled:opacity-45"
+                onClick={deleteAgent}
+              >
+                Șterge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );

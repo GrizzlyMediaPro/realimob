@@ -89,6 +89,8 @@ export default function AdminListingCard({
   deactivationReason,
 }: AdminListingCardProps) {
   const isDark = useDarkMode();
+  const imageSrc = typeof image === "string" ? image.trim() : "";
+  const hasImage = imageSrc.length > 0;
 
   const cardStyle: React.CSSProperties = {
     background: isDark
@@ -126,12 +128,18 @@ export default function AdminListingCard({
       <div className="flex items-center gap-3 p-3">
         {/* Imagine mică */}
         <div className="w-20 h-20 md:w-24 md:h-24 relative shrink-0 overflow-hidden rounded-lg">
-          <Image
-            src={image}
-            alt={titlu}
-            fill
-            className="object-cover object-center"
-          />
+          {hasImage ? (
+            <Image
+              src={imageSrc}
+              alt={titlu}
+              fill
+              className="object-cover object-center"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-gray-700">
+              <CiImageOn className="text-gray-400 dark:text-gray-500" size={32} aria-hidden />
+            </div>
+          )}
           <div className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs flex items-center gap-1 backdrop-blur-sm">
             <CiImageOn size={12} />
             <span className="text-xs">{imageCount}</span>

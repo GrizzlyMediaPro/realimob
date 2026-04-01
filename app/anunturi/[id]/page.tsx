@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdDescription, MdInfo } from "react-icons/md";
 
@@ -13,7 +12,13 @@ import AnuntOffersModal from "../../components/AnuntOffersModal";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
-import { getAnuntById, getImageCount, parsePretToNumber } from "../../../lib/anunturiData";
+import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  transformListingToAnunt,
+  transformImagesToRoomImages,
+} from "../../../lib/listingToAnunt";
+import RoomGallery from "../../components/RoomGallery";
+import { prisma } from "../../../lib/prisma";
 
 type AnuntPageProps = {
   params: Promise<{
@@ -21,13 +26,32 @@ type AnuntPageProps = {
   }>;
 };
 
-const getGalleryImages = (image: string, count: number) => {
-  return Array.from({ length: count }, () => image);
-};
-
 export default async function AnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
-  const anunt = getAnuntById(id);
+  let anunt: Anunt | undefined = getAnuntById(id);
+  let roomImages: RoomImage[] = [];
+
+  if (!anunt) {
+    try {
+      const listing = await prisma.listing.findUnique({
+        where: { id },
+        include: { agent: true },
+      });
+      if (listing) {
+        anunt = transformListingToAnunt(listing);
+        const dbImages = listing.images as any[];
+        if (dbImages && Array.isArray(dbImages)) {
+          roomImages = transformImagesToRoomImages(dbImages);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch listing from DB:", error);
+    }
+  }
+
+  if (anunt && roomImages.length === 0) {
+    roomImages = getRoomImages(anunt.id, anunt.image);
+  }
 
   if (!anunt) {
     return (
@@ -78,9 +102,6 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
       </div>
     );
   }
-
-  const totalImages = getImageCount(anunt.id);
-  const galleryImages = getGalleryImages(anunt.image, Math.max(totalImages, 4));
 
   const locationText =
     anunt.tags.find((t) => t.includes("Sector")) ??
@@ -135,35 +156,12 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
               </div>
             </div>
 
-            {/* Galerie imagini */}
-            <section className="mb-6 md:mb-8">
-              <div className="w-full max-w-[1250px] mx-auto aspect-video md:rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 relative">
-                <Image
-                  src={galleryImages[0]}
-                  alt={anunt.titlu}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 1250px"
-                />
-              </div>
-
-              <div className="mt-3 md:mt-4 flex gap-2 md:gap-3 overflow-x-auto pb-1 hide-scrollbar">
-                {galleryImages.map((src, index) => (
-                  <div
-                    key={`${anunt.id}-thumb-${index}`}
-                    className="relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 shrink-0 w-20 h-16 md:w-28 md:h-20 cursor-pointer"
-                  >
-                    <Image
-                      src={src}
-                      alt={`${anunt.titlu} imagine ${index + 1}`}
-                      fill
-                      className="object-cover"
-                      sizes="120px"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
+            {/* Galerie imagini cu filtrare pe camere */}
+            <RoomGallery
+              images={roomImages}
+              titlu={anunt.titlu}
+              anuntId={anunt.id}
+            />
 
             {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">

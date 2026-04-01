@@ -1,7 +1,8 @@
  "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CiUser, CiHome } from "react-icons/ci";
 import { MdBusinessCenter } from "react-icons/md";
 
@@ -10,8 +11,27 @@ import Footer from "../components/Footer";
 
 type RolUtilizator = "utilizator" | "agent";
 
-export default function InregistrarePage() {
+function InregistrarePageInner() {
   const [rolSelectat, setRolSelectat] = useState<RolUtilizator>("utilizator");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("/api/settings/public", { cache: "no-store" });
+        const data = await res.json();
+        setRegistrationsEnabled(data.registrationsEnabled !== false);
+      } catch {
+        setRegistrationsEnabled(true);
+      } finally {
+        setSettingsLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div className="min-h-screen text-foreground flex flex-col">
@@ -40,9 +60,20 @@ export default function InregistrarePage() {
               </div>
             </div>
 
+            {!settingsLoading && !registrationsEnabled && (
+              <div
+                className="mb-4 rounded-xl px-4 py-3 text-sm border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100"
+                role="alert"
+              >
+                Înregistrările noi sunt temporar închise. Încearcă mai târziu sau
+                contactează suportul dacă ai nevoie de un cont.
+              </div>
+            )}
+
             <div className="space-y-3 mb-6">
               <button
                 type="button"
+                disabled={!registrationsEnabled || settingsLoading}
                 onClick={() => setRolSelectat("utilizator")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
                   rolSelectat === "utilizator"
@@ -71,6 +102,7 @@ export default function InregistrarePage() {
 
               <button
                 type="button"
+                disabled={!registrationsEnabled || settingsLoading}
                 onClick={() => setRolSelectat("agent")}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
                   rolSelectat === "agent"
@@ -110,20 +142,34 @@ export default function InregistrarePage() {
 
             <button
               type="button"
-              className="w-full mt-4 px-4 py-2.5 rounded-lg text-white font-medium text-sm md:text-base hover:opacity-90 transition-opacity"
+              disabled={!registrationsEnabled || settingsLoading}
+              onClick={() => {
+                const q = new URLSearchParams();
+                q.set("role", rolSelectat === "agent" ? "agent" : "client");
+                const back = searchParams.get("redirect_url");
+                if (
+                  typeof back === "string" &&
+                  back.startsWith("/") &&
+                  !back.startsWith("//")
+                ) {
+                  q.set("redirect_url", back);
+                }
+                router.push(`/sign-up?${q.toString()}`);
+              }}
+              className="w-full mt-4 px-4 py-2.5 rounded-lg text-white font-medium text-sm md:text-base hover:opacity-90 transition-opacity disabled:opacity-45 disabled:cursor-not-allowed"
               style={{
                 backgroundColor:
                   rolSelectat === "utilizator" ? "#3B1F3A" : "#C25A2B",
               }}
             >
-              Continuă
+              {settingsLoading ? "Se încarcă…" : "Continuă"}
             </button>
 
             <div className="mt-6 pt-4 border-t border-[#d5dae0] dark:border-[#2b2b33] text-center">
               <p className="text-xs md:text-sm text-gray-600 dark:text-gray-300">
                 Ai deja cont?{" "}
                 <Link
-                  href="/login"
+                  href="/sign-in"
                   className="font-semibold text-[#1F2D44] dark:text-[#7AA2FF] hover:underline"
                 >
                   Intră în cont
@@ -136,6 +182,20 @@ export default function InregistrarePage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function InregistrarePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center pt-24 text-sm text-gray-500">
+          Se încarcă…
+        </div>
+      }
+    >
+      <InregistrarePageInner />
+    </Suspense>
   );
 }
 

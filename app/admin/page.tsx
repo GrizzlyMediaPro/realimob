@@ -10,7 +10,6 @@ import {
   MdSettings,
   MdAnalytics,
   MdNotifications,
-  MdSecurity,
   MdTrendingUp,
   MdTrendingDown,
   MdCheckCircle,
@@ -38,106 +37,41 @@ interface MenuItem {
   badge?: string;
 }
 
-const statistici: StatisticItem[] = [
-  {
-    titlu: "Anunțuri Active",
-    valoare: "342",
-    icon: MdCheckCircle,
-    trend: {
-      valoare: "+12%",
-      pozitiv: true,
-    },
-    culoare: "#10B981",
-  },
-  {
-    titlu: "Anunțuri Inactive",
-    valoare: "28",
-    icon: MdCancel,
-    trend: {
-      valoare: "-5%",
-      pozitiv: true,
-    },
-    culoare: "#EF4444",
-  },
-  {
-    titlu: "Utilizatori Noi",
-    valoare: "156",
-    icon: MdPeople,
-    trend: {
-      valoare: "+23%",
-      pozitiv: true,
-    },
-    culoare: "#3B82F6",
-  },
-  {
-    titlu: "Agenti Activi",
-    valoare: "89",
-    icon: MdBusiness,
-    trend: {
-      valoare: "+8%",
-      pozitiv: true,
-    },
-    culoare: "#C25A2B",
-  },
-];
+type AdminStatsResponse = {
+  listings: {
+    approved: number;
+    denied: number;
+    pending: number;
+  };
+  agents: {
+    total: number;
+    active: number;
+  };
+  users: {
+    total: number;
+    newLast30Days: number;
+  };
+};
 
-const menuItems: MenuItem[] = [
-  {
-    titlu: "Anunțuri",
-    descriere: "Gestionează toate anunțurile",
-    icon: MdDescription,
-    href: "/admin/anunturi",
-    badge: "342",
+const EMPTY_STATS: AdminStatsResponse = {
+  listings: {
+    approved: 0,
+    denied: 0,
+    pending: 0,
   },
-  {
-    titlu: "Agenti",
-    descriere: "Administrează agenții imobiliari",
-    icon: MdPerson,
-    href: "/admin/agenti",
-    badge: "89",
+  agents: {
+    total: 0,
+    active: 0,
   },
-  {
-    titlu: "Utilizatori",
-    descriere: "Gestionează utilizatorii platformei",
-    icon: MdPeople,
-    href: "/admin/utilizatori",
-    badge: "1,234",
+  users: {
+    total: 0,
+    newLast30Days: 0,
   },
-  {
-    titlu: "Analitica",
-    descriere: "Statistici și rapoarte detaliate",
-    icon: MdAnalytics,
-    href: "/admin/analitica",
-  },
-  {
-    titlu: "Notificări",
-    descriere: "Sistem de notificări și alerte",
-    icon: MdNotifications,
-    href: "/admin/notificari",
-    badge: "12",
-  },
-  {
-    titlu: "Setări",
-    descriere: "Configurare platformă",
-    icon: MdSettings,
-    href: "/admin/setari",
-  },
-  {
-    titlu: "Securitate",
-    descriere: "Gestionare securitate și permisiuni",
-    icon: MdSecurity,
-    href: "/admin/securitate",
-  },
-  {
-    titlu: "Rapoarte",
-    descriere: "Generare rapoarte și export date",
-    icon: MdTrendingUp,
-    href: "/admin/rapoarte",
-  },
-];
+};
 
 export default function AdminPage() {
   const [isDark, setIsDark] = useState(false);
+  const [stats, setStats] = useState<AdminStatsResponse>(EMPTY_STATS);
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -151,6 +85,174 @@ export default function AdminPage() {
     });
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch("/api/admin/stats", {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          setStats(payload);
+          return;
+        }
+      } catch {
+        // fallback mai jos
+      }
+
+      // Fallback: calculează cifrele direct din endpoint-urile existente
+      try {
+        const [
+          usersRes,
+          agentsRes,
+          approvedListingsRes,
+          deniedListingsRes,
+          pendingListingsRes,
+        ] = await Promise.all([
+          fetch("/api/admin/users", { cache: "no-store" }),
+          fetch("/api/admin/agents", { cache: "no-store" }),
+          fetch("/api/admin/listings?status=approved&limit=1", { cache: "no-store" }),
+          fetch("/api/admin/listings?status=denied&limit=1", { cache: "no-store" }),
+          fetch("/api/admin/listings?status=pending&limit=1", { cache: "no-store" }),
+        ]);
+
+        const [
+          usersPayload,
+          agentsPayload,
+          approvedListingsPayload,
+          deniedListingsPayload,
+          pendingListingsPayload,
+        ] = await Promise.all([
+          usersRes.ok ? usersRes.json() : Promise.resolve({ users: [] }),
+          agentsRes.ok ? agentsRes.json() : Promise.resolve({ agents: [] }),
+          approvedListingsRes.ok
+            ? approvedListingsRes.json()
+            : Promise.resolve({ total: 0 }),
+          deniedListingsRes.ok ? deniedListingsRes.json() : Promise.resolve({ total: 0 }),
+          pendingListingsRes.ok
+            ? pendingListingsRes.json()
+            : Promise.resolve({ total: 0 }),
+        ]);
+
+        const totalUsers = Array.isArray(usersPayload.users)
+          ? usersPayload.users.length
+          : 0;
+        const newUsersLast30Days = Array.isArray(usersPayload.users)
+          ? usersPayload.users.filter((user: { dataInregistrare?: string }) => {
+              if (!user.dataInregistrare) return false;
+              const createdAt = new Date(user.dataInregistrare).getTime();
+              return createdAt >= Date.now() - 30 * 24 * 60 * 60 * 1000;
+            }).length
+          : 0;
+
+        const totalAgents = Array.isArray(agentsPayload.agents)
+          ? agentsPayload.agents.length
+          : 0;
+        const activeAgents = Array.isArray(agentsPayload.agents)
+          ? agentsPayload.agents.filter(
+              (agent: { _count?: { listings?: number } }) =>
+                Number(agent?._count?.listings ?? 0) > 0
+            ).length
+          : 0;
+
+        setStats({
+          listings: {
+            approved: Number(approvedListingsPayload.total ?? 0),
+            denied: Number(deniedListingsPayload.total ?? 0),
+            pending: Number(pendingListingsPayload.total ?? 0),
+          },
+          agents: {
+            total: totalAgents,
+            active: activeAgents,
+          },
+          users: {
+            total: totalUsers,
+            newLast30Days: newUsersLast30Days,
+          },
+        });
+      } catch {
+        setStats(EMPTY_STATS);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  const formatNumber = (value: number) => value.toLocaleString("ro-RO");
+
+  const statistici: StatisticItem[] = [
+    {
+      titlu: "Anunțuri Active",
+      valoare: formatNumber(stats.listings.approved),
+      icon: MdCheckCircle,
+      culoare: "#10B981",
+    },
+    {
+      titlu: "Anunțuri Inactive",
+      valoare: formatNumber(stats.listings.denied),
+      icon: MdCancel,
+      culoare: "#EF4444",
+    },
+    {
+      titlu: "Utilizatori Noi (30 zile)",
+      valoare: formatNumber(stats.users.newLast30Days),
+      icon: MdPeople,
+      culoare: "#3B82F6",
+    },
+    {
+      titlu: "Agenti Activi",
+      valoare: formatNumber(stats.agents.active),
+      icon: MdBusiness,
+      culoare: "#C25A2B",
+    },
+  ];
+
+  const menuItems: MenuItem[] = [
+    {
+      titlu: "Anunțuri",
+      descriere: "Gestionează toate anunțurile",
+      icon: MdDescription,
+      href: "/admin/anunturi",
+      badge: formatNumber(
+        stats.listings.approved +
+          stats.listings.denied +
+          stats.listings.pending
+      ),
+    },
+    {
+      titlu: "Agenti",
+      descriere: "Administrează agenții imobiliari",
+      icon: MdPerson,
+      href: "/admin/agenti",
+      badge: formatNumber(stats.agents.total),
+    },
+    {
+      titlu: "Utilizatori",
+      descriere: "Gestionează utilizatorii platformei",
+      icon: MdPeople,
+      href: "/admin/utilizatori",
+      badge: formatNumber(stats.users.total),
+    },
+    {
+      titlu: "Notificări",
+      descriere: "Sistem de notificări și alerte",
+      icon: MdNotifications,
+      href: "/admin/notificari",
+    },
+    {
+      titlu: "Statistici și rapoarte",
+      descriere: "Analitică, grafice și export CSV/PDF",
+      icon: MdAnalytics,
+      href: "/admin/statistici",
+    },
+    {
+      titlu: "Setări",
+      descriere: "Platformă, securitate și roluri",
+      icon: MdSettings,
+      href: "/admin/setari",
+    },
+  ];
 
   return (
     <div className="min-h-screen text-foreground pt-20">
@@ -362,7 +464,7 @@ export default function AdminPage() {
               />
 
               <div className="p-4 md:p-6 relative z-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {menuItems.map((item, index) => {
                     const Icon = item.icon;
                     return (

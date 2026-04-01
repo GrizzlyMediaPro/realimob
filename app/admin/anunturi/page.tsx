@@ -1,14 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import AdminListingCard from "../../components/AdminListingCard";
-import {
-  getAllAnunturi,
-  getImageCount,
-  type Anunt,
-} from "../../../lib/anunturiData";
 import {
   MdCheckCircle,
   MdCancel,
@@ -16,10 +11,15 @@ import {
   MdArrowBack,
   MdClose,
   MdFilterList,
+  MdAssignmentInd,
+  MdAutorenew,
+  MdVisibility,
+  MdSwapHoriz,
+  MdInfoOutline,
 } from "react-icons/md";
 import { CiFilter } from "react-icons/ci";
 import Link from "next/link";
-import { parsePretToNumber } from "../../../lib/anunturiData";
+import { formatListingPriceDisplay } from "@/lib/listingToAnunt";
 
 type AnuntStatus = "active" | "inactive" | "pending";
 type DeactivationReason =
@@ -28,36 +28,117 @@ type DeactivationReason =
   | "Dezactivat utilizator"
   | "Dezactivat admin";
 
-interface AnuntWithStatus extends Anunt {
+interface AdminAnuntCardItem {
+  id: string;
+  titlu: string;
+  image: string;
+  pret: string;
+  priceNumber: number;
+  tags: string[];
+  locationText: string;
+  imageCount: number;
   status: AnuntStatus;
   deactivationReason?: DeactivationReason;
+  suprafataUtil?: number;
+  dormitoare?: number;
+  bai?: number;
+  etaj?: number | string;
+  anConstructie?: number;
 }
 
-// Simulăm statusurile și motivele pentru anunțuri
-const addStatusToAnunturi = (anunturi: Anunt[]): AnuntWithStatus[] => {
-  const deactivationReasons: DeactivationReason[] = [
-    "A trecut prea mult timp",
-    "Vandut",
-    "Dezactivat utilizator",
-    "Dezactivat admin",
-  ];
-
-  return anunturi.map((anunt, index) => {
-    // Distribuim statusurile: 60% active, 30% inactive, 10% pending
-    let status: AnuntStatus = "active";
-    let deactivationReason: DeactivationReason | undefined = undefined;
-    const mod = index % 10;
-    if (mod >= 6 && mod < 9) {
-      status = "inactive";
-      // Distribuim motivele pentru anunțurile inactive
-      const reasonIndex = (index % 4);
-      deactivationReason = deactivationReasons[reasonIndex];
-    } else if (mod === 9) {
-      status = "pending";
-    }
-    return { ...anunt, status, deactivationReason };
-  });
+// ── Tipuri pentru anunțurile din baza de date ──
+type DBAgent = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  rating: number;
+  sectors: string[];
+  _count?: { listings: number };
 };
+
+type ScoringBreakdownItem = {
+  score: number;
+  max: number;
+  match?: boolean;
+  detail: string;
+};
+
+type ScoredAgent = DBAgent & {
+  scoring?: {
+    total: number;
+    breakdown: {
+      sector: ScoringBreakdownItem;
+      priceRating: ScoringBreakdownItem;
+      load: ScoringBreakdownItem;
+      ratingBonus: ScoringBreakdownItem;
+    };
+  };
+};
+
+type DBListing = {
+  id: string;
+  title: string;
+  description: string;
+  transactionType: string;
+  propertyType: string;
+  price: number;
+  currency: string;
+  location: string;
+  sector?: string | null;
+  status: string;
+  agentId?: string | null;
+  agent?: DBAgent | null;
+  createdAt: string;
+  images?: string[] | null;
+  details?: unknown;
+};
+
+/** Aliniat la `lib/listingToAnunt.ts` — câmpuri pentru filtre în lista admin. */
+function cardFieldsFromListingDetails(details: unknown): {
+  suprafataUtil?: number;
+  dormitoare?: number;
+  bai?: number;
+  etaj?: number | string;
+  anConstructie?: number;
+} {
+  if (!details || typeof details !== "object") return {};
+  const d = details as Record<string, unknown>;
+  let dormitoare: number | undefined;
+  if (d.camere !== undefined && d.camere !== null) {
+    if (d.camere === "Studio") dormitoare = 1;
+    else {
+      const n = Number(d.camere);
+      if (!Number.isNaN(n)) dormitoare = n;
+    }
+  }
+  const supRaw = d.suprafataUtila;
+  const sup =
+    supRaw != null && String(supRaw).trim() !== ""
+      ? Number(supRaw)
+      : undefined;
+  const baiRaw = d.nrBai;
+  const baiNum =
+    baiRaw != null && String(baiRaw).trim() !== "" ? Number(baiRaw) : undefined;
+  const anRaw =
+    d.anConstructie != null && String(d.anConstructie).trim() !== ""
+      ? Number(d.anConstructie)
+      : undefined;
+
+  return {
+    suprafataUtil:
+      sup !== undefined && !Number.isNaN(sup) ? sup : undefined,
+    dormitoare,
+    bai: baiNum !== undefined && !Number.isNaN(baiNum) ? baiNum : undefined,
+    etaj:
+      d.etaj !== undefined && d.etaj !== ""
+        ? (d.etaj as number | string)
+        : undefined,
+    anConstructie:
+      anRaw !== undefined && !Number.isNaN(anRaw) ? anRaw : undefined,
+  };
+}
+
 
 export default function AdminAnunturiPage() {
   const [isDark, setIsDark] = useState(false);
@@ -78,6 +159,23 @@ export default function AdminAnunturiPage() {
   const [anConstructieMax, setAnConstructieMax] = useState("");
   const [motivDezactivare, setMotivDezactivare] = useState<DeactivationReason | "">("");
 
+  // ── State pentru anunțuri pending din DB ──
+  const [dbPendingListings, setDbPendingListings] = useState<DBListing[]>([]);
+  const [dbPendingLoading, setDbPendingLoading] = useState(false);
+  const [dbPendingError, setDbPendingError] = useState<string | null>(null);
+  const [dbAgents, setDbAgents] = useState<DBAgent[]>([]);
+  const [assigningListingId, setAssigningListingId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [changingAgentListingId, setChangingAgentListingId] = useState<string | null>(null);
+  const [scoredAgents, setScoredAgents] = useState<ScoredAgent[]>([]);
+  const [scoredLoading, setScoredLoading] = useState(false);
+  const [scoreInfoAgentId, setScoreInfoAgentId] = useState<string | null>(null);
+  const [dbApprovedListings, setDbApprovedListings] = useState<DBListing[]>([]);
+  const [dbDeniedListings, setDbDeniedListings] = useState<DBListing[]>([]);
+  const [dbListingsLoading, setDbListingsLoading] = useState(false);
+  const [dbListingsError, setDbListingsError] = useState<string | null>(null);
+
   useEffect(() => {
     const checkDarkMode = () => {
       setIsDark(document.documentElement.classList.contains("dark"));
@@ -91,28 +189,229 @@ export default function AdminAnunturiPage() {
     return () => observer.disconnect();
   }, []);
 
-  const allAnunturi = useMemo(() => {
-    return addStatusToAnunturi(getAllAnunturi());
+  // ── Fetch pending listings din DB ──
+  const fetchPendingListings = useCallback(async () => {
+    setDbPendingLoading(true);
+    setDbPendingError(null);
+    try {
+      const res = await fetch("/api/admin/listings?status=pending&limit=100");
+      if (!res.ok) throw new Error("Eroare la încărcarea anunțurilor pending");
+      const data = await res.json();
+      setDbPendingListings(data.listings || []);
+    } catch (err: any) {
+      setDbPendingError(err.message || "Eroare la încărcarea anunțurilor.");
+    } finally {
+      setDbPendingLoading(false);
+    }
   }, []);
+
+  const fetchListingsByStatus = useCallback(async () => {
+    setDbListingsLoading(true);
+    setDbListingsError(null);
+    try {
+      const [approvedRes, deniedRes] = await Promise.all([
+        fetch("/api/admin/listings?status=approved&limit=100"),
+        fetch("/api/admin/listings?status=denied&limit=100"),
+      ]);
+
+      if (!approvedRes.ok || !deniedRes.ok) {
+        throw new Error("Eroare la încărcarea anunțurilor active/inactive");
+      }
+
+      const [approvedData, deniedData] = await Promise.all([
+        approvedRes.json(),
+        deniedRes.json(),
+      ]);
+
+      setDbApprovedListings(approvedData.listings || []);
+      setDbDeniedListings(deniedData.listings || []);
+    } catch (error: any) {
+      setDbListingsError(error.message || "Eroare la încărcarea anunțurilor.");
+    } finally {
+      setDbListingsLoading(false);
+    }
+  }, []);
+
+  // ── Fetch agenți ──
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/agents");
+      if (!res.ok) throw new Error("Eroare la încărcarea agenților");
+      const data = await res.json();
+      setDbAgents(data.agents || []);
+    } catch (err: any) {
+      console.error("Failed to fetch agents:", err);
+    }
+  }, []);
+
+  // ── Fetch agenți cu scoring pentru un listing specific ──
+  const fetchScoredAgents = useCallback(async (listingId: string) => {
+    setScoredLoading(true);
+    try {
+      const res = await fetch(`/api/admin/agents?listingId=${listingId}`);
+      if (!res.ok) throw new Error("Eroare");
+      const data = await res.json();
+      setScoredAgents(data.agents || []);
+    } catch {
+      setScoredAgents([]);
+    } finally {
+      setScoredLoading(false);
+    }
+  }, []);
+
+  // Încarcă pending count la mount, și detalii complete când se selectează tab-ul
+  useEffect(() => {
+    fetchPendingListings(); // Încarcă mereu pentru count
+    fetchListingsByStatus();
+  }, [fetchPendingListings, fetchListingsByStatus]);
+
+  useEffect(() => {
+    if (showPending) {
+      fetchPendingListings();
+      fetchAgents();
+    }
+  }, [showPending, fetchPendingListings, fetchAgents]);
+
+  // ── Acțiuni admin pentru pending listings ──
+  const handleApprove = async (listingId: string, agentId?: string) => {
+    setActionLoading(listingId);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, action: "approve", agentId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Eroare la aprobare");
+      }
+      await fetchPendingListings();
+    } catch (err: any) {
+      setDbPendingError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeny = async (listingId: string) => {
+    setActionLoading(listingId);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, action: "deny" }),
+      });
+      if (!res.ok) throw new Error("Eroare la respingere");
+      await fetchPendingListings();
+    } catch (err: any) {
+      setDbPendingError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAssignAgent = async (listingId: string, agentId: string) => {
+    setActionLoading(listingId);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, action: "assign_agent", agentId }),
+      });
+      if (!res.ok) throw new Error("Eroare la atribuirea agentului");
+      setAssigningListingId(null);
+      setSelectedAgentId(null);
+      await fetchPendingListings();
+    } catch (err: any) {
+      setDbPendingError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAutoAssign = async (listingId: string) => {
+    setActionLoading(listingId);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, action: "auto_assign" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Eroare la atribuirea automată");
+      }
+      await fetchPendingListings();
+    } catch (err: any) {
+      setDbPendingError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const allAnunturi = useMemo<AdminAnuntCardItem[]>(() => {
+    const approved = dbApprovedListings.map((listing) => {
+      const listingImages = Array.isArray(listing.images) ? listing.images : [];
+      return {
+        id: listing.id,
+        titlu: listing.title,
+        image: listingImages[0] || "/ap2.jpg",
+        pret: formatListingPriceDisplay(
+          listing.price,
+          listing.currency,
+          listing.details as Record<string, unknown> | null,
+        ),
+        priceNumber: listing.price,
+        tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
+        locationText: listing.sector || listing.location || "Zona centrală",
+        imageCount: listingImages.length,
+        status: "active" as AnuntStatus,
+        ...cardFieldsFromListingDetails(listing.details),
+      };
+    });
+
+    const denied = dbDeniedListings.map((listing) => {
+      const listingImages = Array.isArray(listing.images) ? listing.images : [];
+      return {
+        id: listing.id,
+        titlu: listing.title,
+        image: listingImages[0] || "/ap2.jpg",
+        pret: formatListingPriceDisplay(
+          listing.price,
+          listing.currency,
+          listing.details as Record<string, unknown> | null,
+        ),
+        priceNumber: listing.price,
+        tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
+        locationText: listing.sector || listing.location || "Zona centrală",
+        imageCount: listingImages.length,
+        status: "inactive" as AnuntStatus,
+        deactivationReason: "Dezactivat admin" as DeactivationReason,
+        ...cardFieldsFromListingDetails(listing.details),
+      };
+    });
+
+    return [...approved, ...denied];
+  }, [dbApprovedListings, dbDeniedListings]);
 
   const filteredAnunturi = useMemo(() => {
     let filtered = allAnunturi;
     
-    // Filtrare după status
+    // Filtrare după status — pending vine acum din DB, nu din mock
     if (showPending) {
-      filtered = filtered.filter((a) => a.status === "pending");
+      return []; // Pending se afișează separat din DB
     } else {
       filtered = filtered.filter((a) => a.status === activeTab);
     }
     
     // Filtrare după preț
     if (pretMinim) {
-      const pretMin = parsePretToNumber(pretMinim);
-      filtered = filtered.filter((a) => parsePretToNumber(a.pret) >= pretMin);
+      const pretMin = Number(pretMinim);
+      filtered = filtered.filter((a) => a.priceNumber >= pretMin);
     }
     if (pretMaxim) {
-      const pretMax = parsePretToNumber(pretMaxim);
-      filtered = filtered.filter((a) => parsePretToNumber(a.pret) <= pretMax);
+      const pretMax = Number(pretMaxim);
+      filtered = filtered.filter((a) => a.priceNumber <= pretMax);
     }
     
     // Filtrare după sector
@@ -244,27 +543,17 @@ export default function AdminAnunturiPage() {
     setMotivDezactivare("");
   };
 
-  const getAnuntHref = (anunt: AnuntWithStatus): string => {
-    if (anunt.status === "inactive") {
-      return `/admin/anunturi/anunturi-inactive/${anunt.id}`;
-    } else if (anunt.status === "pending") {
-      return `/admin/anunturi/anunturi-pending/${anunt.id}`;
-    } else {
-      return `/admin/anunturi/anunturi-active/${anunt.id}`;
-    }
-  };
+  const getAnuntHref = (anunt: AdminAnuntCardItem): string =>
+    `/admin/anunturi/preview/${anunt.id}`;
 
-  const pendingCount = useMemo(
-    () => allAnunturi.filter((a) => a.status === "pending").length,
-    [allAnunturi]
-  );
+  const pendingCount = dbPendingListings.length;
   const activeCount = useMemo(
-    () => allAnunturi.filter((a) => a.status === "active").length,
-    [allAnunturi]
+    () => dbApprovedListings.length,
+    [dbApprovedListings.length]
   );
   const inactiveCount = useMemo(
-    () => allAnunturi.filter((a) => a.status === "inactive").length,
-    [allAnunturi]
+    () => dbDeniedListings.length,
+    [dbDeniedListings.length]
   );
 
   return (
@@ -753,55 +1042,527 @@ export default function AdminAnunturiPage() {
               </div>
             )}
 
-            {filteredAnunturi.length === 0 ? (
-              <div
-                className="rounded-none md:rounded-3xl p-12 text-center"
-                style={{
-                  fontFamily: "var(--font-galak-regular)",
-                  background: isDark
-                    ? "rgba(35, 35, 48, 0.5)"
-                    : "rgba(255, 255, 255, 0.6)",
-                  border: isDark
-                    ? "1px solid rgba(255, 255, 255, 0.12)"
-                    : "1px solid rgba(255, 255, 255, 0.5)",
-                  boxShadow: isDark
-                    ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
-                    : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
-                  backdropFilter: "blur(80px) saturate(1.6)",
-                  WebkitBackdropFilter: "blur(80px) saturate(1.6)",
-                }}
-              >
-                <p className="text-gray-500 dark:text-gray-400 text-lg">
-                  {hasActiveFilters
-                    ? "Nu există anunțuri care să corespundă filtrelor selectate."
-                    : "Nu există anunțuri în această categorie."}
-                </p>
-              </div>
-            ) : (
+            {/* ── Pending din DB ── */}
+            {showPending ? (
               <>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  {filteredAnunturi.length} anunț{filteredAnunturi.length === 1 ? "" : "uri"} găsit{filteredAnunturi.length === 1 ? "" : "e"}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredAnunturi.map((anunt) => (
-                  <AdminListingCard
-                    key={anunt.id}
-                    id={anunt.id}
-                    titlu={anunt.titlu}
-                    image={anunt.image}
-                    pret={anunt.pret}
-                    tags={anunt.tags}
-                    locationText={
-                      anunt.tags.find((t) => t.includes("Sector")) ??
-                      "Zona centrală"
-                    }
-                    imageCount={getImageCount(anunt.id)}
-                    href={getAnuntHref(anunt)}
-                    status={anunt.status}
-                    deactivationReason={anunt.deactivationReason}
-                  />
-                ))}
-                </div>
+                {dbPendingLoading && (
+                  <div
+                    className="rounded-none md:rounded-3xl p-12 text-center"
+                    style={{
+                      fontFamily: "var(--font-galak-regular)",
+                      background: isDark
+                        ? "rgba(35, 35, 48, 0.5)"
+                        : "rgba(255, 255, 255, 0.6)",
+                      border: isDark
+                        ? "1px solid rgba(255, 255, 255, 0.12)"
+                        : "1px solid rgba(255, 255, 255, 0.5)",
+                      boxShadow: isDark
+                        ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                        : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                      backdropFilter: "blur(80px) saturate(1.6)",
+                      WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+                    }}
+                  >
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">
+                      Se încarcă anunțurile...
+                    </p>
+                  </div>
+                )}
+                {dbPendingError && (
+                  <div className="rounded-xl p-4 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p className="text-red-600 dark:text-red-400 text-sm">{dbPendingError}</p>
+                  </div>
+                )}
+                {!dbPendingLoading && dbPendingListings.length === 0 && (
+                  <div
+                    className="rounded-none md:rounded-3xl p-12 text-center"
+                    style={{
+                      fontFamily: "var(--font-galak-regular)",
+                      background: isDark
+                        ? "rgba(35, 35, 48, 0.5)"
+                        : "rgba(255, 255, 255, 0.6)",
+                      border: isDark
+                        ? "1px solid rgba(255, 255, 255, 0.12)"
+                        : "1px solid rgba(255, 255, 255, 0.5)",
+                      boxShadow: isDark
+                        ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                        : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                      backdropFilter: "blur(80px) saturate(1.6)",
+                      WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+                    }}
+                  >
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">
+                      Nu există anunțuri în așteptare.
+                    </p>
+                  </div>
+                )}
+                {!dbPendingLoading && dbPendingListings.length > 0 && (
+                  <>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                      {dbPendingListings.length} anunț{dbPendingListings.length === 1 ? "" : "uri"} în așteptare
+                    </p>
+                    <div className="grid grid-cols-1 gap-3">
+                      {dbPendingListings.map((listing) => {
+                        const isActioning = actionLoading === listing.id;
+                        const listingImages = Array.isArray(listing.images) ? listing.images : [];
+                        const firstImage = listingImages.length > 0 ? listingImages[0] : "/ap2.jpg";
+
+                        return (
+                          <div
+                            key={listing.id}
+                            className="rounded-xl overflow-hidden relative"
+                            style={{
+                              background: isDark
+                                ? "rgba(35, 35, 48, 0.5)"
+                                : "rgba(255, 255, 255, 0.6)",
+                              border: isDark
+                                ? "1px solid rgba(255, 255, 255, 0.12)"
+                                : "1px solid rgba(255, 255, 255, 0.5)",
+                              boxShadow: isDark
+                                ? "0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+                                : "0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                              backdropFilter: "blur(60px) saturate(1.6)",
+                              WebkitBackdropFilter: "blur(60px) saturate(1.6)",
+                              opacity: isActioning ? 0.6 : 1,
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <div className="p-4">
+                              {/* Informații anunț */}
+                              <div className="flex items-start gap-4 mb-3">
+                                <div className="flex-1 min-w-0">
+                                  <h3
+                                    className="text-base font-semibold text-foreground mb-1"
+                                    style={{
+                                      display: "-webkit-box",
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: "vertical",
+                                      overflow: "hidden",
+                                    }}
+                                  >
+                                    {listing.title}
+                                  </h3>
+                                  <div className="flex items-center gap-3 flex-wrap text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                    <span className="font-bold text-foreground text-base">
+                                      {formatListingPriceDisplay(
+                                        listing.price,
+                                        listing.currency,
+                                        listing.details as Record<string, unknown> | null,
+                                      )}
+                                    </span>
+                                    {listing.sector && (
+                                      <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                                        {listing.sector}
+                                      </span>
+                                    )}
+                                    <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                                      {listing.propertyType}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                                      {listing.transactionType}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                                    Creat la: {new Date(listing.createdAt).toLocaleDateString("ro-RO")}
+                                  </p>
+                                </div>
+
+                                {/* Agent info */}
+                                <div className="shrink-0 text-right">
+                                  {listing.agent ? (
+                                    <span className="inline-flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400 font-medium">
+                                      <MdAssignmentInd size={16} />
+                                      {listing.agent.name} ({listing.agent.rating}⭐)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 text-sm text-amber-500 dark:text-amber-400">
+                                      <MdPending size={16} />
+                                      Fără agent
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Butoane acțiuni */}
+                              <div className="flex items-center gap-2 flex-wrap pt-3 border-t"
+                                style={{
+                                  borderColor: isDark
+                                    ? "rgba(255, 255, 255, 0.08)"
+                                    : "rgba(0, 0, 0, 0.06)",
+                                }}
+                              >
+                                <button
+                                  onClick={() => handleApprove(listing.id)}
+                                  disabled={isActioning}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                                  style={{ backgroundColor: "#10B981" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#059669"; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#10B981"; }}
+                                >
+                                  <MdCheckCircle size={16} />
+                                  Aprobă
+                                </button>
+                                <button
+                                  onClick={() => handleDeny(listing.id)}
+                                  disabled={isActioning}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                                  style={{ backgroundColor: "#EF4444" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#DC2626"; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#EF4444"; }}
+                                >
+                                  <MdCancel size={16} />
+                                  Respinge
+                                </button>
+
+                                <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+                                {/* Agent atribuit → afișare agent + buton Schimbă */}
+                                {listing.agent && changingAgentListingId !== listing.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800">
+                                      <MdAssignmentInd size={16} />
+                                      {listing.agent.name} ({listing.agent.rating}⭐)
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        setChangingAgentListingId(listing.id);
+                                        setAssigningListingId(null);
+                                        setScoredAgents([]);
+                                      }}
+                                      disabled={isActioning}
+                                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                                      style={{
+                                        backgroundColor: isDark
+                                          ? "rgba(255, 255, 255, 0.08)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                        color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)",
+                                      }}
+                                    >
+                                      <MdSwapHoriz size={14} />
+                                      Schimbă
+                                    </button>
+                                  </div>
+                                ) : (
+                                  /* Fără agent sau în modul Schimbă → butoane de atribuire */
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        if (assigningListingId === listing.id) {
+                                          setAssigningListingId(null);
+                                          setScoredAgents([]);
+                                        } else {
+                                          setAssigningListingId(listing.id);
+                                          setSelectedAgentId(null);
+                                          setScoreInfoAgentId(null);
+                                          fetchScoredAgents(listing.id);
+                                        }
+                                      }}
+                                      disabled={isActioning}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                      style={{
+                                        backgroundColor: assigningListingId === listing.id
+                                          ? (isDark ? "rgba(59, 130, 246, 0.35)" : "rgba(59, 130, 246, 0.2)")
+                                          : (isDark ? "rgba(59, 130, 246, 0.2)" : "rgba(59, 130, 246, 0.1)"),
+                                        color: "#3B82F6",
+                                      }}
+                                    >
+                                      <MdAssignmentInd size={16} />
+                                      Atribuie Agent
+                                    </button>
+                                    <button
+                                      onClick={() => handleAutoAssign(listing.id)}
+                                      disabled={isActioning}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                      style={{
+                                        backgroundColor: isDark
+                                          ? "rgba(168, 85, 247, 0.2)"
+                                          : "rgba(168, 85, 247, 0.1)",
+                                        color: "#A855F7",
+                                      }}
+                                    >
+                                      <MdAutorenew size={16} />
+                                      Atribuire Automată
+                                    </button>
+                                    {changingAgentListingId === listing.id && (
+                                      <button
+                                        onClick={() => {
+                                          setChangingAgentListingId(null);
+                                          setAssigningListingId(null);
+                                          setScoredAgents([]);
+                                        }}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                        style={{
+                                          backgroundColor: isDark
+                                            ? "rgba(255, 255, 255, 0.08)"
+                                            : "rgba(0, 0, 0, 0.05)",
+                                          color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)",
+                                        }}
+                                      >
+                                        <MdClose size={14} />
+                                        Anulează
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+
+                                <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+                                <Link
+                                  href={`/admin/anunturi/preview/${listing.id}`}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                                  style={{
+                                    backgroundColor: isDark
+                                      ? "rgba(194, 90, 43, 0.2)"
+                                      : "rgba(194, 90, 43, 0.1)",
+                                    color: "#C25A2B",
+                                  }}
+                                >
+                                  <MdVisibility size={16} />
+                                  Vezi ca utilizator
+                                </Link>
+                              </div>
+
+                              {/* Panel selectare agent cu scoring */}
+                              {assigningListingId === listing.id && (
+                                <div
+                                  className="mt-3 pt-3 border-t"
+                                  style={{
+                                    borderColor: isDark
+                                      ? "rgba(255, 255, 255, 0.08)"
+                                      : "rgba(0, 0, 0, 0.06)",
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between mb-3">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                      Selectează agent — ordonat după potrivire
+                                    </p>
+                                    <button
+                                      onClick={() => {
+                                        setAssigningListingId(null);
+                                        setSelectedAgentId(null);
+                                        setScoredAgents([]);
+                                        setScoreInfoAgentId(null);
+                                        if (changingAgentListingId === listing.id) {
+                                          setChangingAgentListingId(null);
+                                        }
+                                      }}
+                                      className="text-xs text-gray-400 hover:text-foreground transition-colors"
+                                    >
+                                      Închide
+                                    </button>
+                                  </div>
+
+                                  {scoredLoading ? (
+                                    <p className="text-sm text-gray-400 py-3 text-center">Se calculează scorurile...</p>
+                                  ) : (
+                                    <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
+                                      {scoredAgents.map((agent, idx) => {
+                                        const score = agent.scoring?.total ?? 0;
+                                        const isSelected = selectedAgentId === agent.id;
+                                        const isInfoOpen = scoreInfoAgentId === agent.id;
+                                        const scoreColor = score >= 70 ? "#10B981" : score >= 45 ? "#F59E0B" : "#EF4444";
+
+                                        return (
+                                          <div key={agent.id}>
+                                            <div
+                                              className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all"
+                                              onClick={() => setSelectedAgentId(isSelected ? null : agent.id)}
+                                              style={{
+                                                background: isSelected
+                                                  ? (isDark ? "rgba(194, 90, 43, 0.15)" : "rgba(194, 90, 43, 0.08)")
+                                                  : (isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
+                                                border: isSelected
+                                                  ? "1px solid rgba(194, 90, 43, 0.3)"
+                                                  : isDark ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.04)",
+                                              }}
+                                            >
+                                              {/* Rang */}
+                                              <span className="text-xs font-bold text-gray-400 dark:text-gray-500 w-5 text-center shrink-0">
+                                                {idx + 1}
+                                              </span>
+
+                                              {/* Scor bar */}
+                                              <div className="w-12 shrink-0">
+                                                <div className="text-xs font-bold text-center mb-0.5" style={{ color: scoreColor }}>
+                                                  {score}
+                                                </div>
+                                                <div className="h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                  <div
+                                                    className="h-full rounded-full transition-all"
+                                                    style={{ width: `${score}%`, backgroundColor: scoreColor }}
+                                                  />
+                                                </div>
+                                              </div>
+
+                                              {/* Info agent */}
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-sm font-medium text-foreground truncate">
+                                                    {agent.name}
+                                                  </span>
+                                                  <span className="text-xs text-gray-400 shrink-0">{agent.rating}⭐</span>
+                                                </div>
+                                                <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                                                  {agent.sectors.join(", ")} · {agent._count?.listings || 0} anunțuri
+                                                </div>
+                                              </div>
+
+                                              {/* Buton info scoring */}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setScoreInfoAgentId(isInfoOpen ? null : agent.id);
+                                                }}
+                                                className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                                                style={{
+                                                  backgroundColor: isInfoOpen
+                                                    ? (isDark ? "rgba(194, 90, 43, 0.2)" : "rgba(194, 90, 43, 0.1)")
+                                                    : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"),
+                                                  color: isInfoOpen ? "#C25A2B" : (isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.3)"),
+                                                }}
+                                                title="Detalii scor"
+                                              >
+                                                <MdInfoOutline size={14} />
+                                              </button>
+
+                                              {/* Buton selectare */}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleAssignAgent(listing.id, agent.id);
+                                                }}
+                                                disabled={isActioning}
+                                                className="px-3 py-1 rounded-lg text-xs font-medium text-white transition-colors disabled:opacity-50 shrink-0"
+                                                style={{ backgroundColor: "#C25A2B" }}
+                                              >
+                                                Atribuie
+                                              </button>
+                                            </div>
+
+                                            {/* Popup detalii scor */}
+                                            {isInfoOpen && agent.scoring && (
+                                              <div
+                                                className="ml-8 mt-1 mb-1 p-3 rounded-lg text-xs space-y-2"
+                                                style={{
+                                                  background: isDark
+                                                    ? "rgba(27, 27, 33, 0.8)"
+                                                    : "rgba(245, 245, 248, 0.9)",
+                                                  border: isDark
+                                                    ? "1px solid rgba(255,255,255,0.08)"
+                                                    : "1px solid rgba(0,0,0,0.06)",
+                                                }}
+                                              >
+                                                <p className="font-semibold text-foreground mb-1.5">De ce scorul {score}/100?</p>
+                                                {[
+                                                  { label: "Sector", ...agent.scoring.breakdown.sector },
+                                                  { label: "Preț ↔ Rating", ...agent.scoring.breakdown.priceRating },
+                                                  { label: "Distribuție egală", ...agent.scoring.breakdown.load },
+                                                  { label: "Bonus rating", ...agent.scoring.breakdown.ratingBonus },
+                                                ].map((item) => (
+                                                  <div key={item.label} className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                      <span className="font-medium text-gray-600 dark:text-gray-300 shrink-0">{item.label}:</span>
+                                                      <span className="text-gray-400 dark:text-gray-500 truncate">{item.detail}</span>
+                                                    </div>
+                                                    <span className="font-bold shrink-0" style={{
+                                                      color: item.score >= item.max * 0.7 ? "#10B981" : item.score >= item.max * 0.4 ? "#F59E0B" : "#EF4444",
+                                                    }}>
+                                                      +{item.score}/{item.max}
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              /* ── Active / Inactive din date mock ── */
+              <>
+                {dbListingsLoading ? (
+                  <div
+                    className="rounded-none md:rounded-3xl p-12 text-center"
+                    style={{
+                      fontFamily: "var(--font-galak-regular)",
+                      background: isDark
+                        ? "rgba(35, 35, 48, 0.5)"
+                        : "rgba(255, 255, 255, 0.6)",
+                      border: isDark
+                        ? "1px solid rgba(255, 255, 255, 0.12)"
+                        : "1px solid rgba(255, 255, 255, 0.5)",
+                    }}
+                  >
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">
+                      Se încarcă anunțurile reale...
+                    </p>
+                  </div>
+                ) : dbListingsError ? (
+                  <div className="rounded-xl p-4 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <p className="text-red-600 dark:text-red-400 text-sm">{dbListingsError}</p>
+                  </div>
+                ) : filteredAnunturi.length === 0 ? (
+                  <div
+                    className="rounded-none md:rounded-3xl p-12 text-center"
+                    style={{
+                      fontFamily: "var(--font-galak-regular)",
+                      background: isDark
+                        ? "rgba(35, 35, 48, 0.5)"
+                        : "rgba(255, 255, 255, 0.6)",
+                      border: isDark
+                        ? "1px solid rgba(255, 255, 255, 0.12)"
+                        : "1px solid rgba(255, 255, 255, 0.5)",
+                      boxShadow: isDark
+                        ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                        : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+                      backdropFilter: "blur(80px) saturate(1.6)",
+                      WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+                    }}
+                  >
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">
+                      {hasActiveFilters
+                        ? "Nu există anunțuri care să corespundă filtrelor selectate."
+                        : "Nu există anunțuri în această categorie."}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                      {filteredAnunturi.length} anunț{filteredAnunturi.length === 1 ? "" : "uri"} găsit{filteredAnunturi.length === 1 ? "" : "e"}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {filteredAnunturi.map((anunt) => (
+                        <AdminListingCard
+                          key={anunt.id}
+                          id={anunt.id}
+                          titlu={anunt.titlu}
+                          image={anunt.image}
+                          pret={anunt.pret}
+                          tags={anunt.tags}
+                          locationText={
+                            anunt.tags.find((t) => t.includes("Sector")) ??
+                            "Zona centrală"
+                          }
+                          imageCount={anunt.imageCount}
+                          href={getAnuntHref(anunt)}
+                          status={anunt.status}
+                          deactivationReason={anunt.deactivationReason}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

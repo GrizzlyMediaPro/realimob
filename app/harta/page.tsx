@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { CiFilter } from "react-icons/ci";
 import { MdClose, MdEdit } from "react-icons/md";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { getAllAnunturi } from "../../lib/anunturiData";
+import { getAllAnunturi, type Anunt } from "../../lib/anunturiData";
+import { transformListingToAnunt } from "../../lib/listingToAnunt";
 
 const BucharestMap = dynamic(() => import("../components/BucharestMap"), {
   ssr: false,
@@ -24,26 +25,60 @@ function HartaContent() {
 
   // Stare aplicată pe hartă pentru puncte de interes
   const [poiMode, setPoiMode] = useState<"all" | "custom">("all");
-  const [showMetro, setShowMetro] = useState(true);
+  const [showTransportMetrou, setShowTransportMetrou] = useState(true);
+  const [showTransportTramvai, setShowTransportTramvai] = useState(true);
+  const [showTransportAutobuz, setShowTransportAutobuz] = useState(true);
   const [showScoli, setShowScoli] = useState(true);
   const [showRestaurante, setShowRestaurante] = useState(true);
   const [showMagazine, setShowMagazine] = useState(true);
 
   // Stare de editare în panoul "Puncte de interes"
   const [pendingPoiMode, setPendingPoiMode] = useState<"all" | "custom">("all");
-  const [pendingShowMetro, setPendingShowMetro] = useState(true);
+  const [pendingShowTransportMetrou, setPendingShowTransportMetrou] = useState(true);
+  const [pendingShowTransportTramvai, setPendingShowTransportTramvai] = useState(true);
+  const [pendingShowTransportAutobuz, setPendingShowTransportAutobuz] = useState(true);
   const [pendingShowScoli, setPendingShowScoli] = useState(true);
   const [pendingShowRestaurante, setPendingShowRestaurante] = useState(true);
   const [pendingShowMagazine, setPendingShowMagazine] = useState(true);
+
+  const [dbListingsForMap, setDbListingsForMap] = useState<Anunt[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/listings?limit=100");
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const list = Array.isArray(data.listings) ? data.listings : [];
+        const transformed = list.map((l: any) => transformListingToAnunt(l));
+        if (!cancelled) setDbListingsForMap(transformed);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [pretMinim, setPretMinim] = useState("");
   const [pretMaxim, setPretMaxim] = useState("");
   const [nrDormitoare, setNrDormitoare] = useState("");
   const [tipImobil, setTipImobil] = useState("");
 
-  const allAnunturi = useMemo(() => {
-    return getAllAnunturi();
-  }, []);
+  const allAnunturi = useMemo(() => getAllAnunturi(), []);
+
+  const toMapMarker = (a: Anunt) => ({
+    id: a.id,
+    titlu: a.titlu,
+    lat: a.lat as number,
+    lng: a.lng as number,
+    descriere: a.tags.join(" • "),
+    pret: a.pret,
+    image: a.image,
+    routePath: `/anunturi/${a.id}`,
+  });
 
   // Funcție pentru a verifica dacă un punct este în interiorul unui poligon
   const pointInPolygon = (point: [number, number], polygon: number[][]): boolean => {
@@ -58,32 +93,29 @@ function HartaContent() {
     return inside;
   };
 
-  const mapMarkers = useMemo(
-    () => {
-      const allMarkers = allAnunturi
-        .filter((a) => typeof a.lat === "number" && typeof a.lng === "number")
-        .map((a) => ({
-          id: a.id,
-          titlu: a.titlu,
-          lat: a.lat as number,
-          lng: a.lng as number,
-          descriere: a.tags.join(" • "),
-          pret: a.pret,
-          image: a.image,
-          routePath: `/anunturi/${a.id}`,
-        }));
+  const mapMarkers = useMemo(() => {
+    const demoMarkers = allAnunturi
+      .filter((a) => typeof a.lat === "number" && typeof a.lng === "number")
+      .map(toMapMarker);
 
-      // Filtrează markerii pe baza poligonului desenat
-      if (drawnPolygon && drawnPolygon.length >= 3) {
-        return allMarkers.filter((marker) => 
-          pointInPolygon([marker.lng, marker.lat], drawnPolygon)
-        );
-      }
+    const dbMarkers = dbListingsForMap
+      .filter((a) => typeof a.lat === "number" && typeof a.lng === "number")
+      .map(toMapMarker);
 
-      return allMarkers;
-    },
-    [allAnunturi, drawnPolygon]
-  );
+    const byId = new globalThis.Map<string, ReturnType<typeof toMapMarker>>();
+    for (const m of demoMarkers) byId.set(m.id, m);
+    for (const m of dbMarkers) byId.set(m.id, m);
+
+    let markers = [...byId.values()];
+
+    if (drawnPolygon && drawnPolygon.length >= 3) {
+      markers = markers.filter((marker) =>
+        pointInPolygon([marker.lng, marker.lat], drawnPolygon),
+      );
+    }
+
+    return markers;
+  }, [allAnunturi, dbListingsForMap, drawnPolygon]);
 
   return (
     <main className="flex-1 w-full min-h-0 flex flex-col relative">
@@ -103,7 +135,9 @@ function HartaContent() {
           onClearPolygon={() => setDrawnPolygon(null)}
           poiFilters={{
             mode: poiMode,
-            metro: showMetro,
+            transportMetrou: showTransportMetrou,
+            transportTramvai: showTransportTramvai,
+            transportAutobuz: showTransportAutobuz,
             scoli: showScoli,
             restaurante: showRestaurante,
             magazine: showMagazine,
@@ -144,16 +178,42 @@ function HartaContent() {
           </div>
 
           {pendingPoiMode === "custom" && (
-            <div className="flex flex-wrap gap-1.5 md:gap-2 mt-1 items-center">
-              <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
-                <input
-                  type="checkbox"
-                  className="accent-[#C25A2B]"
-                  checked={pendingShowMetro}
-                  onChange={(e) => setPendingShowMetro(e.target.checked)}
-                />
-                <span>Metrou</span>
-              </label>
+            <div className="flex flex-col gap-2 mt-1 w-full max-w-[min(100vw-2rem,520px)]">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400 px-0.5">
+                  Transport în comun
+                </span>
+                <div className="flex flex-wrap gap-1.5 md:gap-2 items-center">
+                  <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                    <input
+                      type="checkbox"
+                      className="accent-[#C25A2B]"
+                      checked={pendingShowTransportMetrou}
+                      onChange={(e) => setPendingShowTransportMetrou(e.target.checked)}
+                    />
+                    <span>Metrou</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                    <input
+                      type="checkbox"
+                      className="accent-[#C25A2B]"
+                      checked={pendingShowTransportTramvai}
+                      onChange={(e) => setPendingShowTransportTramvai(e.target.checked)}
+                    />
+                    <span>Tramvai</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
+                    <input
+                      type="checkbox"
+                      className="accent-[#C25A2B]"
+                      checked={pendingShowTransportAutobuz}
+                      onChange={(e) => setPendingShowTransportAutobuz(e.target.checked)}
+                    />
+                    <span>Autobuz</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5 md:gap-2 items-center">
               <label className="inline-flex items-center gap-1.5 text-[11px] md:text-xs cursor-pointer bg-white/70 dark:bg-[#111118]/70 px-2.5 py-1.5 rounded-full border border-white/40 dark:border-[#2b2b33]/60">
                 <input
                   type="checkbox"
@@ -186,7 +246,9 @@ function HartaContent() {
                 type="button"
                 onClick={() => {
                   setPoiMode(pendingPoiMode);
-                  setShowMetro(pendingShowMetro);
+                  setShowTransportMetrou(pendingShowTransportMetrou);
+                  setShowTransportTramvai(pendingShowTransportTramvai);
+                  setShowTransportAutobuz(pendingShowTransportAutobuz);
                   setShowScoli(pendingShowScoli);
                   setShowRestaurante(pendingShowRestaurante);
                   setShowMagazine(pendingShowMagazine);
@@ -196,6 +258,7 @@ function HartaContent() {
               >
                 Aplică filtre
               </button>
+              </div>
             </div>
           )}
         </div>

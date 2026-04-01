@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdDescription, MdInfo, MdHistory } from "react-icons/md";
 
@@ -13,7 +12,14 @@ import AnuntOffersModal from "../../components/AnuntOffersModal";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
-import { getAnuntById, getImageCount, parsePretToNumber } from "../../../lib/anunturiData";
+import PropertyDetailsSection from "../../components/PropertyDetailsSection";
+import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  transformListingToAnunt,
+  transformImagesToRoomImages,
+} from "../../../lib/listingToAnunt";
+import RoomGallery from "../../components/RoomGallery";
+import { prisma } from "../../../lib/prisma";
 
 type AnuntPageProps = {
   params: Promise<{
@@ -21,13 +27,41 @@ type AnuntPageProps = {
   }>;
 };
 
-const getGalleryImages = (image: string, count: number) => {
-  return Array.from({ length: count }, () => image);
-};
-
 export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
-  const anunt = getAnuntById(id);
+  
+  // Încearcă mai întâi în mock-uri
+  let anunt = getAnuntById(id);
+  let roomImages: RoomImage[] = [];
+  
+  // Dacă nu e găsit în mock-uri, caută în DB
+  if (!anunt) {
+    try {
+      const listing = await prisma.listing.findUnique({
+        where: { id },
+        include: { agent: true },
+      });
+      
+      if (listing) {
+        anunt = transformListingToAnunt(listing);
+        // Transformă imaginile din DB în format RoomImage
+        const dbImages = listing.images as any[];
+        if (dbImages && Array.isArray(dbImages)) {
+          roomImages = transformImagesToRoomImages(dbImages);
+        } else {
+          // Fallback la getRoomImages dacă nu sunt imagini în DB
+          roomImages = getRoomImages(anunt.id, anunt.image);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch listing from DB:", error);
+    }
+  }
+  
+  // Dacă tot nu e găsit, folosește getRoomImages normal
+  if (anunt && roomImages.length === 0) {
+    roomImages = getRoomImages(anunt.id, anunt.image);
+  }
 
   if (!anunt) {
     return (
@@ -78,9 +112,6 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
       </div>
     );
   }
-
-  const totalImages = getImageCount(anunt.id);
-  const galleryImages = getGalleryImages(anunt.image, Math.max(totalImages, 4));
 
   const locationText =
     anunt.tags.find((t) => t.includes("Sector")) ??
@@ -135,35 +166,12 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
               </div>
             </div>
 
-            {/* Galerie imagini */}
-            <section className="mb-6 md:mb-8">
-              <div className="w-full max-w-[1250px] mx-auto aspect-video md:rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800 relative">
-                <Image
-                  src={galleryImages[0]}
-                  alt={anunt.titlu}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 1250px"
-                />
-              </div>
-
-              <div className="mt-3 md:mt-4 flex gap-2 md:gap-3 overflow-x-auto pb-1 hide-scrollbar">
-                {galleryImages.map((src, index) => (
-                  <div
-                    key={`${anunt.id}-thumb-${index}`}
-                    className="relative rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 shrink-0 w-20 h-16 md:w-28 md:h-20 cursor-pointer"
-                  >
-                    <Image
-                      src={src}
-                      alt={`${anunt.titlu} imagine ${index + 1}`}
-                      fill
-                      className="object-cover"
-                      sizes="120px"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
+            {/* Galerie imagini cu filtrare pe camere */}
+            <RoomGallery
+              images={roomImages}
+              titlu={anunt.titlu}
+              anuntId={anunt.id}
+            />
 
             {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">
@@ -234,89 +242,26 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                             <MdDescription className="text-[#C25A2B]" />
                             Descriere
                           </h2>
-                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                            Acest anunț este un exemplu realist pentru prezentarea
-                            proprietăților în București. Poți folosi această secțiune
-                            pentru a evidenția avantajele principale ale locuinței:
-                            compartimentare, lumină naturală, finisaje, acces la
-                            transport, magazine și zone verzi. Poți extinde ulterior
-                            descrierea cu informații despre anul construcției, tipul de
-                            încălzire, costurile lunare estimate și orice alte detalii
-                            relevante pentru chiriași sau cumpărători.
+                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+                            {(anunt as any).description || "Acest anunț este un exemplu realist pentru prezentarea proprietăților în București. Poți folosi această secțiune pentru a evidenția avantajele principale ale locuinței: compartimentare, lumină naturală, finisaje, acces la transport, magazine și zone verzi."}
                           </p>
-                        </div>
-
-                        {/* Detalii și caracteristici */}
-                        <div className="mt-auto">
-                          <h2 className="flex items-center gap-2 text-lg md:text-xl font-semibold mb-4">
-                            <MdInfo className="text-[#C25A2B]" />
-                            Detalii și caracteristici
-                          </h2>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3 text-sm">
-                            {/* Coloana stânga */}
-                            <div className="space-y-3">
-                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2 first:pt-0 first:border-t-0">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  Suprafață utilă totală
-                                </span>
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  {anunt.suprafataUtil ? `${anunt.suprafataUtil} m²` : "-"}
-                                </span>
-                              </div>
-
-                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  Nr. băi
-                                </span>
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  {anunt.bai ?? "-"}
-                                </span>
-                              </div>
-
-                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  Tip imobil
-                                </span>
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  Bloc de apartamente
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Coloana dreapta */}
-                            <div className="space-y-3">
-                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2 first:pt-0 first:border-t-0">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  Suprafață construită
-                                </span>
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  {anunt.suprafataUtil ? `${anunt.suprafataUtil + 10} m²` : "-"}
-                                </span>
-                              </div>
-
-                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  Structură rezistență
-                                </span>
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  Beton
-                                </span>
-                              </div>
-
-                              <div className="flex items-baseline justify-between border-t border-gray-200/40 dark:border-gray-700/60 pt-2">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  Regim înălțime
-                                </span>
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  P+10E
-                                </span>
-                              </div>
-                            </div>
-                          </div>
                         </div>
                       </div>
                   </GlassStatsCard>
+
+                  {/* Detalii proprietate din DB */}
+                  {(anunt as any).dbDetails ? (
+                    <PropertyDetailsSection details={(anunt as any).dbDetails} />
+                  ) : (
+                    <PropertyDetailsSection details={{
+                      tipProprietate: "Apartament",
+                      suprafataUtila: anunt.suprafataUtil,
+                      camere: anunt.dormitoare,
+                      nrBai: anunt.bai,
+                      etaj: anunt.etaj,
+                      anConstructie: anunt.anConstructie,
+                    }} />
+                  )}
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
                   <AnuntDetailsExpanded 

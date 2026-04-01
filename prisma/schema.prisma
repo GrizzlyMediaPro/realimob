@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Listing {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Informații de bază
+  title            String
+  description      String
+  transactionType  String
+  propertyType     String
+  commercialSubtype String?
+  price            Float
+  currency         String
+  location         String
+  address          String?
+  sector           String?
+
+  // Coordonate hartă
+  latitude  Float?
+  longitude Float?
+
+  // Status moderare (pending / approved / denied)
+  status    String  @default("pending")
+
+  /// Clerk user id — cine a trimis anunțul (cont utilizator)
+  submittedByUserId String?
+
+  // Agent atribuit
+  agentId   String? @db.ObjectId
+  agent     Agent?  @relation(fields: [agentId], references: [id])
+
+  // Cereri de vizionare (programare prin Google Calendar)
+  viewingRequests ViewingBookingRequest[]
+
+  // Alte detalii salvate flexibil
+  details Json?
+  images  Json?
+}
+
+model Agent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name      String
+  email     String?
+  phone     String?
+  avatar    String?
+
+  // Sectoare în care operează agentul (ex: ["Sector 1", "Sector 2"])
+  sectors   String[]
+
+  // Rating agent (1-5, cu zecimale)
+  rating    Float    @default(3.0)
+
+  // Google Calendar (OAuth) – refresh token în DB; evenimente în calendarul „primary” al contului conectat
+  googleRefreshToken          String?
+  googleCalendarEmail         String?
+  googleCalendarConnectedAt   DateTime?
+
+  // Anunțuri atribuite
+  listings         Listing[]
+  viewingRequests  ViewingBookingRequest[]
+}
+
+/// Cerere de vizionare: clientul alege interval din disponibilitate; agentul aprobă → eveniment în Google Calendar.
+model ViewingBookingRequest {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String  @db.ObjectId
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  agentId   String  @db.ObjectId
+  agent     Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  startAt DateTime
+  endAt   DateTime
+
+  clientName  String
+  clientEmail String
+  clientPhone String?
+
+  message String?
+
+  /// pending | approved | rejected
+  status String @default("pending")
+
+  googleEventId String?
+}
+
+/// Preferințe globale: cine primește emailuri pe tip de conținut (agenți / clienți / admini).
+model EmailTopicPreference {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  topicId        String   @unique
+  label          String
+  description    String?
+  sendToAgents   Boolean  @default(true)
+  sendToClients  Boolean  @default(true)
+  sendToAdmins   Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+/// Șabloane HTML create din panou (pentru campanii sau mesaje reutilizabile).
+model EmailTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  name      String
+  subject   String
+  bodyHtml  String
+  active    Boolean  @default(true)
+}
+
+/// Setări globale platformă (un singur document cu key unică).
+model PlatformSettings {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  siteName  String   @default("realimob")
+  supportEmail String?
+  supportPhone String?
+  defaultCurrency String @default("RON")
+  registrationsEnabled Boolean @default(true)
+  newListingsAutoApprove Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
