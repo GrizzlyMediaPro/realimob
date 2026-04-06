@@ -18,6 +18,7 @@ import {
   MdAssessment,
   MdInfoOutline,
   MdToggleOn,
+  MdLocationOn,
 } from "react-icons/md";
 
 type PlatformSettingsDto = {
@@ -29,6 +30,8 @@ type PlatformSettingsDto = {
   defaultCurrency: string;
   registrationsEnabled: boolean;
   newListingsAutoApprove: boolean;
+  cityCenterLatitude?: number | null;
+  cityCenterLongitude?: number | null;
   updatedAt: string;
 };
 
@@ -60,6 +63,8 @@ export default function AdminSetariPage() {
     useState<(typeof CURRENCIES)[number]>("RON");
   const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
   const [newListingsAutoApprove, setNewListingsAutoApprove] = useState(false);
+  const [cityCenterLatitude, setCityCenterLatitude] = useState("");
+  const [cityCenterLongitude, setCityCenterLongitude] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,6 +100,16 @@ export default function AdminSetariPage() {
         );
         setRegistrationsEnabled(s.registrationsEnabled !== false);
         setNewListingsAutoApprove(Boolean(s.newListingsAutoApprove));
+        setCityCenterLatitude(
+          s.cityCenterLatitude != null && Number.isFinite(s.cityCenterLatitude)
+            ? String(s.cityCenterLatitude)
+            : "",
+        );
+        setCityCenterLongitude(
+          s.cityCenterLongitude != null && Number.isFinite(s.cityCenterLongitude)
+            ? String(s.cityCenterLongitude)
+            : "",
+        );
         setUpdatedAt(s.updatedAt);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Eroare la încărcare.");
@@ -120,6 +135,8 @@ export default function AdminSetariPage() {
           defaultCurrency,
           registrationsEnabled,
           newListingsAutoApprove,
+          cityCenterLatitude: cityCenterLatitude.trim() || null,
+          cityCenterLongitude: cityCenterLongitude.trim() || null,
         }),
       });
       const data = await res.json();
@@ -362,6 +379,58 @@ export default function AdminSetariPage() {
                         isDark={isDark}
                       />
                     </div>
+                  </div>
+                </section>
+
+                <div
+                  className="h-px"
+                  style={{
+                    background: isDark
+                      ? "rgba(255,255,255,0.08)"
+                      : "rgba(0,0,0,0.06)",
+                  }}
+                />
+
+                <section className="space-y-4">
+                  <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <MdLocationOn size={22} className="text-[#C25A2B]" />
+                    Centru oraș (scor performanță agenți)
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Coordonate WGS84 pentru „Punctul 0” folosit la calculul
+                    distanței (Haversine) în modulul de scoring. Dacă lași gol,
+                    se folosesc variabilele de mediu{" "}
+                    <code className="text-xs">CITY_CENTER_LATITUDE</code> /{" "}
+                    <code className="text-xs">CITY_CENTER_LONGITUDE</code> sau
+                    implicit centrul Bucureștiului.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4 max-w-2xl">
+                    <label className="block space-y-1.5">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                        Latitudine
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={cityCenterLatitude}
+                        onChange={(e) => setCityCenterLatitude(e.target.value)}
+                        placeholder="ex: 44.4358"
+                        className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/80 dark:bg-[#1B1B21]/90 border border-gray-200 dark:border-white/10"
+                      />
+                    </label>
+                    <label className="block space-y-1.5">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                        Longitudine
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={cityCenterLongitude}
+                        onChange={(e) => setCityCenterLongitude(e.target.value)}
+                        placeholder="ex: 26.1025"
+                        className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/80 dark:bg-[#1B1B21]/90 border border-gray-200 dark:border-white/10"
+                      />
+                    </label>
                   </div>
                 </section>
 

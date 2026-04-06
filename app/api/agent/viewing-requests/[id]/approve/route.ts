@@ -2,6 +2,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPrimaryCalendarEventForAgentId } from "@/lib/google-calendar";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 export async function POST(
   _request: NextRequest,
@@ -12,6 +13,9 @@ export async function POST(
     if (!userId) {
       return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
     }
+
+    const suspended = await rejectIfAgentSuspended(userId);
+    if (suspended) return suspended;
 
     const { id: requestId } = await params;
 

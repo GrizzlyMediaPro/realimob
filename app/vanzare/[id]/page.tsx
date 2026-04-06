@@ -20,6 +20,7 @@ import {
 } from "../../../lib/listingToAnunt";
 import RoomGallery from "../../components/RoomGallery";
 import { prisma } from "../../../lib/prisma";
+import { getListingNearbyInsights } from "../../../lib/listing-nearby-insights";
 
 type AnuntPageProps = {
   params: Promise<{
@@ -42,7 +43,7 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
         include: { agent: true },
       });
       
-      if (listing) {
+      if (listing && listing.status === "approved") {
         anunt = transformListingToAnunt(listing);
         // Transformă imaginile din DB în format RoomImage
         const dbImages = listing.images as any[];
@@ -117,6 +118,11 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
     "București";
+
+  const nearbyInsights =
+    anunt.lat !== undefined && anunt.lng !== undefined
+      ? await getListingNearbyInsights(anunt.lat, anunt.lng)
+      : null;
 
   return (
     <div className="min-h-screen text-foreground">
@@ -264,9 +270,14 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                   )}
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
-                  <AnuntDetailsExpanded 
-                    anunt={anunt} 
-                    pretPerMp={anunt.suprafataUtil !== undefined && anunt.pret ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²` : undefined}
+                  <AnuntDetailsExpanded
+                    anunt={anunt}
+                    pretPerMp={
+                      anunt.suprafataUtil !== undefined && anunt.pret
+                        ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
+                        : undefined
+                    }
+                    nearbyInsights={nearbyInsights}
                   />
 
                 </div>

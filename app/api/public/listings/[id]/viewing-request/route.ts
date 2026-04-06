@@ -12,7 +12,9 @@ export async function POST(
     const startIso = body?.start as string | undefined;
     const endIso = body?.end as string | undefined;
     const clientName = String(body?.clientName ?? "").trim();
-    const clientEmail = String(body?.clientEmail ?? "").trim();
+    const clientEmail = String(body?.clientEmail ?? "")
+      .trim()
+      .toLowerCase();
     const clientPhone = body?.clientPhone
       ? String(body.clientPhone).trim()
       : "";

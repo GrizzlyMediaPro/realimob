@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 export async function GET() {
   try {
@@ -8,6 +9,9 @@ export async function GET() {
     if (!userId) {
       return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
     }
+
+    const suspended = await rejectIfAgentSuspended(userId);
+    if (suspended) return suspended;
 
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
@@ -29,7 +33,7 @@ export async function GET() {
     const listings = await prisma.listing.findMany({
       where: {
         agentId: agent.id,
-        status: "approved",
+        status: { in: ["approved", "sold"] },
       },
       orderBy: { createdAt: "desc" },
     });

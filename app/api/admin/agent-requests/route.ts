@@ -3,9 +3,10 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import type { AgentApplicationMetadata } from "@/lib/agent-application";
 
-type AgentStatus = "pending" | "approved" | "rejected" | "none";
+type AgentStatus = "pending" | "approved" | "rejected" | "none" | "suspended";
 
 const getUserStatus = (status: unknown): AgentStatus => {
+  if (status === "suspended") return "suspended";
   if (status === "pending" || status === "approved" || status === "rejected") {
     return status;
   }

@@ -17,6 +17,8 @@ import {
   MdCheckCircle,
   MdHourglassEmpty,
   MdCancel,
+  MdNotifications,
+  MdDone,
 } from "react-icons/md";
 
 type AccountListing = {
@@ -39,6 +41,11 @@ type AccountViewing = {
   clientName: string;
   listing: { id: string; title: string };
   agent: { name: string };
+  questionnaire?: {
+    id: string;
+    clientSubmittedAt: string | null;
+    agentSubmittedAt: string | null;
+  } | null;
 };
 
 type AccountPayload = {
@@ -132,6 +139,27 @@ export default function ContPage() {
   const [loading, setLoading] = useState(true);
   const [agentRequestLoading, setAgentRequestLoading] = useState(false);
   const [agentRequestMessage, setAgentRequestMessage] = useState<string | null>(null);
+  const [contNotifications, setContNotifications] = useState<
+    {
+      id: string;
+      title: string;
+      body: string;
+      href: string | null;
+      createdAt: string;
+      readAt: string | null;
+    }[]
+  >([]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const r = await fetch("/api/notifications", { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) return;
+      setContNotifications(j.notifications ?? []);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -152,12 +180,13 @@ export default function ContPage() {
         throw new Error(j?.error || "Nu am putut încărca contul.");
       }
       setData(j as AccountPayload);
+      void loadNotifications();
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Eroare");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadNotifications]);
 
   useEffect(() => {
     if (isSignedIn) load();
@@ -332,6 +361,80 @@ export default function ContPage() {
                     </div>
                   </div>
                 </div>
+              </section>
+
+              {/* Notificări */}
+              <section
+                className="rounded-2xl p-5 md:p-6 relative overflow-hidden"
+                style={glassCard(isDark)}
+              >
+                <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+                  <MdNotifications className="text-[#C25A2B]" size={20} />
+                  Notificări
+                </h2>
+                {contNotifications.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Nu ai notificări în acest moment.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {contNotifications.map((n) => {
+                      const unread = !n.readAt;
+                      return (
+                        <li
+                          key={n.id}
+                          className={`flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm border border-black/5 dark:border-white/10 ${
+                            unread ? "bg-white/50 dark:bg-white/10" : "bg-transparent"
+                          }`}
+                        >
+                          <span
+                            className={`mt-1.5 inline-block w-2 h-2 rounded-full shrink-0 ${
+                              unread ? "bg-[#C25A2B]" : "bg-gray-300 dark:bg-gray-600"
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground">{n.title}</p>
+                            <p className="text-gray-600 dark:text-gray-400 text-xs mt-0.5">
+                              {n.body}
+                            </p>
+                            {n.href ? (
+                              <Link
+                                href={n.href}
+                                className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                              >
+                                Deschide chestionarul
+                              </Link>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={unread ? "Marchează ca citit" : "Marchează ca necitit"}
+                            onClick={async () => {
+                              try {
+                                await fetch(
+                                  `/api/notifications/${n.id}/${unread ? "read" : "unread"}`,
+                                  { method: "POST" },
+                                );
+                              } catch {
+                                return;
+                              }
+                              setContNotifications((cur) =>
+                                cur.map((x) =>
+                                  x.id === n.id
+                                    ? { ...x, readAt: unread ? new Date().toISOString() : null }
+                                    : x,
+                                ),
+                              );
+                            }}
+                            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 text-gray-500"
+                          >
+                            <MdDone size={18} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </section>
 
               {/* Devino agent */}
@@ -525,6 +628,22 @@ export default function ContPage() {
                               >
                                 {vs.label}
                               </span>
+                              {v.status === "approved" &&
+                                v.questionnaire &&
+                                !v.questionnaire.clientSubmittedAt && (
+                                  <Link
+                                    href={`/cont/chestionar-vizionare/${v.id}`}
+                                    className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                                  >
+                                    Completează chestionarul după vizionare
+                                  </Link>
+                                )}
+                              {v.status === "approved" && !v.questionnaire && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                  După încheierea vizionării vei putea completa un
+                                  chestionar din cont sau din notificări.
+                                </p>
+                              )}
                             </div>
                           </div>
                         </li>

@@ -286,6 +286,13 @@ export default function AdminPreviewPage() {
 
   const locationText = listing.sector || listing.location || "București";
 
+  const modStatus = (listing.status || "pending").toLowerCase();
+  const isPendingModeration = modStatus === "pending";
+  const isApprovedListing =
+    modStatus === "approved" || modStatus === "sold";
+  const isDeniedListing = modStatus === "denied";
+  const hasAssignedAgent = Boolean(listing.agentId || listing.agent);
+
   return (
     <div className="min-h-screen text-foreground">
       {/* Bara admin fixă */}
@@ -313,46 +320,79 @@ export default function AdminPreviewPage() {
                 <MdArrowBack size={18} />
                 <span>Înapoi</span>
               </Link>
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
-                style={{
-                  background: "rgba(245, 158, 11, 0.15)",
-                  color: "#F59E0B",
-                }}
-              >
-                <MdPending size={14} />
-                Previzualizare — Anunț în Așteptare
-              </span>
+              {isPendingModeration && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
+                  style={{
+                    background: "rgba(245, 158, 11, 0.15)",
+                    color: "#F59E0B",
+                  }}
+                >
+                  <MdPending size={14} />
+                  Previzualizare — În așteptarea aprobării
+                </span>
+              )}
+              {isApprovedListing && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
+                  style={{
+                    background: "rgba(16, 185, 129, 0.15)",
+                    color: "#10B981",
+                  }}
+                >
+                  <MdCheckCircle size={14} />
+                  {modStatus === "sold"
+                    ? "Previzualizare — Marcat vândut"
+                    : hasAssignedAgent
+                      ? "Previzualizare — Aprobat, cu agent"
+                      : "Previzualizare — Aprobat (fără agent)"}
+                </span>
+              )}
+              {isDeniedListing && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium"
+                  style={{
+                    background: "rgba(239, 68, 68, 0.15)",
+                    color: "#EF4444",
+                  }}
+                >
+                  <MdCancel size={14} />
+                  Previzualizare — Respins
+                </span>
+              )}
             </div>
 
             {/* Dreapta: Butoane acțiuni */}
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => handleApprove()}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: "#10B981" }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#059669"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#10B981"; }}
-              >
-                <MdCheckCircle size={16} />
-                Aprobă
-              </button>
-              <button
-                onClick={handleDeny}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: "#EF4444" }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#DC2626"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#EF4444"; }}
-              >
-                <MdCancel size={16} />
-                Respinge
-              </button>
+              {isPendingModeration && (
+                <>
+                  <button
+                    onClick={() => handleApprove()}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: "#10B981" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#059669"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#10B981"; }}
+                  >
+                    <MdCheckCircle size={16} />
+                    Aprobă
+                  </button>
+                  <button
+                    onClick={handleDeny}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: "#EF4444" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#DC2626"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#EF4444"; }}
+                  >
+                    <MdCancel size={16} />
+                    Respinge
+                  </button>
+                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
+                </>
+              )}
 
-              <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
-
-              {listing.agent && !changingAgent ? (
+              {(isApprovedListing || isPendingModeration) && (listing.agent && !changingAgent ? (
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800">
                     <MdAssignmentInd size={16} />
@@ -423,7 +463,7 @@ export default function AdminPreviewPage() {
                     </button>
                   )}
                 </>
-              )}
+              ))}
             </div>
           </div>
 

@@ -6,12 +6,16 @@ import {
   getGoogleOAuthRedirectUri,
   GOOGLE_OAUTH_SCOPES,
 } from "@/lib/google-calendar";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
   }
+
+  const suspended = await rejectIfAgentSuspended(userId);
+  if (suspended) return suspended;
 
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();

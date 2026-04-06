@@ -20,6 +20,9 @@ import {
   MdDescription,
   MdOpenInNew,
   MdDownload,
+  MdTableChart,
+  MdPictureAsPdf,
+  MdAssessment,
 } from "react-icons/md";
 import Link from "next/link";
 import { UploadButton, UploadDropzone } from "../../components/Uploadthing";
@@ -48,12 +51,54 @@ interface Agent {
   signedUploadedAt?: string | null;
 }
 
+type ReportPreset = "luna-curenta" | "luna-precedenta" | "an-curent" | "an-precedent" | "personalizat";
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function endOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+}
+
+function getReportRange(preset: ReportPreset, customFrom: string, customTo: string): { from: Date; to: Date } | null {
+  const now = new Date();
+  if (preset === "personalizat") {
+    if (!customFrom || !customTo) return null;
+    const from = startOfLocalDay(new Date(customFrom));
+    const to = endOfLocalDay(new Date(customTo));
+    if (from.getTime() > to.getTime()) return null;
+    return { from, to };
+  }
+  if (preset === "luna-curenta") {
+    const from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const to = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    return { from, to };
+  }
+  if (preset === "luna-precedenta") {
+    const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+    const from = new Date(y, m, 1, 0, 0, 0, 0);
+    const to = endOfLocalDay(new Date(y, m + 1, 0));
+    return { from, to };
+  }
+  if (preset === "an-curent") {
+    const from = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    const to = endOfLocalDay(new Date(now.getFullYear(), 11, 31));
+    return { from, to };
+  }
+  const y = now.getFullYear() - 1;
+  const from = new Date(y, 0, 1, 0, 0, 0, 0);
+  const to = endOfLocalDay(new Date(y, 11, 31));
+  return { from, to };
+}
+
 type AgentApiItem = {
   id: string;
   nume?: string;
   email?: string;
   telefon?: string;
-  status?: "pending" | "approved" | "rejected";
+  status?: "pending" | "approved" | "rejected" | "suspended";
   dataInregistrare?: string;
   formaOrganizare?: string | null;
   buletinUrl?: string | null;
@@ -92,6 +137,11 @@ export default function AdminAgentiPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [contractUrlDraft, setContractUrlDraft] = useState("");
   const [contractFileNameDraft, setContractFileNameDraft] = useState("");
+  const [reportPreset, setReportPreset] = useState<ReportPreset>("luna-curenta");
+  const [reportCustomFrom, setReportCustomFrom] = useState("");
+  const [reportCustomTo, setReportCustomTo] = useState("");
+  const [reportExporting, setReportExporting] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const fetchAgenti = async () => {
     try {
@@ -113,7 +163,9 @@ export default function AdminAgentiPage() {
             ? "pending"
             : agent.status === "rejected"
             ? "respins"
-            : "activ";
+            : agent.status === "suspended"
+              ? "suspendat"
+              : "activ";
 
         return {
           id: agent.id,
@@ -411,6 +463,52 @@ export default function AdminAgentiPage() {
     }
   };
 
+  const downloadAgentReport = async (format: "csv" | "pdf") => {
+    const range = getReportRange(reportPreset, reportCustomFrom, reportCustomTo);
+    if (!range) {
+      setReportError(
+        reportPreset === "personalizat"
+          ? "Alege ambele date (de la / până la) valide."
+          : "Perioada raportului nu este validă."
+      );
+      return;
+    }
+    setReportExporting(true);
+    setReportError(null);
+    try {
+      const params = new URLSearchParams({
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+        format,
+      });
+      const res = await fetch(`/api/admin/agents/report?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || "Descărcarea raportului a eșuat.");
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition");
+      const match = cd?.match(/filename="([^"]+)"/);
+      const fallback = `raport-agenti.${format}`;
+      const filename = match?.[1] ?? fallback;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : "Eroare la export.");
+    } finally {
+      setReportExporting(false);
+    }
+  };
+
   const getStatusLabel = (status: AgentStatus) => {
     switch (status) {
       case "activ":
@@ -453,6 +551,149 @@ export default function AdminAgentiPage() {
               >
                 Administrează toți agenții imobiliari
               </p>
+            </div>
+          </div>
+
+          {/* Export raport performanță */}
+          <div
+            className="rounded-none md:rounded-3xl overflow-hidden relative"
+            style={{
+              fontFamily: "var(--font-galak-regular)",
+              background: isDark
+                ? "rgba(35, 35, 48, 0.5)"
+                : "rgba(255, 255, 255, 0.6)",
+              border: isDark
+                ? "1px solid rgba(255, 255, 255, 0.12)"
+                : "1px solid rgba(255, 255, 255, 0.5)",
+              boxShadow: isDark
+                ? "0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+                : "0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
+              backdropFilter: "blur(80px) saturate(1.6)",
+              WebkitBackdropFilter: "blur(80px) saturate(1.6)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "40%",
+                background: isDark
+                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%)"
+                  : "linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 100%)",
+                borderRadius: "inherit",
+                pointerEvents: "none",
+                zIndex: 0,
+              }}
+            />
+            <div className="p-4 md:p-6 relative z-[1] space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <MdAssessment size={22} className="text-[#C25A2B]" />
+                <h2
+                  className="text-lg md:text-xl font-bold text-foreground"
+                  style={{ fontFamily: "var(--font-galak-regular)" }}
+                >
+                  Raport performanță agenți
+                </h2>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-3xl">
+                Export CSV sau PDF: vânzări și închirieri finalizate în perioadă (după data verificării
+                contractului), anunțuri noi create în interval, anunțuri active acum, total atribuite,
+                vizionări, oferte primite de la clienți, medii de preț și suprafață, precum și durata medie
+                de la crearea anunțului până la tranzacție (în sistem nu există încă data exactă a
+                atribuirii agentului).
+              </p>
+              {reportError && (
+                <div className="rounded-lg px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-red-500/10">
+                  {reportError}
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 items-stretch sm:items-end">
+                <label className="flex flex-col gap-1.5 text-sm min-w-[200px]">
+                  <span className="text-gray-600 dark:text-gray-400">Perioadă</span>
+                  <select
+                    value={reportPreset}
+                    onChange={(e) => setReportPreset(e.target.value as ReportPreset)}
+                    disabled={reportExporting}
+                    className="px-3 py-2.5 rounded-lg border backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/50"
+                    style={{
+                      background: isDark
+                        ? "rgba(27, 27, 33, 0.6)"
+                        : "rgba(255, 255, 255, 0.6)",
+                      borderColor: isDark
+                        ? "rgba(255, 255, 255, 0.1)"
+                        : "rgba(255, 255, 255, 0.4)",
+                    }}
+                  >
+                    <option value="luna-curenta">Luna curentă</option>
+                    <option value="luna-precedenta">Luna precedentă</option>
+                    <option value="an-curent">Anul curent</option>
+                    <option value="an-precedent">Anul precedent</option>
+                    <option value="personalizat">Interval personalizat</option>
+                  </select>
+                </label>
+                {reportPreset === "personalizat" && (
+                  <>
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">De la</span>
+                      <input
+                        type="date"
+                        value={reportCustomFrom}
+                        onChange={(e) => setReportCustomFrom(e.target.value)}
+                        disabled={reportExporting}
+                        className="px-3 py-2.5 rounded-lg border backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/50"
+                        style={{
+                          background: isDark
+                            ? "rgba(27, 27, 33, 0.6)"
+                            : "rgba(255, 255, 255, 0.6)",
+                          borderColor: isDark
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(255, 255, 255, 0.4)",
+                        }}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Până la</span>
+                      <input
+                        type="date"
+                        value={reportCustomTo}
+                        onChange={(e) => setReportCustomTo(e.target.value)}
+                        disabled={reportExporting}
+                        className="px-3 py-2.5 rounded-lg border backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/50"
+                        style={{
+                          background: isDark
+                            ? "rgba(27, 27, 33, 0.6)"
+                            : "rgba(255, 255, 255, 0.6)",
+                          borderColor: isDark
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(255, 255, 255, 0.4)",
+                        }}
+                      />
+                    </label>
+                  </>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={reportExporting}
+                    onClick={() => downloadAgentReport("csv")}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white bg-[#1F2D44] hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    <MdTableChart size={20} />
+                    {reportExporting ? "Se generează…" : "Descarcă CSV"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reportExporting}
+                    onClick={() => downloadAgentReport("pdf")}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white bg-[#C25A2B] hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    <MdPictureAsPdf size={20} />
+                    {reportExporting ? "Se generează…" : "Descarcă PDF"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

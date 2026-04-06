@@ -28,8 +28,16 @@ model Listing {
   latitude  Float?
   longitude Float?
 
-  // Status moderare (pending / approved / denied)
+  // Status moderare: pending | approved | denied | sold (sold = verificat de admin după contract)
   status    String  @default("pending")
+
+  /// Contract vânzare-cumparare (sau echivalent) încărcat de agent; verificare admin
+  saleContractUrl     String?
+  saleContractFileName String?
+  saleSubmittedAt     DateTime?
+  saleVerifiedAt      DateTime?
+  saleRejectedAt      DateTime?
+  saleRejectionNote   String?
 
   /// Clerk user id — cine a trimis anunțul (cont utilizator)
   submittedByUserId String?
@@ -40,6 +48,9 @@ model Listing {
 
   // Cereri de vizionare (programare prin Google Calendar)
   viewingRequests ViewingBookingRequest[]
+
+  viewingQuestionnaires ViewingQuestionnaire[]
+  listingOffers         ListingOffer[]
 
   // Alte detalii salvate flexibil
   details Json?
@@ -68,8 +79,10 @@ model Agent {
   googleCalendarConnectedAt   DateTime?
 
   // Anunțuri atribuite
-  listings         Listing[]
-  viewingRequests  ViewingBookingRequest[]
+  listings                Listing[]
+  viewingRequests         ViewingBookingRequest[]
+  appNotifications        AppNotification[]
+  viewingQuestionnaires   ViewingQuestionnaire[]
 }
 
 /// Cerere de vizionare: clientul alege interval din disponibilitate; agentul aprobă → eveniment în Google Calendar.
@@ -96,6 +109,76 @@ model ViewingBookingRequest {
   status String @default("pending")
 
   googleEventId String?
+
+  questionnaire ViewingQuestionnaire?
+  listingOffers ListingOffer[]
+}
+
+/// Deschis automat după `endAt` pentru vizionări aprobate — răspunsuri agent + client.
+model ViewingQuestionnaire {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  viewingRequestId String               @unique @db.ObjectId
+  viewingRequest   ViewingBookingRequest @relation(fields: [viewingRequestId], references: [id], onDelete: Cascade)
+
+  listingId String  @db.ObjectId
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  agentId String @db.ObjectId
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// Email client normalizat (lowercase), pentru potrivire cu contul Clerk
+  clientEmail String
+
+  agentSubmittedAt   DateTime?
+  clientSubmittedAt DateTime?
+
+  /// Răspunsuri structurate (JSON): attended, interestLevel, notes, wantsOffer, offerAmount, etc.
+  agentAnswers   Json?
+  clientAnswers  Json?
+}
+
+/// Oferte legate de anunț; cele de la client rămân pending până le confirmă agentul.
+model ListingOffer {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listingId String  @db.ObjectId
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  viewingRequestId String? @db.ObjectId
+  viewingRequest   ViewingBookingRequest? @relation(fields: [viewingRequestId], references: [id], onDelete: SetNull)
+
+  /// client | agent
+  proposedBy String
+
+  amount   Float
+  currency String @default("RON")
+
+  note String?
+
+  /// pending | confirmed | declined
+  status String @default("pending")
+}
+
+/// Notificări în aplicație (agent după agentId, client după email).
+model AppNotification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  readAt    DateTime?
+
+  type  String
+  title String
+  body  String
+  href  String?
+
+  agentId String? @db.ObjectId
+  agent   Agent?  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  clientEmail String?
 }
 
 /// Preferințe globale: cine primește emailuri pe tip de conținut (agenți / clienți / admini).
@@ -132,5 +215,10 @@ model PlatformSettings {
   defaultCurrency String @default("RON")
   registrationsEnabled Boolean @default(true)
   newListingsAutoApprove Boolean @default(false)
+
+  /// Centru oraș (Punctul 0) pentru scoruri distanță — opțional; altfel env / default București
+  cityCenterLatitude  Float?
+  cityCenterLongitude Float?
+
   updatedAt DateTime @updatedAt
 }
