@@ -4,6 +4,7 @@ import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exchangeCodeForTokens } from "@/lib/google-calendar";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 function redirectWithStatus(request: Request, status: string) {
   const u = new URL("/agent", request.url);
@@ -32,6 +33,11 @@ export async function GET(request: Request) {
   const { userId } = await auth();
   if (!userId) {
     return redirectWithStatus(request, "no_session");
+  }
+
+  const suspended = await rejectIfAgentSuspended(userId);
+  if (suspended) {
+    return redirectWithStatus(request, "agent_suspended");
   }
 
   if (!code) {

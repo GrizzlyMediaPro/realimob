@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { syncCompletedViewingQuestionnaires } from "@/lib/viewing-questionnaire-sync";
 
 export async function GET() {
   try {
@@ -32,6 +33,10 @@ export async function GET() {
       (publicMetadata.agentStatus as "none" | "pending" | "approved" | "rejected") ??
       "none";
 
+    await syncCompletedViewingQuestionnaires();
+
+    const emailNorm = email?.trim().toLowerCase() ?? null;
+
     const [listings, viewingRequests] = await Promise.all([
       prisma.listing.findMany({
         where: { submittedByUserId: userId },
@@ -48,14 +53,19 @@ export async function GET() {
           images: true,
         },
       }),
-      email
+      emailNorm
         ? prisma.viewingBookingRequest.findMany({
-            where: { clientEmail: email },
+            where: {
+              OR: [{ clientEmail: emailNorm }, { clientEmail: email ?? "" }],
+            },
             orderBy: { startAt: "desc" },
             take: 50,
             include: {
               listing: { select: { id: true, title: true } },
               agent: { select: { name: true } },
+              questionnaire: {
+                select: { id: true, clientSubmittedAt: true, agentSubmittedAt: true },
+              },
             },
           })
         : Promise.resolve([]),

@@ -27,6 +27,8 @@ import {
   MdDownload,
   MdUploadFile,
   MdDescription,
+  MdLocalOffer,
+  MdWarning,
 } from "react-icons/md";
 import {
   type Anunt,
@@ -34,6 +36,7 @@ import {
 import { formatListingPriceDisplay } from "../../lib/listingToAnunt";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
+import MarkListingSoldModal from "../components/MarkListingSoldModal";
 
 /* ═══════════════════════════════════════════
    Helpers
@@ -110,10 +113,30 @@ type Notificare = {
   data: string; // ISO
   tip: "anunt" | "programare" | "general";
   citita: boolean;
+  href?: string | null;
+};
+
+type PendingClientOffer = {
+  id: string;
+  amount: number;
+  currency: string;
+  note: string | null;
+  createdAt: string;
+  listing: { id: string; title: string };
+  viewingRequest: {
+    id: string;
+    clientName: string;
+    clientEmail: string;
+  } | null;
 };
 
 type AgentListing = Anunt & {
   imageCount: number;
+  listingStatus: "approved" | "sold";
+  transactionTypeLabel: string;
+  salePendingReview: boolean;
+  saleRejected: boolean;
+  saleRejectionNote: string | null;
 };
 
 type AgentProfile = {
@@ -134,17 +157,6 @@ const getProgramareStatusConfig = (status: ProgramareStatus) => {
     case "anulata":
       return { label: "Anulată", color: "#EF4444", bg: "rgba(239, 68, 68, 0.15)" };
   }
-};
-
-const useAgentData = (activeListings: AgentListing[]) => {
-  const soldListings: AgentListing[] = [];
-  const notificariInitiale: Notificare[] = [];
-
-  return {
-    activeListings,
-    soldListings,
-    notificariInitiale,
-  };
 };
 
 type ViewingRequestRow = {
@@ -340,9 +352,16 @@ function MonthCalendar({
 export default function AgentDashboardPage() {
   const { isSignedIn } = useUser();
   const isDark = useDarkMode();
-  const [activeListingsData, setActiveListingsData] = useState<AgentListing[]>([]);
-  const { activeListings, soldListings, notificariInitiale } =
-    useAgentData(activeListingsData);
+  const [allListingsData, setAllListingsData] = useState<AgentListing[]>([]);
+
+  const activeListings = useMemo(
+    () => allListingsData.filter((l) => l.listingStatus !== "sold"),
+    [allListingsData],
+  );
+  const soldListings = useMemo(
+    () => allListingsData.filter((l) => l.listingStatus === "sold"),
+    [allListingsData],
+  );
 
   const [viewingRows, setViewingRows] = useState<ViewingRequestRow[]>([]);
   const [viewingLoadError, setViewingLoadError] = useState<string | null>(null);
@@ -374,9 +393,15 @@ export default function AgentDashboardPage() {
     }
   }, []);
 
-  const [notificari, setNotificari] =
-    useState<Notificare[]>(notificariInitiale);
-  const [agentStatus, setAgentStatus] = useState<"none" | "pending" | "approved" | "rejected">("none");
+  const [agentStatus, setAgentStatus] = useState<
+    "none" | "pending" | "approved" | "rejected" | "suspended"
+  >("none");
+  const [questionnaireCompliance, setQuestionnaireCompliance] = useState<{
+    gracePeriodWarning: boolean;
+    pendingInGraceCount: number;
+    nextDeadlineIso: string | null;
+    hoursRemainingApprox: number | null;
+  } | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [agentProfile, setAgentProfile] = useState<AgentProfile | null>(null);
@@ -410,10 +435,109 @@ export default function AgentDashboardPage() {
   const [googleDisconnectLoading, setGoogleDisconnectLoading] = useState(false);
   const [googleTestEventLoading, setGoogleTestEventLoading] = useState(false);
 
+  const [notificari, setNotificari] = useState<Notificare[]>([]);
+  const [pendingClientOffers, setPendingClientOffers] = useState<
+    PendingClientOffer[]
+  >([]);
+  const [offersLoadError, setOffersLoadError] = useState<string | null>(null);
+  const [offerActionId, setOfferActionId] = useState<string | null>(null);
+  /** Scor performanță 90 zile: undefined = neîncărcat, null = eroare */
+  const [perfScores90d, setPerfScores90d] = useState<{
+    scorVanzari: number | null;
+    scorInchirieri: number | null;
+  } | null | undefined>(undefined);
+
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const r = await fetch("/api/notifications", { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) return;
+      const list = (j.notifications ?? []) as {
+        id: string;
+        createdAt: string;
+        readAt: string | null;
+        title: string;
+        body: string;
+        href: string | null;
+      }[];
+      setNotificari(
+        list.map((n) => ({
+          id: n.id,
+          mesaj: `${n.title}: ${n.body}`,
+          data: n.createdAt,
+          tip: "programare" as const,
+          citita: Boolean(n.readAt),
+          href: n.href,
+        })),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const refreshPendingOffers = useCallback(async () => {
+    try {
+      setOffersLoadError(null);
+      const r = await fetch("/api/agent/listing-offers", { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) {
+        setOffersLoadError(j?.error ?? "Nu am putut încărca ofertele.");
+        return;
+      }
+      setPendingClientOffers(j.offers ?? []);
+    } catch {
+      setOffersLoadError("Eroare la încărcarea ofertelor.");
+    }
+  }, []);
+
   useEffect(() => {
     if (!isSignedIn || agentStatus !== "approved") return;
     refreshViewingRequests();
   }, [isSignedIn, agentStatus, refreshViewingRequests]);
+
+  useEffect(() => {
+    if (!isSignedIn || agentStatus !== "approved") {
+      setPerfScores90d(undefined);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/agent/performance-score", {
+          cache: "no-store",
+        });
+        const d = await r.json();
+        if (cancelled) return;
+        if (!r.ok || d?.error) {
+          setPerfScores90d(null);
+          return;
+        }
+        setPerfScores90d({
+          scorVanzari:
+            typeof d.scorVanzari === "number" ? d.scorVanzari : null,
+          scorInchirieri:
+            typeof d.scorInchirieri === "number" ? d.scorInchirieri : null,
+        });
+      } catch {
+        if (!cancelled) setPerfScores90d(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, agentStatus]);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    if (agentStatus === "approved") {
+      void refreshNotifications();
+      void refreshPendingOffers();
+      return;
+    }
+    if (agentStatus === "suspended") {
+      void refreshNotifications();
+    }
+  }, [isSignedIn, agentStatus, refreshNotifications, refreshPendingOffers]);
 
   useEffect(() => {
     const fetchAgentProfile = async () => {
@@ -434,8 +558,16 @@ export default function AgentDashboardPage() {
           throw new Error(payload?.error || "Nu am putut încărca profilul de agent.");
         }
 
-        const status = payload.agentStatus as "none" | "pending" | "approved" | "rejected";
+        const status = payload.agentStatus as
+          | "none"
+          | "pending"
+          | "approved"
+          | "rejected"
+          | "suspended";
         setAgentStatus(status);
+        setQuestionnaireCompliance(
+          payload.questionnaireCompliance ?? null,
+        );
         setAgentProfile({
           name: payload?.name ?? "Agent",
           email: payload?.email ?? "",
@@ -491,6 +623,8 @@ export default function AgentDashboardPage() {
       denied: "Autorizarea Google a fost anulată.",
       invalid_state: "Sesiune OAuth invalidă. Încearcă din nou.",
       no_session: "Trebuie să fii autentificat.",
+      agent_suspended:
+        "Contul de agent este suspendat. Completează chestionarele din notificări înainte de a conecta Google Calendar.",
       no_clerk_email: "Contul nu are email. Adaugă un email în Clerk.",
       no_agent:
         "Nu există un rând Agent în baza de date cu emailul contului tău. Contactează administratorul.",
@@ -515,18 +649,17 @@ export default function AgentDashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchAssignedListings = async () => {
-      try {
-        const response = await fetch("/api/agent/listings", {
-          cache: "no-store",
-        });
-        const payload = await response.json();
-        if (!response.ok) {
-          return;
-        }
+  const refreshAgentListings = useCallback(async () => {
+    try {
+      const response = await fetch("/api/agent/listings", {
+        cache: "no-store",
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
 
-        const mapped: AgentListing[] = (payload.listings ?? []).map(
+      const mapped: AgentListing[] = (payload.listings ?? []).map(
           (listing: {
             id: string;
             title: string;
@@ -536,6 +669,12 @@ export default function AgentDashboardPage() {
             location: string;
             images?: unknown;
             createdAt: string;
+            status?: string;
+            transactionType?: string;
+            saleSubmittedAt?: string | null;
+            saleVerifiedAt?: string | null;
+            saleRejectedAt?: string | null;
+            saleRejectionNote?: string | null;
             details?: {
               suprafataUtila?: number;
               etaj?: number | string;
@@ -557,6 +696,18 @@ export default function AgentDashboardPage() {
                 ? `Etaj ${listing.details.etaj}`
                 : undefined;
 
+            const listingStatus: "approved" | "sold" =
+              listing.status === "sold" ? "sold" : "approved";
+            const salePendingReview =
+              listingStatus === "approved" &&
+              Boolean(listing.saleSubmittedAt) &&
+              !listing.saleVerifiedAt &&
+              !listing.saleRejectedAt;
+            const saleRejected =
+              listingStatus === "approved" &&
+              Boolean(listing.saleRejectedAt) &&
+              !listing.saleSubmittedAt;
+
             return {
               id: listing.id,
               titlu: listing.title,
@@ -573,20 +724,26 @@ export default function AgentDashboardPage() {
               ].filter(Boolean) as string[],
               createdAt: listing.createdAt,
               imageCount: imageArray.length,
+              listingStatus,
+              transactionTypeLabel: listing.transactionType ?? "",
+              salePendingReview,
+              saleRejected,
+              saleRejectionNote: listing.saleRejectionNote ?? null,
             };
           }
         );
 
-        setActiveListingsData(mapped);
-      } catch {
-        setActiveListingsData([]);
-      }
-    };
-
-    if (agentStatus === "approved") {
-      fetchAssignedListings();
+      setAllListingsData(mapped);
+    } catch {
+      setAllListingsData([]);
     }
-  }, [agentStatus]);
+  }, []);
+
+  useEffect(() => {
+    if (agentStatus === "approved") {
+      void refreshAgentListings();
+    }
+  }, [agentStatus, refreshAgentListings]);
 
   const submitAgentApplication = async () => {
     if (!formaOrganizare || !cui || !buletinUrl || !applicationPhone.trim()) {
@@ -751,6 +908,25 @@ export default function AgentDashboardPage() {
     }
   };
 
+  const resolveClientOffer = async (offerId: string, action: "confirm" | "decline") => {
+    setOfferActionId(offerId);
+    try {
+      const r = await fetch(`/api/agent/listing-offers/${offerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setOffersLoadError(j?.error ?? "Acțiunea a eșuat.");
+        return;
+      }
+      await refreshPendingOffers();
+    } finally {
+      setOfferActionId(null);
+    }
+  };
+
   const todayISO = new Date().toLocaleDateString("sv-SE", {
     timeZone: "Europe/Bucharest",
   });
@@ -809,6 +985,7 @@ export default function AgentDashboardPage() {
   // Pagination pentru proprietăți vândute
   const SOLD_PAGE_SIZE = 3;
   const [soldPage, setSoldPage] = useState(0);
+  const [markSoldListingId, setMarkSoldListingId] = useState<string | null>(null);
 
   // Filtrare anunțuri active
   const filteredActive = useMemo(() => {
@@ -873,37 +1050,71 @@ export default function AgentDashboardPage() {
     }
   }, [soldPage, soldTotalPages]);
 
-  // Stats
-  const stats = [
-    {
-      titlu: "Anunțuri Active",
-      valoare: String(activeListings.length),
-      icon: MdHome,
-      culoare: "#10B981",
-      trend: "+2 luna aceasta",
-    },
-    {
-      titlu: "Proprietăți Vândute",
-      valoare: String(soldListings.length),
-      icon: MdCheckCircle,
-      culoare: "#3B82F6",
-      trend: "+3 luna aceasta",
-    },
-    {
-      titlu: "Scor Agent",
-      valoare: "5.0",
-      icon: MdStar,
-      culoare: "#F59E0B",
-      trend: "Profil verificat",
-    },
-    {
-      titlu: "Vizualizări / Lună",
-      valoare: "0",
-      icon: MdVisibility,
-      culoare: "#C25A2B",
-      trend: "Date indisponibile momentan",
-    },
-  ];
+  const fmtPerf = (n: number | null) =>
+    n == null ? "—" : `${Math.round(n * 10) / 10}`;
+
+  const stats = useMemo(
+    () => [
+      {
+        titlu: "Anunțuri Active",
+        valoare: String(activeListings.length),
+        icon: MdHome,
+        culoare: "#10B981",
+        trend: "+2 luna aceasta",
+      },
+      {
+        titlu: "Proprietăți Vândute",
+        valoare: String(soldListings.length),
+        icon: MdCheckCircle,
+        culoare: "#3B82F6",
+        trend: "+3 luna aceasta",
+      },
+      {
+        titlu: "Scor vânzări (90 zile)",
+        valoare:
+          perfScores90d === undefined
+            ? "…"
+            : perfScores90d === null
+              ? "—"
+              : fmtPerf(perfScores90d.scorVanzari),
+        icon: MdTrendingUp,
+        culoare: "#F59E0B",
+        trend: "Medie pe anunțuri finalizate",
+      },
+      {
+        titlu: "Scor închirieri (90 zile)",
+        valoare:
+          perfScores90d === undefined
+            ? "…"
+            : perfScores90d === null
+              ? "—"
+              : fmtPerf(perfScores90d.scorInchirieri),
+        icon: MdStar,
+        culoare: "#D97706",
+        trend: "Medie pe anunțuri finalizate",
+      },
+      {
+        titlu: "Vizualizări / Lună",
+        valoare: "0",
+        icon: MdVisibility,
+        culoare: "#C25A2B",
+        trend: "Date indisponibile momentan",
+      },
+    ],
+    [activeListings.length, soldListings.length, perfScores90d],
+  );
+
+  const markSoldTarget = useMemo(
+    () => activeListings.find((l) => l.id === markSoldListingId) ?? null,
+    [activeListings, markSoldListingId],
+  );
+  const markSoldModalLabel = useMemo(() => {
+    if (!markSoldTarget) return "Marchează ca vândut";
+    const t = markSoldTarget.transactionTypeLabel.toLowerCase();
+    return t.includes("închirier") || t.includes("inchiri")
+      ? "Marchează ca închiriat"
+      : "Marchează ca vândut";
+  }, [markSoldTarget]);
 
   if (profileLoading) {
     return (
@@ -923,6 +1134,75 @@ export default function AgentDashboardPage() {
         <Navbar />
         <div className="w-full max-w-[1250px] mx-auto px-4 md:px-8 py-10 text-red-500">
           {profileError}
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (agentStatus === "suspended") {
+    return (
+      <div className="min-h-screen text-foreground pt-20">
+        <Navbar />
+        <div className="w-full max-w-[720px] mx-auto px-4 md:px-8 py-10 space-y-6">
+          <div
+            className="rounded-2xl p-5 md:p-6 border border-amber-500/35 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+            style={{ fontFamily: "var(--font-galak-regular)" }}
+          >
+            <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+              <MdWarning className="text-amber-600 shrink-0" size={28} />
+              Cont de agent suspendat
+            </h1>
+            <p className="text-sm mt-3 opacity-95 leading-relaxed">
+              Nu ai completat în termen (3 zile de la vizionare) chestionarele obligatorii după una sau mai
+              multe vizionări. Funcțiile de agent (programări, anunțuri, oferte, calendar) sunt dezactivate
+              până rezolvi situația.
+            </p>
+            <p className="text-sm mt-3 opacity-90">
+              Deschide fiecare notificare de mai jos și completează chestionarul. După ce toate
+              chestionarele restante sunt trimise, contul poate fi reactivat automat.
+            </p>
+          </div>
+
+          <div
+            className="rounded-2xl p-5 md:p-6 relative overflow-hidden"
+            style={glassCard(isDark)}
+          >
+            <GlassShine isDark={isDark} />
+            <h2 className="text-lg font-semibold relative z-1 flex items-center gap-2 mb-4">
+              <MdNotifications className="text-[#C25A2B]" size={20} />
+              Notificări — chestionare de completat
+            </h2>
+            {notificari.length === 0 ? (
+              <p className="text-sm text-gray-600 dark:text-gray-400 relative z-1">
+                Dacă nu vezi notificări aici, reîmprospătează pagina sau verifică că folosești același email
+                ca în contul de agent.
+              </p>
+            ) : (
+              <ul className="space-y-2 relative z-1">
+                {notificari.map((n) => (
+                  <li
+                    key={n.id}
+                    className="rounded-xl px-3 py-2.5 text-sm border border-black/5 dark:border-white/10 bg-white/40 dark:bg-white/5"
+                  >
+                    <p className="text-foreground">{n.mesaj}</p>
+                    {n.href ? (
+                      <Link
+                        href={n.href}
+                        className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                      >
+                        Deschide chestionarul
+                      </Link>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+            Pentru clarificări suplimentare, contactează administratorul platformei.
+          </p>
         </div>
         <Footer />
       </div>
@@ -1340,6 +1620,41 @@ export default function AgentDashboardPage() {
 
       <div className="w-full px-4 md:px-8 py-8 md:py-12">
         <div className="w-full max-w-[1250px] mx-auto space-y-8 md:space-y-10">
+          {questionnaireCompliance?.gracePeriodWarning && (
+            <div
+              className="rounded-2xl px-4 py-3 md:px-5 md:py-4 border border-amber-500/40 bg-amber-500/10 text-sm text-amber-950 dark:text-amber-50"
+              style={{ fontFamily: "var(--font-galak-regular)" }}
+              role="alert"
+            >
+              <p className="font-semibold flex items-center gap-2">
+                <MdWarning className="text-amber-600 shrink-0" size={20} />
+                Chestionare după vizionare — termen limită
+              </p>
+              <p className="mt-2 opacity-95">
+                Ai {questionnaireCompliance.pendingInGraceCount} chestionar
+                {questionnaireCompliance.pendingInGraceCount === 1 ? "" : "e"} de completat în legătură cu
+                vizionări recente. Ai la dispoziție 3 zile de la încheierea vizionării; după aceea contul
+                poate fi suspendat automat.
+              </p>
+              {questionnaireCompliance.hoursRemainingApprox != null &&
+                questionnaireCompliance.nextDeadlineIso && (
+                  <p className="mt-2 text-xs opacity-90">
+                    Primul termen expiră în aproximativ{" "}
+                    <strong>{questionnaireCompliance.hoursRemainingApprox} ore</strong> (
+                    {new Date(questionnaireCompliance.nextDeadlineIso).toLocaleString("ro-RO", {
+                      timeZone: "Europe/Bucharest",
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                    ).
+                  </p>
+                )}
+              <p className="mt-2 text-xs opacity-90">
+                Deschide notificările sau completează direct din linkurile primite.
+              </p>
+            </div>
+          )}
+
           {/* ──────────────── HEADER ──────────────── */}
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
@@ -1390,7 +1705,7 @@ export default function AgentDashboardPage() {
           >
             <GlassShine isDark={isDark} />
             <div className="px-4 md:px-8 py-6 md:py-8 relative z-1">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-0">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-0">
                 {stats.map((stat, index) => {
                   const Icon = stat.icon;
                   return (
@@ -1846,6 +2161,73 @@ export default function AgentDashboardPage() {
                 </div>
               )}
 
+              {(offersLoadError || pendingClientOffers.length > 0) && (
+                <div
+                  className="rounded-2xl md:rounded-3xl overflow-hidden relative border border-[#C25A2B]/25"
+                  style={glassCard(isDark)}
+                >
+                  <GlassShine isDark={isDark} />
+                  <div className="p-5 md:p-6 relative z-1 space-y-3">
+                    <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <MdLocalOffer size={20} className="text-[#C25A2B]" />
+                      Oferte clienți (în așteptare)
+                    </h2>
+                    {offersLoadError && (
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        {offersLoadError}
+                      </p>
+                    )}
+                    {pendingClientOffers.length > 0 && (
+                      <ul className="space-y-3">
+                        {pendingClientOffers.map((o) => {
+                          const busy = offerActionId === o.id;
+                          return (
+                            <li
+                              key={o.id}
+                              className="rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
+                              style={{
+                                background: isDark
+                                  ? "rgba(27, 27, 33, 0.6)"
+                                  : "rgba(255, 255, 255, 0.75)",
+                              }}
+                            >
+                              <div className="flex-1 min-w-0 text-sm">
+                                <p className="font-medium text-foreground">
+                                  {Number(o.amount).toLocaleString("ro-RO")}{" "}
+                                  {o.currency} · {o.listing.title}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                  {o.viewingRequest?.clientName ?? "Client"} ·{" "}
+                                  {o.viewingRequest?.clientEmail ?? "—"}
+                                </p>
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => resolveClientOffer(o.id, "confirm")}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-45"
+                                >
+                                  Confirmă
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => resolveClientOffer(o.id, "decline")}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-white/20"
+                                >
+                                  Respinge
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-6 md:gap-8 min-h-0 lg:flex-1 lg:min-h-0">
                 {/* Today's appointments */}
                 <div
@@ -2116,6 +2498,14 @@ export default function AgentDashboardPage() {
                               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                                 {dateLabel}
                               </p>
+                              {n.href ? (
+                                <Link
+                                  href={n.href}
+                                  className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                                >
+                                  Deschide chestionarul
+                                </Link>
+                              ) : null}
                             </div>
                             <button
                               type="button"
@@ -2124,15 +2514,24 @@ export default function AgentDashboardPage() {
                                   ? "Marchează ca citit"
                                   : "Marchează ca necitit"
                               }
-                              onClick={() =>
+                              onClick={async () => {
+                                const willBeRead = isUnread;
+                                try {
+                                  await fetch(
+                                    `/api/notifications/${n.id}/${willBeRead ? "read" : "unread"}`,
+                                    { method: "POST" },
+                                  );
+                                } catch {
+                                  return;
+                                }
                                 setNotificari((cur) =>
                                   cur.map((item) =>
                                     item.id === n.id
                                       ? { ...item, citita: !item.citita }
-                                      : item
-                                  )
-                                )
-                              }
+                                      : item,
+                                  ),
+                                );
+                              }}
                               className="mt-1 w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-300"
                             >
                               {isUnread ? (
@@ -2166,6 +2565,52 @@ export default function AgentDashboardPage() {
               </span>
             </div>
 
+            {/* Search + sector: mereu vizibile ca să poți schimba filtrul și când nu există rezultate */}
+            <div className="mb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <input
+                type="text"
+                value={activeSearch}
+                onChange={(e) => {
+                  setActiveSearch(e.target.value);
+                  setActivePage(0);
+                }}
+                placeholder="Caută după titlu, descriere sau zonă..."
+                className="w-full md:max-w-md px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
+                style={{
+                  background: isDark
+                    ? "rgba(27, 27, 33, 0.7)"
+                    : "rgba(255, 255, 255, 0.8)",
+                  borderColor: isDark
+                    ? "rgba(255, 255, 255, 0.1)"
+                    : "rgba(0, 0, 0, 0.1)",
+                }}
+              />
+              <select
+                value={activeSector}
+                onChange={(e) => {
+                  setActiveSector(e.target.value);
+                  setActivePage(0);
+                }}
+                className="w-full md:w-48 px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
+                style={{
+                  background: isDark
+                    ? "rgba(27, 27, 33, 0.7)"
+                    : "rgba(255, 255, 255, 0.8)",
+                  borderColor: isDark
+                    ? "rgba(255, 255, 255, 0.1)"
+                    : "rgba(0, 0, 0, 0.1)",
+                }}
+              >
+                <option value="">Toate sectoarele</option>
+                <option value="Sector 1">Sector 1</option>
+                <option value="Sector 2">Sector 2</option>
+                <option value="Sector 3">Sector 3</option>
+                <option value="Sector 4">Sector 4</option>
+                <option value="Sector 5">Sector 5</option>
+                <option value="Sector 6">Sector 6</option>
+              </select>
+            </div>
+
             {filteredActive.length === 0 ? (
               <div
                 className="rounded-2xl md:rounded-3xl p-8 text-center"
@@ -2181,70 +2626,52 @@ export default function AgentDashboardPage() {
               </div>
             ) : (
               <>
-                {/* Search + filtrare sector */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <input
-                    type="text"
-                    value={activeSearch}
-                    onChange={(e) => {
-                      setActiveSearch(e.target.value);
-                      setActivePage(0);
-                    }}
-                    placeholder="Caută după titlu, descriere sau zonă..."
-                    className="w-full md:max-w-md px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
-                    style={{
-                      background: isDark
-                        ? "rgba(27, 27, 33, 0.7)"
-                        : "rgba(255, 255, 255, 0.8)",
-                      borderColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
-                        : "rgba(0, 0, 0, 0.1)",
-                    }}
-                  />
-                  <select
-                    value={activeSector}
-                    onChange={(e) => {
-                      setActiveSector(e.target.value);
-                      setActivePage(0);
-                    }}
-                    className="w-full md:w-48 px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
-                    style={{
-                      background: isDark
-                        ? "rgba(27, 27, 33, 0.7)"
-                        : "rgba(255, 255, 255, 0.8)",
-                      borderColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
-                        : "rgba(0, 0, 0, 0.1)",
-                    }}
-                  >
-                    <option value="">Toate sectoarele</option>
-                    <option value="Sector 1">Sector 1</option>
-                    <option value="Sector 2">Sector 2</option>
-                    <option value="Sector 3">Sector 3</option>
-                    <option value="Sector 4">Sector 4</option>
-                    <option value="Sector 5">Sector 5</option>
-                    <option value="Sector 6">Sector 6</option>
-                  </select>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {paginatedActive.map((anunt) => (
-                    <AdminListingCard
-                      key={anunt.id}
-                      id={anunt.id}
-                      titlu={anunt.titlu}
-                      image={anunt.image}
-                      pret={anunt.pret}
-                      tags={anunt.tags}
-                      locationText={
-                        anunt.tags.find((t) => t.includes("Sector")) ??
-                        "Zona centrală"
-                      }
-                      imageCount={anunt.imageCount}
-                      href={`/anunturi/${anunt.id}`}
-                      status="active"
-                    />
-                  ))}
+                  {paginatedActive.map((anunt) => {
+                    const markLabel =
+                      anunt.transactionTypeLabel.toLowerCase().includes("închirier") ||
+                      anunt.transactionTypeLabel.toLowerCase().includes("inchiri")
+                        ? "Marchează ca închiriat"
+                        : "Marchează ca vândut";
+                    return (
+                      <div key={anunt.id} className="space-y-2">
+                        <AdminListingCard
+                          id={anunt.id}
+                          titlu={anunt.titlu}
+                          image={anunt.image}
+                          pret={anunt.pret}
+                          tags={anunt.tags}
+                          locationText={
+                            anunt.tags.find((t) => t.includes("Sector")) ??
+                            "Zona centrală"
+                          }
+                          imageCount={anunt.imageCount}
+                          href={`/anunturi/${anunt.id}`}
+                          status="active"
+                        />
+                        <div className="flex flex-col gap-2 px-1">
+                          {anunt.salePendingReview && (
+                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-1 rounded-lg w-fit">
+                              Contract în verificare la administrator
+                            </span>
+                          )}
+                          {anunt.saleRejected && anunt.saleRejectionNote && (
+                            <span className="text-xs text-red-700 dark:text-red-300 bg-red-500/10 px-2 py-1 rounded-lg">
+                              Respingere: {anunt.saleRejectionNote}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            disabled={anunt.salePendingReview}
+                            onClick={() => setMarkSoldListingId(anunt.id)}
+                            className="w-full sm:w-auto text-left px-3 py-2 rounded-xl text-xs font-semibold border border-[#C25A2B]/50 text-[#C25A2B] hover:bg-[#C25A2B]/10 disabled:opacity-45 disabled:cursor-not-allowed"
+                          >
+                            {markLabel} — încarcă contractul
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Paginare tip bară + buline, în stilul imaginii trimise */}
@@ -2290,6 +2717,51 @@ export default function AgentDashboardPage() {
               </span>
             </div>
 
+            <div className="mb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <input
+                type="text"
+                value={soldSearch}
+                onChange={(e) => {
+                  setSoldSearch(e.target.value);
+                  setSoldPage(0);
+                }}
+                placeholder="Caută în proprietățile vândute..."
+                className="w-full md:max-w-md px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
+                style={{
+                  background: isDark
+                    ? "rgba(27, 27, 33, 0.7)"
+                    : "rgba(255, 255, 255, 0.8)",
+                  borderColor: isDark
+                    ? "rgba(255, 255, 255, 0.1)"
+                    : "rgba(0, 0, 0, 0.1)",
+                }}
+              />
+              <select
+                value={soldSector}
+                onChange={(e) => {
+                  setSoldSector(e.target.value);
+                  setSoldPage(0);
+                }}
+                className="w-full md:w-48 px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
+                style={{
+                  background: isDark
+                    ? "rgba(27, 27, 33, 0.7)"
+                    : "rgba(255, 255, 255, 0.8)",
+                  borderColor: isDark
+                    ? "rgba(255, 255, 255, 0.1)"
+                    : "rgba(0, 0, 0, 0.1)",
+                }}
+              >
+                <option value="">Toate sectoarele</option>
+                <option value="Sector 1">Sector 1</option>
+                <option value="Sector 2">Sector 2</option>
+                <option value="Sector 3">Sector 3</option>
+                <option value="Sector 4">Sector 4</option>
+                <option value="Sector 5">Sector 5</option>
+                <option value="Sector 6">Sector 6</option>
+              </select>
+            </div>
+
             {filteredSold.length === 0 ? (
               <div
                 className="rounded-2xl md:rounded-3xl p-8 text-center"
@@ -2305,52 +2777,6 @@ export default function AgentDashboardPage() {
               </div>
             ) : (
               <>
-                {/* Search + filtrare sector pentru vândute */}
-                <div className="mb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <input
-                    type="text"
-                    value={soldSearch}
-                    onChange={(e) => {
-                      setSoldSearch(e.target.value);
-                      setSoldPage(0);
-                    }}
-                    placeholder="Caută în proprietățile vândute..."
-                    className="w-full md:max-w-md px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
-                    style={{
-                      background: isDark
-                        ? "rgba(27, 27, 33, 0.7)"
-                        : "rgba(255, 255, 255, 0.8)",
-                      borderColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
-                        : "rgba(0, 0, 0, 0.1)",
-                    }}
-                  />
-                  <select
-                    value={soldSector}
-                    onChange={(e) => {
-                      setSoldSector(e.target.value);
-                      setSoldPage(0);
-                    }}
-                    className="w-full md:w-48 px-3 py-2.5 rounded-lg border text-sm backdrop-blur-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/40"
-                    style={{
-                      background: isDark
-                        ? "rgba(27, 27, 33, 0.7)"
-                        : "rgba(255, 255, 255, 0.8)",
-                      borderColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
-                        : "rgba(0, 0, 0, 0.1)",
-                    }}
-                  >
-                    <option value="">Toate sectoarele</option>
-                    <option value="Sector 1">Sector 1</option>
-                    <option value="Sector 2">Sector 2</option>
-                    <option value="Sector 3">Sector 3</option>
-                    <option value="Sector 4">Sector 4</option>
-                    <option value="Sector 5">Sector 5</option>
-                    <option value="Sector 6">Sector 6</option>
-                  </select>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {paginatedSold.map((anunt) => (
                     <AdminListingCard
@@ -2388,7 +2814,7 @@ export default function AgentDashboardPage() {
                             className={
                               isCurrent
                                 ? "h-2 w-10 rounded-full bg-[#F97316]"
-                                : "h-2 w-2.5 rounded_full bg-gray-300 dark:bg-gray-600"
+                                : "h-2 w-2.5 rounded-full bg-gray-300 dark:bg-gray-600"
                             }
                           />
                         </button>
@@ -2401,6 +2827,16 @@ export default function AgentDashboardPage() {
           </div>
         </div>
       </div>
+
+      <MarkListingSoldModal
+        isOpen={Boolean(markSoldListingId && markSoldTarget)}
+        listingId={markSoldListingId ?? ""}
+        listingTitle={markSoldTarget?.titlu ?? ""}
+        markLabel={markSoldModalLabel}
+        isDark={isDark}
+        onClose={() => setMarkSoldListingId(null)}
+        onSubmitted={() => void refreshAgentListings()}
+      />
 
       <Footer />
     </div>

@@ -1,6 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 export async function POST() {
   try {
@@ -8,6 +9,9 @@ export async function POST() {
     if (!userId) {
       return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
     }
+
+    const suspended = await rejectIfAgentSuspended(userId);
+    if (suspended) return suspended;
 
     const client = await clerkClient();
     const user = await client.users.getUser(userId);

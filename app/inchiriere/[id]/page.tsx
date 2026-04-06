@@ -52,7 +52,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
         where: { id },
         include: { agent: true },
       });
-      if (listing) {
+      if (listing && listing.status === "approved") {
         anunt = transformListingToAnunt(listing);
         const dbImages = listing.images as any[];
         if (dbImages && Array.isArray(dbImages)) {

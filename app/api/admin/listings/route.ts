@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
+import { revalidateAgentPerformanceScoreCache } from "@/lib/agentPerformanceScore";
 
 // GET — Lista anunțurilor cu filtru de status (pentru admin)
 export async function GET(request: NextRequest) {
@@ -99,6 +100,10 @@ export async function PATCH(request: NextRequest) {
         data: { status: "denied" },
         include: { agent: true },
       });
+
+      revalidateAgentPerformanceScoreCache(
+        listing.agentId ?? existing.agentId,
+      );
 
       return NextResponse.json(listing);
     }

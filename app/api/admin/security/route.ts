@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
-type AgentStatus = "pending" | "approved" | "rejected" | "none";
+type AgentStatus = "pending" | "approved" | "rejected" | "none" | "suspended";
 
 type SecurityUser = {
   id: string;
@@ -18,6 +18,7 @@ type SecurityUser = {
 };
 
 function getAgentStatus(raw: unknown): AgentStatus {
+  if (raw === "suspended") return "suspended";
   if (raw === "pending" || raw === "approved" || raw === "rejected") {
     return raw;
   }
@@ -41,6 +42,12 @@ function rolSiPermisiuni(meta: {
       return {
         rolAfisat: "Agent",
         permisiuni: ["Zonă agent", "Anunțuri proprii", "Profil"],
+      };
+    }
+    if (s === "suspended") {
+      return {
+        rolAfisat: "Agent (suspendat)",
+        permisiuni: ["Acces limitat — chestionare obligatorii"],
       };
     }
     if (s === "pending") {

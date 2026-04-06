@@ -36,6 +36,8 @@ export async function PUT(request: Request) {
       defaultCurrency?: unknown;
       registrationsEnabled?: unknown;
       newListingsAutoApprove?: unknown;
+      cityCenterLatitude?: unknown;
+      cityCenterLongitude?: unknown;
     };
 
     await getOrCreatePlatformSettings();
@@ -47,6 +49,8 @@ export async function PUT(request: Request) {
       defaultCurrency?: string;
       registrationsEnabled?: boolean;
       newListingsAutoApprove?: boolean;
+      cityCenterLatitude?: number | null;
+      cityCenterLongitude?: number | null;
     } = {};
 
     if (typeof body.siteName === "string") {
@@ -76,6 +80,21 @@ export async function PUT(request: Request) {
     if (typeof body.newListingsAutoApprove === "boolean") {
       data.newListingsAutoApprove = body.newListingsAutoApprove;
     }
+    const parseCoord = (v: unknown): number | null | undefined => {
+      if (v === null || v === "") return null;
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      if (typeof v === "string") {
+        const t = v.trim().replace(",", ".");
+        if (!t) return null;
+        const n = Number(t);
+        return Number.isFinite(n) ? n : undefined;
+      }
+      return undefined;
+    };
+    const lat = parseCoord(body.cityCenterLatitude);
+    if (lat !== undefined) data.cityCenterLatitude = lat;
+    const lng = parseCoord(body.cityCenterLongitude);
+    if (lng !== undefined) data.cityCenterLongitude = lng;
 
     if (Object.keys(data).length === 0) {
       const settings = await prisma.platformSettings.findUniqueOrThrow({

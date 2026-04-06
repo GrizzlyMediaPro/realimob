@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "../../../../lib/prisma";
 import type { AgentApplicationMetadata } from "@/lib/agent-application";
+import { syncCompletedViewingQuestionnaires } from "@/lib/viewing-questionnaire-sync";
+import { getAgentQuestionnaireCompliance } from "@/lib/agent-questionnaire-compliance";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 type AgentPublicMetadata = {
   isAgent?: boolean;
-  agentStatus?: "none" | "pending" | "approved" | "rejected";
+  agentStatus?: "none" | "pending" | "approved" | "rejected" | "suspended";
   agentProfile?: {
     phone?: string;
     role?: string;
@@ -43,6 +46,8 @@ export async function GET() {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
 
+    await syncCompletedViewingQuestionnaires();
+
     const publicMetadata = (user.publicMetadata ?? {}) as AgentPublicMetadata;
     const unsafeMetadata = (user.unsafeMetadata ?? {}) as {
       requestedRole?: "agent" | "client";
@@ -64,14 +69,26 @@ export async function GET() {
     let googleCalendarConnected = false;
     let googleCalendarEmail: string | null = null;
 
+    let questionnaireCompliance: Awaited<
+      ReturnType<typeof getAgentQuestionnaireCompliance>
+    > | null = null;
+
     if (email) {
       const dbAgent = await prisma.agent.findFirst({
         where: { email },
-        select: { phone: true, googleRefreshToken: true, googleCalendarEmail: true },
+        select: {
+          id: true,
+          phone: true,
+          googleRefreshToken: true,
+          googleCalendarEmail: true,
+        },
       });
       phoneFromDb = dbAgent?.phone ?? null;
       googleCalendarConnected = Boolean(dbAgent?.googleRefreshToken);
       googleCalendarEmail = dbAgent?.googleCalendarEmail ?? null;
+      if (dbAgent?.id && agentStatus === "approved") {
+        questionnaireCompliance = await getAgentQuestionnaireCompliance(dbAgent.id);
+      }
     }
 
     return NextResponse.json({
@@ -100,6 +117,7 @@ export async function GET() {
         connected: googleCalendarConnected,
         googleCalendarEmail,
       },
+      questionnaireCompliance,
     });
   } catch (error) {
     console.error("Failed to fetch agent profile", error);
@@ -116,6 +134,9 @@ export async function PATCH(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
     }
+
+    const suspended = await rejectIfAgentSuspended(userId);
+    if (suspended) return suspended;
 
     const body = (await request.json()) as UpdateAgentProfilePayload;
     const name = body.name?.trim() ?? "";

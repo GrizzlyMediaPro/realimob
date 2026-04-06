@@ -3,39 +3,24 @@
 import { useEffect, useState } from "react";
 import { MdClose, MdLocalOffer, MdHistory } from "react-icons/md";
 
-type Offer = {
-  id: number;
-  amount: string;
-  date: string; // doar data, fără oră
+type OfferRow = {
+  id: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
+  proposedBy: string;
 };
 
 interface AnuntOffersModalProps {
   anuntId: string;
 }
 
-// În lipsa unui backend real, folosim momentan oferte mock,
-// ușor de înlocuit ulterior cu date reale.
-const mockOffers: Offer[] = [
-  {
-    id: 1,
-    amount: "118.000 €",
-    date: "10 feb 2025",
-  },
-  {
-    id: 2,
-    amount: "120.500 €",
-    date: "18 feb 2025",
-  },
-  {
-    id: 3,
-    amount: "122.000 €",
-    date: "22 feb 2025",
-  },
-];
-
 export default function AnuntOffersModal({ anuntId }: AnuntOffersModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [offers, setOffers] = useState<OfferRow[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [offersError, setOffersError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -65,10 +50,32 @@ export default function AnuntOffersModal({ anuntId }: AnuntOffersModalProps) {
   const handleOpen = () => setIsOpen(true);
   const handleClose = () => setIsOpen(false);
 
-  // Momentan folosim același set de oferte pentru toate anunțurile.
-  // Poți înlocui ușor cu un fetch către API sau funcție de utilitate:
-  // const offers = getOffersForAnunt(anuntId);
-  const offers = mockOffers;
+  useEffect(() => {
+    if (!isOpen || !anuntId) return;
+    let cancelled = false;
+    (async () => {
+      setOffersLoading(true);
+      setOffersError(null);
+      try {
+        const r = await fetch(`/api/public/listings/${anuntId}/offers`, {
+          cache: "no-store",
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j?.error ?? "Eroare");
+        if (!cancelled) setOffers(j.offers ?? []);
+      } catch {
+        if (!cancelled) {
+          setOffersError("Nu am putut încărca ofertele.");
+          setOffers([]);
+        }
+      } finally {
+        if (!cancelled) setOffersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, anuntId]);
 
   return (
     <>
@@ -158,25 +165,51 @@ export default function AnuntOffersModal({ anuntId }: AnuntOffersModalProps) {
 
             {/* Content */}
             <div className="relative z-[1] px-5 md:px-6 py-4 md:py-5 max-h-[360px] overflow-y-auto">
-              {offers.length === 0 ? (
+              {offersLoading ? (
                 <div className="py-6 text-sm text-gray-600 dark:text-gray-300">
-                  Încă nu există oferte pentru acest anunț.
+                  Se încarcă ofertele…
+                </div>
+              ) : offersError ? (
+                <div className="py-6 text-sm text-amber-700 dark:text-amber-300">
+                  {offersError}
+                </div>
+              ) : offers.length === 0 ? (
+                <div className="py-6 text-sm text-gray-600 dark:text-gray-300">
+                  Încă nu există oferte confirmate afișate pentru acest anunț.
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {offers.map((offer) => (
-                    <div
-                      key={offer.id}
-                      className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 bg-gray-50/80 dark:bg-gray-900/40 border border-gray-200/70 dark:border-gray-800/70"
-                    >
-                      <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {offer.amount}
+                  {offers.map((offer) => {
+                    const amountLabel = `${Number(offer.amount).toLocaleString("ro-RO")} ${offer.currency}`;
+                    const dateLabel = new Date(offer.createdAt).toLocaleDateString(
+                      "ro-RO",
+                      { day: "numeric", month: "short", year: "numeric" },
+                    );
+                    const src =
+                      offer.proposedBy === "agent"
+                        ? "Agent"
+                        : offer.proposedBy === "client"
+                          ? "Client"
+                          : offer.proposedBy;
+                    return (
+                      <div
+                        key={offer.id}
+                        className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 bg-gray-50/80 dark:bg-gray-900/40 border border-gray-200/70 dark:border-gray-800/70"
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {amountLabel}
+                          </div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-500 mt-0.5">
+                            {src}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 shrink-0">
+                          {dateLabel}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        {offer.date}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -20,6 +20,8 @@ import {
 import { CiFilter } from "react-icons/ci";
 import Link from "next/link";
 import { formatListingPriceDisplay } from "@/lib/listingToAnunt";
+import AdminChestionareVizionariPanel from "./AdminChestionareVizionariPanel";
+import AdminListingSalesPanel from "./AdminListingSalesPanel";
 
 type AnuntStatus = "active" | "inactive" | "pending";
 type DeactivationReason =
@@ -144,6 +146,9 @@ export default function AdminAnunturiPage() {
   const [isDark, setIsDark] = useState(false);
   const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
   const [showPending, setShowPending] = useState(false);
+  const [anunturiSubTab, setAnunturiSubTab] = useState<
+    "anunturi" | "chestionare" | "vanzari"
+  >("anunturi");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
   // Filtre
@@ -586,6 +591,48 @@ export default function AdminAnunturiPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2 border-b border-black/10 dark:border-white/10 pb-4">
+            <button
+              type="button"
+              onClick={() => setAnunturiSubTab("anunturi")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                anunturiSubTab === "anunturi"
+                  ? "bg-[#C25A2B] text-white"
+                  : "bg-black/5 dark:bg-white/10 text-foreground hover:opacity-90"
+              }`}
+            >
+              Anunțuri
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnunturiSubTab("chestionare")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                anunturiSubTab === "chestionare"
+                  ? "bg-[#C25A2B] text-white"
+                  : "bg-black/5 dark:bg-white/10 text-foreground hover:opacity-90"
+              }`}
+            >
+              Chestionare vizionări
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnunturiSubTab("vanzari")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                anunturiSubTab === "vanzari"
+                  ? "bg-[#C25A2B] text-white"
+                  : "bg-black/5 dark:bg-white/10 text-foreground hover:opacity-90"
+              }`}
+            >
+              Vânzări
+            </button>
+          </div>
+
+          {anunturiSubTab === "chestionare" ? (
+            <AdminChestionareVizionariPanel isDark={isDark} />
+          ) : anunturiSubTab === "vanzari" ? (
+            <AdminListingSalesPanel isDark={isDark} />
+          ) : (
+            <>
           {/* Selector Status */}
           <div className="flex items-center gap-4">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1566,6 +1613,8 @@ export default function AdminAnunturiPage() {
               </>
             )}
           </div>
+            </>
+          )}
         </div>
       </div>
       <Footer />

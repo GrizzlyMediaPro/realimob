@@ -1,6 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createPrimaryCalendarEventForAgentEmail } from "@/lib/google-calendar";
+import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 /**
  * Creează un eveniment de test (30 min) în Google Calendar al agentului conectat.
@@ -12,6 +13,9 @@ export async function POST() {
     if (!userId) {
       return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
     }
+
+    const suspended = await rejectIfAgentSuspended(userId);
+    if (suspended) return suspended;
 
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
