@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import Image from "next/image";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import AdminListingCard from "../../components/AdminListingCard";
@@ -17,9 +18,13 @@ import {
   MdSwapHoriz,
   MdInfoOutline,
 } from "react-icons/md";
-import { CiFilter } from "react-icons/ci";
+import { CiFilter, CiImageOn } from "react-icons/ci";
 import Link from "next/link";
-import { formatListingPriceDisplay } from "@/lib/listingToAnunt";
+import {
+  formatListingPriceDisplay,
+  getFirstListingImageUrl,
+  countListingImages,
+} from "@/lib/listingToAnunt";
 import AdminChestionareVizionariPanel from "./AdminChestionareVizionariPanel";
 import AdminListingSalesPanel from "./AdminListingSalesPanel";
 
@@ -92,7 +97,7 @@ type DBListing = {
   agentId?: string | null;
   agent?: DBAgent | null;
   createdAt: string;
-  images?: string[] | null;
+  images?: unknown;
   details?: unknown;
 };
 
@@ -113,6 +118,14 @@ function cardFieldsFromListingDetails(details: unknown): {
       const n = Number(d.camere);
       if (!Number.isNaN(n)) dormitoare = n;
     }
+  }
+  if (dormitoare === undefined && d.nrDormitoareCasa != null) {
+    const n = Number(d.nrDormitoareCasa);
+    if (!Number.isNaN(n)) dormitoare = n;
+  }
+  if (dormitoare === undefined && d.nrCamere != null) {
+    const n = Number(d.nrCamere);
+    if (!Number.isNaN(n)) dormitoare = n;
   }
   const supRaw = d.suprafataUtila;
   const sup =
@@ -356,11 +369,10 @@ export default function AdminAnunturiPage() {
 
   const allAnunturi = useMemo<AdminAnuntCardItem[]>(() => {
     const approved = dbApprovedListings.map((listing) => {
-      const listingImages = Array.isArray(listing.images) ? listing.images : [];
       return {
         id: listing.id,
         titlu: listing.title,
-        image: listingImages[0] || "/ap2.jpg",
+        image: getFirstListingImageUrl(listing.images),
         pret: formatListingPriceDisplay(
           listing.price,
           listing.currency,
@@ -369,18 +381,17 @@ export default function AdminAnunturiPage() {
         priceNumber: listing.price,
         tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
         locationText: listing.sector || listing.location || "Zona centrală",
-        imageCount: listingImages.length,
+        imageCount: countListingImages(listing.images),
         status: "active" as AnuntStatus,
         ...cardFieldsFromListingDetails(listing.details),
       };
     });
 
     const denied = dbDeniedListings.map((listing) => {
-      const listingImages = Array.isArray(listing.images) ? listing.images : [];
       return {
         id: listing.id,
         titlu: listing.title,
-        image: listingImages[0] || "/ap2.jpg",
+        image: getFirstListingImageUrl(listing.images),
         pret: formatListingPriceDisplay(
           listing.price,
           listing.currency,
@@ -389,7 +400,7 @@ export default function AdminAnunturiPage() {
         priceNumber: listing.price,
         tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
         locationText: listing.sector || listing.location || "Zona centrală",
-        imageCount: listingImages.length,
+        imageCount: countListingImages(listing.images),
         status: "inactive" as AnuntStatus,
         deactivationReason: "Dezactivat admin" as DeactivationReason,
         ...cardFieldsFromListingDetails(listing.details),
@@ -1151,8 +1162,9 @@ export default function AdminAnunturiPage() {
                     <div className="grid grid-cols-1 gap-3">
                       {dbPendingListings.map((listing) => {
                         const isActioning = actionLoading === listing.id;
-                        const listingImages = Array.isArray(listing.images) ? listing.images : [];
-                        const firstImage = listingImages.length > 0 ? listingImages[0] : "/ap2.jpg";
+                        const thumb = getFirstListingImageUrl(listing.images);
+                        const imgCount = countListingImages(listing.images);
+                        const hasRealThumb = thumb !== "/ap2.jpg";
 
                         return (
                           <div
@@ -1177,6 +1189,31 @@ export default function AdminAnunturiPage() {
                             <div className="p-4">
                               {/* Informații anunț */}
                               <div className="flex items-start gap-4 mb-3">
+                                <div className="w-20 h-20 shrink-0 relative overflow-hidden rounded-lg border border-black/5 dark:border-white/10">
+                                  {hasRealThumb ? (
+                                    <Image
+                                      src={thumb}
+                                      alt={listing.title}
+                                      fill
+                                      className="object-cover object-center"
+                                      sizes="80px"
+                                    />
+                                  ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-gray-700">
+                                      <CiImageOn
+                                        className="text-gray-400 dark:text-gray-500"
+                                        size={28}
+                                        aria-hidden
+                                      />
+                                    </div>
+                                  )}
+                                  {imgCount > 0 && (
+                                    <div className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs flex items-center gap-1 backdrop-blur-sm">
+                                      <CiImageOn size={12} aria-hidden />
+                                      <span>{imgCount}</span>
+                                    </div>
+                                  )}
+                                </div>
                                 <div className="flex-1 min-w-0">
                                   <h3
                                     className="text-base font-semibold text-foreground mb-1"

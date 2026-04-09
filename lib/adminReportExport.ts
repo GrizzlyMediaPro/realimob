@@ -23,7 +23,13 @@ export type ReportAnalyticsPayload = {
   newListings: { last7Days: number; last30Days: number };
   monthlyCreated: { key?: string; label: string; count: number }[];
   dailyCreatedLast7: { key: string; label: string; count: number }[];
-  topAgents: { id: string; name: string; listings: number }[];
+  topAgents: {
+    id: string;
+    name: string;
+    listings: number;
+    scorVanzari: number | null;
+    scorInchirieri: number | null;
+  }[];
 };
 
 function csvCell(value: string | number): string {
@@ -126,9 +132,16 @@ export function buildAnalyticsCsv(payload: ReportAnalyticsPayload): string {
   L([]);
 
   L(["— Top agenți (după număr anunțuri) —", ""]);
-  L(["Nume agent", "Număr anunțuri"]);
+  L(["Nume agent", "Număr anunțuri", "Scor vânzări", "Scor închirieri"]);
   for (const r of payload.topAgents) {
-    L([r.name, r.listings]);
+    L([
+      r.name,
+      r.listings,
+      r.scorVanzari == null ? "—" : (Math.round(r.scorVanzari * 10) / 10).toLocaleString("ro-RO"),
+      r.scorInchirieri == null
+        ? "—"
+        : (Math.round(r.scorInchirieri * 10) / 10).toLocaleString("ro-RO"),
+    ]);
   }
 
   return "\uFEFF" + lines.join("\r\n");
@@ -311,8 +324,15 @@ export function downloadAnalyticsPdf(payload: ReportAnalyticsPayload): void {
 
   autoTable(doc, {
     startY: y,
-    head: [[pdfStr("Agent"), pdfStr("Anunțuri")]],
-    body: payload.topAgents.map((r) => [pdfStr(r.name), String(r.listings)]),
+    head: [[pdfStr("Agent"), pdfStr("Anunțuri"), pdfStr("Scor vânzări"), pdfStr("Scor închirieri")]],
+    body: payload.topAgents.map((r) => [
+      pdfStr(r.name),
+      String(r.listings),
+      r.scorVanzari == null ? "—" : pdfStr((Math.round(r.scorVanzari * 10) / 10).toLocaleString("ro-RO")),
+      r.scorInchirieri == null
+        ? "—"
+        : pdfStr((Math.round(r.scorInchirieri * 10) / 10).toLocaleString("ro-RO")),
+    ]),
     styles: { fontSize: 9 },
     headStyles: { fillColor: [194, 90, 43] },
   });

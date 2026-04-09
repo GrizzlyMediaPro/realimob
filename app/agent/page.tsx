@@ -1052,6 +1052,14 @@ export default function AgentDashboardPage() {
 
   const fmtPerf = (n: number | null) =>
     n == null ? "—" : `${Math.round(n * 10) / 10}`;
+  const perfAverage = useMemo(() => {
+    if (perfScores90d == null) return null;
+    const values = [perfScores90d.scorVanzari, perfScores90d.scorInchirieri].filter(
+      (v): v is number => typeof v === "number"
+    );
+    if (values.length === 0) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [perfScores90d]);
 
   const stats = useMemo(
     () => [
@@ -1863,28 +1871,37 @@ export default function AgentDashboardPage() {
                 >
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Scor performanță
+                      Scor performanță (90 zile)
                     </p>
-                    <div className="flex items-center gap-1.5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <MdStar
-                          key={i}
-                          size={16}
-                          className={
-                            i < 5
-                              ? "text-yellow-400"
-                              : "text-gray-300 dark:text-gray-600"
-                          }
-                        />
-                      ))}
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      Vânzări:{" "}
+                      <span className="font-semibold text-foreground">
+                        {perfScores90d === undefined
+                          ? "…"
+                          : perfScores90d === null
+                            ? "—"
+                            : fmtPerf(perfScores90d.scorVanzari)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      Închirieri:{" "}
+                      <span className="font-semibold text-foreground">
+                        {perfScores90d === undefined
+                          ? "…"
+                          : perfScores90d === null
+                            ? "—"
+                            : fmtPerf(perfScores90d.scorInchirieri)}
+                      </span>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className="text-2xl font-bold text-foreground">
-                      5.0
+                      {perfScores90d === undefined
+                        ? "…"
+                        : fmtPerf(perfAverage)}
                     </span>
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                      profil verificat
+                      medie V / I
                     </p>
                   </div>
                 </div>

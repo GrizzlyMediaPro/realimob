@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { getCachedAgentPerformanceScore } from "@/lib/agentPerformanceScore";
 
 /** Luni scurte RO — evită duplicate/glitcuri din toLocaleDateString pe server */
 const RO_MONTH_SHORT = [
@@ -197,7 +198,7 @@ export async function GET() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    const topAgents = [...allAgentsWithCounts]
+    const topAgentsBase = [...allAgentsWithCounts]
       .sort((a, b) => b._count.listings - a._count.listings)
       .slice(0, 8)
       .map((a) => ({
@@ -205,6 +206,24 @@ export async function GET() {
         name: a.name,
         listings: a._count.listings,
       }));
+    const topAgents = await Promise.all(
+      topAgentsBase.map(async (a) => {
+        try {
+          const score = await getCachedAgentPerformanceScore(a.id);
+          return {
+            ...a,
+            scorVanzari: score.scorVanzari,
+            scorInchirieri: score.scorInchirieri,
+          };
+        } catch {
+          return {
+            ...a,
+            scorVanzari: null,
+            scorInchirieri: null,
+          };
+        }
+      })
+    );
 
     const totalListings =
       approvedListings + deniedListings + pendingListings;

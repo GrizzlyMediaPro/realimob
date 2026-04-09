@@ -73,6 +73,65 @@ function mapDbAgentToPublic(agent: {
   };
 }
 
+function toOptionalNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const str = String(value).trim();
+  if (!str) return undefined;
+  const n = Number(str);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Prima imagine folosibilă din `listing.images` (Prisma Json):
+ * - camere `{ urls: string[] }` (format adăugare anunț),
+ * - sau URL-uri string în array,
+ * - sau obiecte `{ url: string }`.
+ */
+export function getFirstListingImageUrl(
+  images: unknown,
+  fallback = "/ap2.jpg",
+): string {
+  if (!Array.isArray(images) || images.length === 0) return fallback;
+  for (const item of images) {
+    if (item && typeof item === "object" && item !== null && "urls" in item) {
+      const urls = (item as { urls?: unknown }).urls;
+      if (Array.isArray(urls)) {
+        for (const u of urls) {
+          if (typeof u === "string" && u.trim()) return u.trim();
+        }
+      }
+    }
+    if (typeof item === "string" && item.trim()) return item.trim();
+    if (item && typeof item === "object" && item !== null && "url" in item) {
+      const u = (item as { url?: string }).url;
+      if (typeof u === "string" && u.trim()) return u.trim();
+    }
+  }
+  return fallback;
+}
+
+/** Număr total de URL-uri imagine (camere cu `urls`, string-uri sau `{ url }`). */
+export function countListingImages(images: unknown): number {
+  if (!Array.isArray(images)) return 0;
+  let n = 0;
+  for (const item of images) {
+    if (item && typeof item === "object" && item !== null && "urls" in item) {
+      const urls = (item as { urls?: unknown }).urls;
+      if (Array.isArray(urls)) {
+        for (const u of urls) {
+          if (typeof u === "string" && u.trim()) n += 1;
+        }
+      }
+    } else if (typeof item === "string" && item.trim()) {
+      n += 1;
+    } else if (item && typeof item === "object" && item !== null && "url" in item) {
+      const u = (item as { url?: string }).url;
+      if (typeof u === "string" && u.trim()) n += 1;
+    }
+  }
+  return n;
+}
+
 /** Transformă un listing Prisma (cu `agent` opțional inclus) în `Anunt`. */
 export function transformListingToAnunt(
   listing: any,
@@ -98,10 +157,7 @@ export function transformListingToAnunt(
       ? correctLatLngIfSwappedForRomania(rawLat, rawLng)
       : { lat: rawLat, lng: rawLng };
 
-  const firstImage =
-    images.length > 0 && images[0].urls && images[0].urls.length > 0
-      ? images[0].urls[0]
-      : "/ap2.jpg";
+  const firstImage = getFirstListingImageUrl(images);
 
   const tags: string[] = [];
   if (details.suprafataUtila) tags.push(`${details.suprafataUtila} m²`);
@@ -121,6 +177,14 @@ export function transformListingToAnunt(
   const assignedAgent = listing.agent
     ? mapDbAgentToPublic(listing.agent)
     : undefined;
+  const dormitoareApartament =
+    details.camere === "Studio"
+      ? 1
+      : toOptionalNumber(details.camere);
+  const dormitoareCasa = toOptionalNumber(details.nrDormitoareCasa);
+  const dormitoareCasaFallback = toOptionalNumber(details.nrCamere);
+  const dormitoare =
+    dormitoareApartament ?? dormitoareCasa ?? dormitoareCasaFallback;
 
   return {
     id: listing.id,
@@ -133,21 +197,14 @@ export function transformListingToAnunt(
     ),
     tags,
     createdAt: listing.createdAt,
+    updatedAt: listing.updatedAt,
     lat: fixedLat,
     lng: fixedLng,
-    dormitoare: details.camere
-      ? details.camere === "Studio"
-        ? 1
-        : Number(details.camere)
-      : undefined,
-    bai: details.nrBai ? Number(details.nrBai) : undefined,
-    suprafataUtil: details.suprafataUtila
-      ? Number(details.suprafataUtila)
-      : undefined,
+    dormitoare,
+    bai: toOptionalNumber(details.nrBai),
+    suprafataUtil: toOptionalNumber(details.suprafataUtila),
     etaj: details.etaj || undefined,
-    anConstructie: details.anConstructie
-      ? Number(details.anConstructie)
-      : undefined,
+    anConstructie: toOptionalNumber(details.anConstructie),
     zilePostat,
     vizualizari: 0,
     favorite: 0,

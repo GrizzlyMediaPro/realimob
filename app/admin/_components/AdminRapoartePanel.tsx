@@ -111,6 +111,8 @@ export function AdminRapoartePanel() {
   }, []);
 
   const formatNumber = (n: number) => n.toLocaleString("ro-RO");
+  const formatScore = (n: number | null) =>
+    n == null ? "—" : (Math.round(n * 10) / 10).toLocaleString("ro-RO");
 
   return (
     <div className="space-y-8 md:space-y-12">
@@ -330,13 +332,25 @@ export function AdminRapoartePanel() {
                               >
                                 Anunțuri
                               </th>
+                              <th
+                                className="text-right px-3 py-2 font-medium"
+                                style={{ fontFamily: "var(--font-galak-regular)" }}
+                              >
+                                Scor vânzări
+                              </th>
+                              <th
+                                className="text-right px-3 py-2 font-medium"
+                                style={{ fontFamily: "var(--font-galak-regular)" }}
+                              >
+                                Scor închirieri
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             {data.topAgents.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={2}
+                                  colSpan={4}
                                   className="px-3 py-4 text-gray-500 text-center"
                                   style={{ fontFamily: "var(--font-galak-regular)" }}
                                 >
@@ -360,6 +374,18 @@ export function AdminRapoartePanel() {
                                     style={{ fontFamily: "var(--font-galak-regular)" }}
                                   >
                                     {formatNumber(r.listings)}
+                                  </td>
+                                  <td
+                                    className="px-3 py-2 text-right tabular-nums"
+                                    style={{ fontFamily: "var(--font-galak-regular)" }}
+                                  >
+                                    {formatScore(r.scorVanzari)}
+                                  </td>
+                                  <td
+                                    className="px-3 py-2 text-right tabular-nums"
+                                    style={{ fontFamily: "var(--font-galak-regular)" }}
+                                  >
+                                    {formatScore(r.scorInchirieri)}
                                   </td>
                                 </tr>
                               ))

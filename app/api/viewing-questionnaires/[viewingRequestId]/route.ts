@@ -103,13 +103,6 @@ export async function POST(
 
     const { viewingRequestId } = await params;
     const body = (await request.json()) as { answers?: unknown };
-    const answers = parseQuestionnaireBody(body.answers);
-    if (!answers) {
-      return NextResponse.json(
-        { error: "Date chestionar incomplete sau invalide." },
-        { status: 400 },
-      );
-    }
 
     const booking = await prisma.viewingBookingRequest.findUnique({
       where: { id: viewingRequestId },
@@ -128,6 +121,15 @@ export async function POST(
     const isClient = Boolean(actor.email && actor.email === clientEmailNorm);
     if (!isAgent && !isClient) {
       return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
+    }
+
+    const role: "agent" | "client" = isAgent ? "agent" : "client";
+    const answers = parseQuestionnaireBody(body.answers, role);
+    if (!answers) {
+      return NextResponse.json(
+        { error: "Date chestionar incomplete sau invalide." },
+        { status: 400 },
+      );
     }
 
     const q = booking.questionnaire;

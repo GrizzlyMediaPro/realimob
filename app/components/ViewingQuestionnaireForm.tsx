@@ -12,6 +12,13 @@ const INTEREST_OPTIONS: { value: InterestLevel; label: string }[] = [
   { value: "nu_intereseaza", label: "Nu mă interesează" },
 ];
 
+const AGENT_RECOMMENDATION_OPTIONS = [
+  { value: "strong_match", label: "Potrivire foarte bună" },
+  { value: "possible_match", label: "Potrivire posibilă" },
+  { value: "weak_match", label: "Potrivire slabă" },
+  { value: "not_a_match", label: "Nu este potrivire" },
+] as const;
+
 type Payload = {
   role: "agent" | "client";
   listing: { id: string; title: string; price: number; currency: string };
@@ -49,8 +56,18 @@ export default function ViewingQuestionnaireForm({
 
   const [attended, setAttended] = useState<boolean | null>(null);
   const [interestLevel, setInterestLevel] = useState<InterestLevel | "">("");
-  const [matchNotes, setMatchNotes] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
+  const [likedMost, setLikedMost] = useState("");
+  const [concerns, setConcerns] = useState("");
+  const [experienceRating, setExperienceRating] = useState<number | "">("");
+  const [matchNotes, setMatchNotes] = useState("");
+  const [clientPunctualityRating, setClientPunctualityRating] = useState<number | "">("");
+  const [clientEngagementRating, setClientEngagementRating] = useState<number | "">("");
+  const [clientObjections, setClientObjections] = useState("");
+  const [recommendation, setRecommendation] = useState<
+    "strong_match" | "possible_match" | "weak_match" | "not_a_match" | ""
+  >("");
+  const [followUpAction, setFollowUpAction] = useState("");
   const [wantsOffer, setWantsOffer] = useState(false);
   const [offerAmount, setOfferAmount] = useState("");
   const [offerCurrency, setOfferCurrency] = useState("RON");
@@ -91,6 +108,17 @@ export default function ViewingQuestionnaireForm({
       setSubmitError("Completează participarea și nivelul de interes.");
       return;
     }
+    if (payload.role === "client" && !experienceRating) {
+      setSubmitError("Completează evaluarea experienței tale.");
+      return;
+    }
+    if (
+      payload.role === "agent" &&
+      (!clientPunctualityRating || !clientEngagementRating || !recommendation)
+    ) {
+      setSubmitError("Completează evaluarea detaliată a vizionării.");
+      return;
+    }
     if (wantsOffer) {
       const n = Number(String(offerAmount).replace(",", "."));
       if (!Number.isFinite(n) || n <= 0) {
@@ -104,8 +132,21 @@ export default function ViewingQuestionnaireForm({
         answers: {
           attended,
           interestLevel,
-          matchNotes,
           additionalNotes,
+          ...(payload.role === "client"
+            ? {
+                experienceRating,
+                likedMost,
+                concerns,
+              }
+            : {
+                matchNotes,
+                clientPunctualityRating,
+                clientEngagementRating,
+                clientObjections,
+                recommendation,
+                followUpAction,
+              }),
           wantsOffer,
           ...(wantsOffer
             ? {
@@ -247,16 +288,157 @@ export default function ViewingQuestionnaireForm({
 
       <div>
         <label className="block text-sm font-medium text-foreground mb-1.5">
-          Potrivire cu așteptări / observații despre imobil
+          {payload.role === "agent"
+            ? "Potrivire cu așteptări / observații despre imobil"
+            : "Ce ți-a plăcut cel mai mult la imobil?"}
         </label>
         <textarea
-          value={matchNotes}
-          onChange={(e) => setMatchNotes(e.target.value)}
+          value={payload.role === "agent" ? matchNotes : likedMost}
+          onChange={(e) =>
+            payload.role === "agent"
+              ? setMatchNotes(e.target.value)
+              : setLikedMost(e.target.value)
+          }
           rows={4}
           className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm resize-y min-h-[96px]"
-          placeholder="Ex.: spații, lumină, zonă, starea imobilului…"
+          placeholder={
+            payload.role === "agent"
+              ? "Ex.: spații, lumină, zonă, starea imobilului…"
+              : "Ex.: compartimentare, zonă, facilități, atmosferă…"
+          }
         />
       </div>
+
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1.5">
+          {payload.role === "agent"
+            ? "Obiecții/întrebări principale ale clientului"
+            : "Ce te-a nemulțumit sau ce îți ridică semne de întrebare?"}
+        </label>
+        <textarea
+          value={payload.role === "agent" ? clientObjections : concerns}
+          onChange={(e) =>
+            payload.role === "agent"
+              ? setClientObjections(e.target.value)
+              : setConcerns(e.target.value)
+          }
+          rows={3}
+          className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm resize-y"
+        />
+      </div>
+
+      {payload.role === "client" ? (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Cum evaluezi experiența vizionării cu agentul? (1-5)
+          </label>
+          <select
+            value={experienceRating}
+            onChange={(e) =>
+              setExperienceRating(e.target.value ? Number(e.target.value) : "")
+            }
+            className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+            required
+          >
+            <option value="">Alege nota…</option>
+            {[1, 2, 3, 4, 5].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Punctualitatea clientului (1-5)
+              </label>
+              <select
+                value={clientPunctualityRating}
+                onChange={(e) =>
+                  setClientPunctualityRating(
+                    e.target.value ? Number(e.target.value) : "",
+                  )
+                }
+                className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+                required
+              >
+                <option value="">Alege…</option>
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Nivel implicare client (1-5)
+              </label>
+              <select
+                value={clientEngagementRating}
+                onChange={(e) =>
+                  setClientEngagementRating(
+                    e.target.value ? Number(e.target.value) : "",
+                  )
+                }
+                className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+                required
+              >
+                <option value="">Alege…</option>
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Recomandare agent
+            </label>
+            <select
+              value={recommendation}
+              onChange={(e) =>
+                setRecommendation(
+                  e.target.value as
+                    | "strong_match"
+                    | "possible_match"
+                    | "weak_match"
+                    | "not_a_match"
+                    | "",
+                )
+              }
+              className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+              required
+            >
+              <option value="">Alege recomandarea…</option>
+              {AGENT_RECOMMENDATION_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Acțiune de follow-up propusă
+            </label>
+            <textarea
+              value={followUpAction}
+              onChange={(e) => setFollowUpAction(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm resize-y"
+              placeholder="Ex.: trimis ofertă, programat al doilea tur, clarificări documente."
+            />
+          </div>
+        </>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-foreground mb-1.5">
