@@ -45,6 +45,7 @@ export async function GET() {
         status: r.status,
         startAt: r.startAt.toISOString(),
         endAt: r.endAt.toISOString(),
+        listingId: r.listingId,
         listingTitle: r.listing.title,
         clientName: r.clientName,
         clientEmail: r.clientEmail,

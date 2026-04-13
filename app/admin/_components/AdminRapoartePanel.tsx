@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type CSSProperties } from "react";
+import { useState, useEffect, useCallback, type CSSProperties } from "react";
 import {
   MdDescription,
   MdPictureAsPdf,
@@ -69,7 +69,11 @@ function GlassReflection({ isDark }: { isDark: boolean }) {
   );
 }
 
-export function AdminRapoartePanel() {
+export function AdminRapoartePanel({
+  analyticsFetchUrl,
+}: {
+  analyticsFetchUrl: string | null;
+}) {
   const [isDark, setIsDark] = useState(false);
   const [data, setData] = useState<ReportAnalyticsPayload>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -88,11 +92,17 @@ export function AdminRapoartePanel() {
     return () => observer.disconnect();
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (analyticsFetchUrl === null) {
+      setData(EMPTY);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/analytics", { cache: "no-store" });
+      const res = await fetch(analyticsFetchUrl, { cache: "no-store" });
       const payload = await res.json();
       if (!res.ok) {
         throw new Error(payload?.error || "Nu am putut încărca datele pentru raport.");
@@ -104,13 +114,15 @@ export function AdminRapoartePanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [analyticsFetchUrl]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const formatNumber = (n: number) => n.toLocaleString("ro-RO");
+  const formatScore = (n: number | null) =>
+    n == null ? "—" : (Math.round(n * 10) / 10).toLocaleString("ro-RO");
 
   return (
     <div className="space-y-8 md:space-y-12">
@@ -148,6 +160,15 @@ export function AdminRapoartePanel() {
                   >
                     Aceleași agregări ca în tab-ul Statistici: anunțuri, agenți,
                     utilizatori, distribuții și evoluții recente.
+                    {data.meta?.filtered && data.meta.from && data.meta.to ? (
+                      <>
+                        {" "}
+                        <span className="text-foreground/80">
+                          Perioadă activă (UTC): {data.meta.from.slice(0, 10)} —{" "}
+                          {data.meta.to.slice(0, 10)}.
+                        </span>
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -172,7 +193,9 @@ export function AdminRapoartePanel() {
                   <button
                     type="button"
                     onClick={() => downloadAnalyticsCsv(data)}
-                    disabled={loading || !!error}
+                    disabled={
+                      loading || !!error || analyticsFetchUrl === null
+                    }
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-[#C25A2B] hover:bg-[#a84d24] transition-colors disabled:opacity-50"
                     style={{ fontFamily: "var(--font-galak-regular)" }}
                   >
@@ -182,7 +205,9 @@ export function AdminRapoartePanel() {
                   <button
                     type="button"
                     onClick={() => downloadAnalyticsPdf(data)}
-                    disabled={loading || !!error}
+                    disabled={
+                      loading || !!error || analyticsFetchUrl === null
+                    }
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border border-[#C25A2B] text-[#C25A2B] hover:bg-[#C25A2B]/10 transition-colors disabled:opacity-50"
                     style={{ fontFamily: "var(--font-galak-regular)" }}
                   >
@@ -192,7 +217,15 @@ export function AdminRapoartePanel() {
                 </div>
               </div>
 
-              {loading ? (
+              {analyticsFetchUrl === null ? (
+                <p
+                  className="text-gray-500 dark:text-gray-400"
+                  style={{ fontFamily: "var(--font-galak-regular)" }}
+                >
+                  Aplică un interval personalizat (ambele date) pentru a genera
+                  raportul, sau comută la un alt preset.
+                </p>
+              ) : loading ? (
                 <p
                   className="text-gray-500 dark:text-gray-400"
                   style={{ fontFamily: "var(--font-galak-regular)" }}
@@ -330,13 +363,25 @@ export function AdminRapoartePanel() {
                               >
                                 Anunțuri
                               </th>
+                              <th
+                                className="text-right px-3 py-2 font-medium"
+                                style={{ fontFamily: "var(--font-galak-regular)" }}
+                              >
+                                Scor vânzări
+                              </th>
+                              <th
+                                className="text-right px-3 py-2 font-medium"
+                                style={{ fontFamily: "var(--font-galak-regular)" }}
+                              >
+                                Scor închirieri
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             {data.topAgents.length === 0 ? (
                               <tr>
                                 <td
-                                  colSpan={2}
+                                  colSpan={4}
                                   className="px-3 py-4 text-gray-500 text-center"
                                   style={{ fontFamily: "var(--font-galak-regular)" }}
                                 >
@@ -360,6 +405,18 @@ export function AdminRapoartePanel() {
                                     style={{ fontFamily: "var(--font-galak-regular)" }}
                                   >
                                     {formatNumber(r.listings)}
+                                  </td>
+                                  <td
+                                    className="px-3 py-2 text-right tabular-nums"
+                                    style={{ fontFamily: "var(--font-galak-regular)" }}
+                                  >
+                                    {formatScore(r.scorVanzari)}
+                                  </td>
+                                  <td
+                                    className="px-3 py-2 text-right tabular-nums"
+                                    style={{ fontFamily: "var(--font-galak-regular)" }}
+                                  >
+                                    {formatScore(r.scorInchirieri)}
                                   </td>
                                 </tr>
                               ))

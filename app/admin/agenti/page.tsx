@@ -49,6 +49,8 @@ interface Agent {
   signedContractUrl?: string | null;
   signedContractFileName?: string | null;
   signedUploadedAt?: string | null;
+  scorVanzari?: number | null;
+  scorInchirieri?: number | null;
 }
 
 type ReportPreset = "luna-curenta" | "luna-precedenta" | "an-curent" | "an-precedent" | "personalizat";
@@ -111,6 +113,8 @@ type AgentApiItem = {
   signedContractUrl?: string | null;
   signedContractFileName?: string | null;
   signedUploadedAt?: string | null;
+  scorVanzari?: number | null;
+  scorInchirieri?: number | null;
 };
 
 export default function AdminAgentiPage() {
@@ -187,6 +191,12 @@ export default function AdminAgentiPage() {
           signedContractUrl: agent.signedContractUrl ?? null,
           signedContractFileName: agent.signedContractFileName ?? null,
           signedUploadedAt: agent.signedUploadedAt ?? null,
+          scorVanzari:
+            typeof agent.scorVanzari === "number" ? agent.scorVanzari : null,
+          scorInchirieri:
+            typeof agent.scorInchirieri === "number"
+              ? agent.scorInchirieri
+              : null,
         };
       });
 
@@ -523,6 +533,11 @@ export default function AdminAgentiPage() {
         return "În Așteptare";
     }
   };
+
+  const formatScore = (value: number | null | undefined) =>
+    typeof value === "number"
+      ? (Math.round(value * 10) / 10).toLocaleString("ro-RO")
+      : "—";
 
   return (
     <div className="min-h-screen text-foreground pt-20">
@@ -1048,6 +1063,10 @@ export default function AdminAgentiPage() {
                                 </div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">
                                   {agent.id}
+                                </div>
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                                  Scor V/I: {formatScore(agent.scorVanzari)} /{" "}
+                                  {formatScore(agent.scorInchirieri)}
                                 </div>
                               </div>
                             </div>

@@ -164,6 +164,7 @@ type ViewingRequestRow = {
   status: string;
   startAt: string;
   endAt: string;
+  listingId: string;
   listingTitle: string;
   clientName: string;
   clientEmail: string;
@@ -194,7 +195,7 @@ function viewingRowToProgramare(r: ViewingRequestRow): Programare {
     ora,
     numeClient: r.clientName,
     tip: "vizionare",
-    imobil: r.listingTitle,
+    imobil: `${r.listingTitle} · ID: ${r.listingId}`,
     status,
   };
 }
@@ -474,6 +475,37 @@ export default function AgentDashboardPage() {
       /* ignore */
     }
   }, []);
+
+  const [notificariTab, setNotificariTab] = useState<"necitite" | "citite">(
+    "necitite",
+  );
+
+  const markNotificationAsRead = useCallback(async (id: string) => {
+    try {
+      const r = await fetch(`/api/notifications/${id}/read`, {
+        method: "POST",
+      });
+      if (!r.ok) return;
+      setNotificari((cur) =>
+        cur.map((item) =>
+          item.id === id ? { ...item, citita: true } : item,
+        ),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const notificariNecitite = useMemo(
+    () => notificari.filter((n) => !n.citita),
+    [notificari],
+  );
+  const notificariCitite = useMemo(
+    () => notificari.filter((n) => n.citita),
+    [notificari],
+  );
+  const notificariAfisate =
+    notificariTab === "necitite" ? notificariNecitite : notificariCitite;
 
   const refreshPendingOffers = useCallback(async () => {
     try {
@@ -1052,6 +1084,14 @@ export default function AgentDashboardPage() {
 
   const fmtPerf = (n: number | null) =>
     n == null ? "—" : `${Math.round(n * 10) / 10}`;
+  const perfAverage = useMemo(() => {
+    if (perfScores90d == null) return null;
+    const values = [perfScores90d.scorVanzari, perfScores90d.scorInchirieri].filter(
+      (v): v is number => typeof v === "number"
+    );
+    if (values.length === 0) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [perfScores90d]);
 
   const stats = useMemo(
     () => [
@@ -1169,33 +1209,90 @@ export default function AgentDashboardPage() {
             style={glassCard(isDark)}
           >
             <GlassShine isDark={isDark} />
-            <h2 className="text-lg font-semibold relative z-1 flex items-center gap-2 mb-4">
-              <MdNotifications className="text-[#C25A2B]" size={20} />
-              Notificări — chestionare de completat
-            </h2>
+            <div className="relative z-1 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <MdNotifications className="text-[#C25A2B]" size={20} />
+                Notificări — chestionare de completat
+              </h2>
+              {notificari.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNotificariTab("necitite")}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      notificariTab === "necitite"
+                        ? "bg-[#C25A2B]/20 text-[#C25A2B]"
+                        : "bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    Necitite ({notificariNecitite.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotificariTab("citite")}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      notificariTab === "citite"
+                        ? "bg-[#C25A2B]/20 text-[#C25A2B]"
+                        : "bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    Citite ({notificariCitite.length})
+                  </button>
+                </div>
+              ) : null}
+            </div>
             {notificari.length === 0 ? (
               <p className="text-sm text-gray-600 dark:text-gray-400 relative z-1">
                 Dacă nu vezi notificări aici, reîmprospătează pagina sau verifică că folosești același email
                 ca în contul de agent.
               </p>
+            ) : notificariAfisate.length === 0 ? (
+              <p className="text-sm text-gray-600 dark:text-gray-400 relative z-1">
+                {notificariTab === "necitite"
+                  ? "Nu ai notificări necitite."
+                  : "Nu ai notificări citite încă."}
+              </p>
             ) : (
               <ul className="space-y-2 relative z-1">
-                {notificari.map((n) => (
-                  <li
-                    key={n.id}
-                    className="rounded-xl px-3 py-2.5 text-sm border border-black/5 dark:border-white/10 bg-white/40 dark:bg-white/5"
-                  >
-                    <p className="text-foreground">{n.mesaj}</p>
-                    {n.href ? (
-                      <Link
-                        href={n.href}
-                        className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                {notificariAfisate.map((n) => {
+                  const isUnread = !n.citita;
+                  return (
+                    <li key={n.id}>
+                      <div
+                        role={isUnread ? "button" : undefined}
+                        tabIndex={isUnread ? 0 : undefined}
+                        onClick={() => {
+                          if (isUnread) void markNotificationAsRead(n.id);
+                        }}
+                        onKeyDown={
+                          isUnread
+                            ? (e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  void markNotificationAsRead(n.id);
+                                }
+                              }
+                            : undefined
+                        }
+                        className={`rounded-xl px-3 py-2.5 text-sm border border-black/5 dark:border-white/10 bg-white/40 dark:bg-white/5 ${
+                          isUnread
+                            ? "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#C25A2B]/40"
+                            : ""
+                        }`}
                       >
-                        Deschide chestionarul
-                      </Link>
-                    ) : null}
-                  </li>
-                ))}
+                        <p className="text-foreground">{n.mesaj}</p>
+                        {n.href ? (
+                          <Link
+                            href={n.href}
+                            className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                          >
+                            Deschide chestionarul
+                          </Link>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -1863,28 +1960,37 @@ export default function AgentDashboardPage() {
                 >
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Scor performanță
+                      Scor performanță (90 zile)
                     </p>
-                    <div className="flex items-center gap-1.5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <MdStar
-                          key={i}
-                          size={16}
-                          className={
-                            i < 5
-                              ? "text-yellow-400"
-                              : "text-gray-300 dark:text-gray-600"
-                          }
-                        />
-                      ))}
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      Vânzări:{" "}
+                      <span className="font-semibold text-foreground">
+                        {perfScores90d === undefined
+                          ? "…"
+                          : perfScores90d === null
+                            ? "—"
+                            : fmtPerf(perfScores90d.scorVanzari)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300">
+                      Închirieri:{" "}
+                      <span className="font-semibold text-foreground">
+                        {perfScores90d === undefined
+                          ? "…"
+                          : perfScores90d === null
+                            ? "—"
+                            : fmtPerf(perfScores90d.scorInchirieri)}
+                      </span>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className="text-2xl font-bold text-foreground">
-                      5.0
+                      {perfScores90d === undefined
+                        ? "…"
+                        : fmtPerf(perfAverage)}
                     </span>
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                      profil verificat
+                      medie V / I
                     </p>
                   </div>
                 </div>
@@ -2121,7 +2227,18 @@ export default function AgentDashboardPage() {
                               <p className="font-medium text-foreground truncate">
                                 {row.listingTitle}
                               </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                              <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 break-all mt-0.5">
+                                ID anunț: {row.listingId}
+                              </p>
+                              <Link
+                                href={`/anunturi/${row.listingId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-[#C25A2B] hover:underline inline-block mt-1"
+                              >
+                                Vezi anunțul →
+                              </Link>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                 {label} · {row.clientName} · {row.clientEmail}
                               </p>
                               {row.message && (
@@ -2196,7 +2313,18 @@ export default function AgentDashboardPage() {
                                   {Number(o.amount).toLocaleString("ro-RO")}{" "}
                                   {o.currency} · {o.listing.title}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 break-all mt-0.5">
+                                  ID anunț: {o.listing.id}
+                                </p>
+                                <Link
+                                  href={`/anunturi/${o.listing.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-medium text-[#C25A2B] hover:underline inline-block mt-1"
+                                >
+                                  Vezi anunțul →
+                                </Link>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                   {o.viewingRequest?.clientName ?? "Client"} ·{" "}
                                   {o.viewingRequest?.clientEmail ?? "—"}
                                 </p>
@@ -2445,7 +2573,7 @@ export default function AgentDashboardPage() {
               >
                 <GlassShine isDark={isDark} />
                 <div className="p-5 md:p-6 relative z-1 flex flex-col flex-1 min-h-0 gap-4">
-                  <div className="flex items-center justify-between shrink-0">
+                  <div className="flex flex-col gap-3 shrink-0 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2">
                       <MdNotifications
                         size={20}
@@ -2455,18 +2583,47 @@ export default function AgentDashboardPage() {
                         Notificări
                       </h2>
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {notificari.filter((n) => !n.citita).length} necitite
-                    </span>
+                    {notificari.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNotificariTab("necitite")}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                            notificariTab === "necitite"
+                              ? "bg-[#C25A2B]/20 text-[#C25A2B]"
+                              : "bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
+                          Necitite ({notificariNecitite.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotificariTab("citite")}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                            notificariTab === "citite"
+                              ? "bg-[#C25A2B]/20 text-[#C25A2B]"
+                              : "bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
+                          Citite ({notificariCitite.length})
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
 
                   {notificari.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-gray-400 lg:flex-1 lg:flex lg:items-center lg:min-h-0">
                       Nu ai notificări în acest moment.
                     </p>
+                  ) : notificariAfisate.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 lg:flex-1 lg:flex lg:items-center lg:min-h-0">
+                      {notificariTab === "necitite"
+                        ? "Nu ai notificări necitite."
+                        : "Nu ai notificări citite încă."}
+                    </p>
                   ) : (
                     <div className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1 hide-scrollbar">
-                      {notificari.map((n) => {
+                      {notificariAfisate.map((n) => {
                         const isUnread = !n.citita;
                         const dateLabel = new Date(
                           n.data
@@ -2478,9 +2635,24 @@ export default function AgentDashboardPage() {
                         return (
                           <div
                             key={n.id}
+                            role={isUnread ? "button" : undefined}
+                            tabIndex={isUnread ? 0 : undefined}
+                            onClick={() => {
+                              if (isUnread) void markNotificationAsRead(n.id);
+                            }}
+                            onKeyDown={
+                              isUnread
+                                ? (e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      void markNotificationAsRead(n.id);
+                                    }
+                                  }
+                                : undefined
+                            }
                             className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm ${
                               isUnread
-                                ? "bg-white/80 dark:bg-black/40"
+                                ? "bg-white/80 dark:bg-black/40 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#C25A2B]/40"
                                 : "bg-white/60 dark:bg-black/20"
                             }`}
                           >
@@ -2514,7 +2686,8 @@ export default function AgentDashboardPage() {
                                   ? "Marchează ca citit"
                                   : "Marchează ca necitit"
                               }
-                              onClick={async () => {
+                              onClick={async (e) => {
+                                e.stopPropagation();
                                 const willBeRead = isUnread;
                                 try {
                                   await fetch(

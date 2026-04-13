@@ -9,9 +9,17 @@ type AnuntDetailsExpandedProps = {
   anunt: {
     pret: string;
     suprafataUtil?: number;
+    createdAt?: string;
+    updatedAt?: string;
   };
   pretPerMp?: string;
   isInchiriere?: boolean;
+  priceHistory?: {
+    date: string;
+    event: string;
+    price: string;
+    pricePerMp?: string;
+  }[];
   /** `undefined` = secțiunea clasică (mock); `null` = fără date (lipsă coordonate sau eroare); obiect = date OSM. */
   nearbyInsights?: ListingNearbyInsights | null;
 };
@@ -20,9 +28,23 @@ export default function AnuntDetailsExpanded({
   anunt,
   pretPerMp,
   isInchiriere,
+  priceHistory,
   nearbyInsights,
 }: AnuntDetailsExpandedProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const fallbackHistory = [
+    {
+      date: anunt.createdAt
+        ? new Date(anunt.createdAt).toLocaleDateString("ro-RO")
+        : "N/A",
+      event: isInchiriere ? "Listat pentru închiriere" : "Listat pentru vânzare",
+      price: anunt.pret,
+      pricePerMp: pretPerMp,
+    },
+  ];
+  const historyRows = (priceHistory && priceHistory.length > 0)
+    ? priceHistory
+    : fallbackHistory;
 
   if (!isExpanded) {
     return (
@@ -59,54 +81,19 @@ export default function AnuntDetailsExpanded({
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-gray-100 dark:border-gray-800/50">
-                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">15 Ian 2024</td>
-                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
-                    {isInchiriere ? "Listat pentru închiriere" : "Listat pentru vânzare"}
-                  </td>
-                  <td className="py-3 px-4 text-sm">
-                    {isInchiriere ? (
-                      <>
-                        <div className="font-semibold text-gray-900 dark:text-white">1.200 €/lună</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500">12 €/m²</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="font-semibold text-gray-900 dark:text-white">125.000 €</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500">1.250 €/m²</div>
-                      </>
-                    )}
-                  </td>
-                </tr>
-                <tr className="border-b border-gray-100 dark:border-gray-800/50">
-                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">20 Feb 2024</td>
-                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">Modificare preț</td>
-                  <td className="py-3 px-4 text-sm">
-                    {isInchiriere ? (
-                      <>
-                        <div className="font-semibold text-gray-900 dark:text-white">1.100 €/lună</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500">11 €/m²</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="font-semibold text-gray-900 dark:text-white">120.000 €</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500">1.200 €/m²</div>
-                      </>
-                    )}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">10 Mar 2024</td>
-                  <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">Modificare preț</td>
-                  <td className="py-3 px-4 text-sm">
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                      {anunt.pret}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500">
-                      {pretPerMp || 'N/A'}
-                    </div>
-                  </td>
-                </tr>
+                {historyRows.map((row, index) => (
+                  <tr
+                    key={`${row.date}-${row.event}-${index}`}
+                    className={index < historyRows.length - 1 ? "border-b border-gray-100 dark:border-gray-800/50" : ""}
+                  >
+                    <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{row.date}</td>
+                    <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{row.event}</td>
+                    <td className="py-3 px-4 text-sm">
+                      <div className="font-semibold text-gray-900 dark:text-white">{row.price}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-500">{row.pricePerMp || "N/A"}</div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

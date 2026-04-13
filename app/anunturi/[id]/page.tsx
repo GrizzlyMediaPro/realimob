@@ -107,6 +107,30 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
     "București";
+  const formatHistoryDate = (iso?: string) =>
+    iso ? new Date(iso).toLocaleDateString("ro-RO") : "N/A";
+  const priceHistory = [
+    {
+      date: formatHistoryDate(anunt.createdAt),
+      event: "Listat pentru vânzare",
+      price: anunt.pret,
+      pricePerMp:
+        anunt.suprafataUtil !== undefined && anunt.pret
+          ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
+          : undefined,
+    },
+  ];
+  if (anunt.updatedAt && anunt.updatedAt !== anunt.createdAt) {
+    priceHistory.push({
+      date: formatHistoryDate(anunt.updatedAt),
+      event: "Actualizare anunț",
+      price: anunt.pret,
+      pricePerMp:
+        anunt.suprafataUtil !== undefined && anunt.pret
+          ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
+          : undefined,
+    });
+  }
 
   return (
     <div className="min-h-screen text-foreground">
@@ -320,6 +344,7 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                   <AnuntDetailsExpanded 
                     anunt={anunt} 
                     pretPerMp={anunt.suprafataUtil !== undefined && anunt.pret ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²` : undefined}
+                    priceHistory={priceHistory}
                   />
                 </div>
 

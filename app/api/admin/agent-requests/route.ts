@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import type { AgentApplicationMetadata } from "@/lib/agent-application";
+import { getCachedAgentPerformanceScore } from "@/lib/agentPerformanceScore";
 
 type AgentStatus = "pending" | "approved" | "rejected" | "none" | "suspended";
 
@@ -49,28 +50,57 @@ export async function GET() {
       limit: 100,
     });
 
-    const users = usersResponse.data
+    const rawUsers = usersResponse.data
       .filter((user) => {
         const requestedRole = (user.unsafeMetadata as { requestedRole?: string } | undefined)
           ?.requestedRole;
         const publicMetadata = user.publicMetadata as { isAgent?: boolean } | undefined;
         return requestedRole === "agent" || Boolean(publicMetadata?.isAgent);
-      })
-      .map((user) => {
+      });
+
+    const emails = rawUsers
+      .map((user) => user.emailAddresses[0]?.emailAddress?.trim().toLowerCase() ?? "")
+      .filter(Boolean);
+    const dbAgents = emails.length
+      ? await prisma.agent.findMany({
+          where: { email: { in: emails } },
+          select: { id: true, email: true },
+        })
+      : [];
+    const dbAgentByEmail = new Map(
+      dbAgents
+        .filter((a) => a.email)
+        .map((a) => [String(a.email).trim().toLowerCase(), a.id])
+    );
+
+    const users = await Promise.all(rawUsers.map(async (user) => {
         const metadata = user.publicMetadata as {
           agentStatus?: AgentStatus;
           agentApplication?: AgentApplicationMetadata;
         };
         const app = metadata.agentApplication ?? {};
+        const email = user.emailAddresses[0]?.emailAddress ?? "-";
+        const dbAgentId = dbAgentByEmail.get(email.trim().toLowerCase());
+        let scorVanzari: number | null = null;
+        let scorInchirieri: number | null = null;
+        if (dbAgentId) {
+          try {
+            const score = await getCachedAgentPerformanceScore(dbAgentId);
+            scorVanzari = score.scorVanzari;
+            scorInchirieri = score.scorInchirieri;
+          } catch {
+            // păstrăm null când scorul nu poate fi calculat
+          }
+        }
 
         return {
           id: user.id,
           nume:
             [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
             user.username ||
-            user.emailAddresses[0]?.emailAddress ||
+            email ||
             "Agent fără nume",
-          email: user.emailAddresses[0]?.emailAddress ?? "-",
+          email,
           telefon:
             (app.telefon && app.telefon.trim()) ||
             user.phoneNumbers[0]?.phoneNumber ||
@@ -89,8 +119,10 @@ export async function GET() {
           signedContractFileName: app.signedContractFileName ?? null,
           signedUploadedAt: app.signedUploadedAt ?? null,
           reviewedAt: app.reviewedAt ?? null,
+          scorVanzari,
+          scorInchirieri,
         };
-      });
+      }));
 
     return NextResponse.json({ agents: users });
   } catch (error) {

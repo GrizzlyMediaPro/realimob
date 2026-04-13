@@ -71,6 +71,11 @@ type DisplayAgent = {
   isAssigned: boolean;
 };
 
+type AgentPerformancePair = {
+  scorVanzari: number | null;
+  scorInchirieri: number | null;
+};
+
 function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
   const a = anunt.assignedAgent;
   if (a) {
@@ -100,6 +105,12 @@ function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
     avatar: null,
     isAssigned: false,
   };
+}
+
+function fmtPerfScore(value: number | null | undefined): string {
+  return typeof value === "number"
+    ? (Math.round(value * 10) / 10).toLocaleString("ro-RO")
+    : "—";
 }
 
 function isMongoListingId(id: string): boolean {
@@ -185,12 +196,14 @@ function TooltipPortal({
 /* ── Modal agent ── */
 function AgentModal({
   agent,
+  perfScores,
   agentInitials,
   locationTag,
   isAssigned,
   onClose,
 }: {
   agent: DisplayAgent;
+  perfScores: AgentPerformancePair | null;
   agentInitials: string;
   locationTag: string;
   isAssigned: boolean;
@@ -280,6 +293,23 @@ function AgentModal({
             </div>
           </div>
 
+          {perfScores && (
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-xl bg-gray-50/80 dark:bg-zinc-900/70 px-3 py-2">
+                <span className="text-gray-500 dark:text-gray-400">Scor vânzări</span>
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {fmtPerfScore(perfScores.scorVanzari)}
+                </div>
+              </div>
+              <div className="rounded-xl bg-gray-50/80 dark:bg-zinc-900/70 px-3 py-2">
+                <span className="text-gray-500 dark:text-gray-400">Scor închirieri</span>
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {fmtPerfScore(perfScores.scorInchirieri)}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
             {isAssigned ? (
               <>
@@ -336,6 +366,7 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingOpen, setViewingOpen] = useState(false);
+  const [perfScores, setPerfScores] = useState<AgentPerformancePair | null>(null);
 
   const nameRef = useRef<HTMLButtonElement>(null);
   const infoRef = useRef<HTMLButtonElement>(null);
@@ -359,6 +390,32 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
     "București";
 
   const closeModal = useCallback(() => setIsModalOpen(false), []);
+
+  useEffect(() => {
+    if (!agent.isAssigned) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ agentId: agent.id });
+        const res = await fetch(`/api/agents/public-performance-score?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        setPerfScores({
+          scorVanzari: typeof data?.scorVanzari === "number" ? data.scorVanzari : null,
+          scorInchirieri:
+            typeof data?.scorInchirieri === "number" ? data.scorInchirieri : null,
+        });
+      } catch {
+        if (!cancelled) setPerfScores(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.id, agent.isAssigned]);
+  const visiblePerfScores = agent.isAssigned ? perfScores : null;
 
   const openWhatsApp = useCallback(() => {
     if (!waDigits) return;
@@ -462,6 +519,12 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
             <span className="text-[12px]">{agent.rating.toFixed(1)}</span>
           </span>
         </div>
+        {visiblePerfScores && (
+          <div className="text-[11px] text-gray-200 mb-1">
+            Vânzări: {fmtPerfScore(visiblePerfScores.scorVanzari)} · Închirieri:{" "}
+            {fmtPerfScore(visiblePerfScores.scorInchirieri)}
+          </div>
+        )}
         <div className="flex items-center justify-between text-[11px] text-gray-200">
           <span>
             {agent.isAssigned
@@ -486,6 +549,7 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
       {isModalOpen && (
         <AgentModal
           agent={agent}
+          perfScores={visiblePerfScores}
           agentInitials={agentInitials}
           locationTag={locationTag}
           isAssigned={agent.isAssigned}
@@ -508,6 +572,7 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingOpen, setViewingOpen] = useState(false);
+  const [perfScores, setPerfScores] = useState<AgentPerformancePair | null>(null);
 
   const infoRef = useRef<HTMLButtonElement>(null);
 
@@ -530,6 +595,32 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
     "București";
 
   const closeModal = useCallback(() => setIsModalOpen(false), []);
+
+  useEffect(() => {
+    if (!agent.isAssigned) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ agentId: agent.id });
+        const res = await fetch(`/api/agents/public-performance-score?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        setPerfScores({
+          scorVanzari: typeof data?.scorVanzari === "number" ? data.scorVanzari : null,
+          scorInchirieri:
+            typeof data?.scorInchirieri === "number" ? data.scorInchirieri : null,
+        });
+      } catch {
+        if (!cancelled) setPerfScores(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.id, agent.isAssigned]);
+  const visiblePerfScores = agent.isAssigned ? perfScores : null;
 
   const openWhatsApp = useCallback(() => {
     if (!waDigits) return;
@@ -636,6 +727,7 @@ export function AgentMobileBar({ anunt }: { anunt: Anunt }) {
       {isModalOpen && (
         <AgentModal
           agent={agent}
+          perfScores={visiblePerfScores}
           agentInitials={agentInitials}
           locationTag={locationTag}
           isAssigned={agent.isAssigned}

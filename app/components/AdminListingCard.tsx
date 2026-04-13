@@ -140,10 +140,12 @@ export default function AdminListingCard({
               <CiImageOn className="text-gray-400 dark:text-gray-500" size={32} aria-hidden />
             </div>
           )}
-          <div className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs flex items-center gap-1 backdrop-blur-sm">
-            <CiImageOn size={12} />
-            <span className="text-xs">{imageCount}</span>
-          </div>
+          {imageCount > 0 && (
+            <div className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs flex items-center gap-1 backdrop-blur-sm">
+              <CiImageOn size={12} aria-hidden />
+              <span className="text-xs">{imageCount}</span>
+            </div>
+          )}
         </div>
 
         {/* Conținut */}
@@ -159,6 +161,9 @@ export default function AdminListingCard({
           >
             {titlu}
           </h3>
+          <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mb-1 break-all">
+            ID anunț: {id}
+          </p>
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1.5">
             <MdLocationOn size={12} />
             <span className="truncate">București, {locationText}</span>

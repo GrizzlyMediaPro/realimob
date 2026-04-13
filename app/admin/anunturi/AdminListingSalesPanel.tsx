@@ -177,6 +177,9 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
                 <div className="flex flex-wrap justify-between gap-2 mb-2">
                   <div>
                     <p className="font-semibold text-foreground">{row.title}</p>
+                    <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 break-all">
+                      ID anunț: {row.id}
+                    </p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {row.transactionType} · {row.price.toLocaleString("ro-RO")}{" "}
                       {row.currency}

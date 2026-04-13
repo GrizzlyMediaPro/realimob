@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:demo-listings": "node --env-file=.env scripts/seed-demo-listings.mjs",
+    "remove:mock-listings": "node --env-file=.env scripts/seed-demo-listings.mjs --delete-only"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.38.3",

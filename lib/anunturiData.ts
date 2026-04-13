@@ -14,6 +14,7 @@ export type Anunt = {
   pret: string;
   tags: string[];
   createdAt: string;
+  updatedAt?: string;
   lat?: number;
   lng?: number;
   dormitoare?: number;

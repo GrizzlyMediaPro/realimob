@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  formatAgentQuestionnaireForDisplay,
+  formatClientQuestionnaireForDisplay,
+} from "@/lib/viewing-questionnaire-display";
 
 type Row = {
   id: string;
@@ -122,15 +126,31 @@ export default function AdminChestionareVizionariPanel({
                       >
                         {r.listing.title}
                       </Link>
+                      <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 break-all">
+                        ID: {r.listing.id}
+                      </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {r.listing.transactionType}
                       </p>
                     </td>
                     <td className="py-3 pr-3">
-                      <p className="font-medium">{r.agent.name}</p>
+                      <p className="font-medium">
+                        <Link
+                          href={`/admin/agent/${r.agent.id}`}
+                          className="text-[#C25A2B] hover:underline"
+                        >
+                          {r.agent.name}
+                        </Link>
+                      </p>
                       <p className="text-xs text-gray-500 break-all">
                         {r.agent.email ?? "—"}
                       </p>
+                      <Link
+                        href={`/admin/agent/${r.agent.id}`}
+                        className="inline-block mt-1 text-xs font-medium text-[#C25A2B] hover:underline"
+                      >
+                        Vezi profilul agentului →
+                      </Link>
                     </td>
                     <td className="py-3 pr-3">
                       <p className="font-medium">{r.viewingRequest.clientName}</p>
@@ -157,18 +177,51 @@ export default function AdminChestionareVizionariPanel({
                         {r.clientSubmittedAt ? "✓" : "—"}
                       </span>
                     </td>
-                    <td className="py-3 text-xs font-mono text-gray-600 dark:text-gray-400 max-w-[280px]">
+                    <td className="py-3 text-xs text-gray-700 dark:text-gray-300 max-w-[min(100vw-2rem,380px)]">
                       <details>
-                        <summary className="cursor-pointer text-[#C25A2B]">
-                          Răspunsuri JSON
+                        <summary className="cursor-pointer text-[#C25A2B] font-sans font-medium">
+                          Vezi răspunsuri
                         </summary>
-                        <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] max-h-48 overflow-y-auto">
-                          {JSON.stringify(
-                            { agent: r.agentAnswers, client: r.clientAnswers },
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-2 space-y-3 max-h-72 overflow-y-auto pr-1">
+                          <div className="rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04] p-2.5">
+                            <p className="font-sans text-[11px] font-semibold text-foreground mb-2">
+                              Agent
+                            </p>
+                            <dl className="space-y-1.5">
+                              {formatAgentQuestionnaireForDisplay(r.agentAnswers).map(
+                                ({ label, value }) => (
+                                  <div key={label}>
+                                    <dt className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                      {label}
+                                    </dt>
+                                    <dd className="text-[11px] whitespace-pre-wrap break-words mt-0.5">
+                                      {value || "—"}
+                                    </dd>
+                                  </div>
+                                ),
+                              )}
+                            </dl>
+                          </div>
+                          <div className="rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.04] p-2.5">
+                            <p className="font-sans text-[11px] font-semibold text-foreground mb-2">
+                              Client
+                            </p>
+                            <dl className="space-y-1.5">
+                              {formatClientQuestionnaireForDisplay(r.clientAnswers).map(
+                                ({ label, value }) => (
+                                  <div key={label}>
+                                    <dt className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                      {label}
+                                    </dt>
+                                    <dd className="text-[11px] whitespace-pre-wrap break-words mt-0.5">
+                                      {value || "—"}
+                                    </dd>
+                                  </div>
+                                ),
+                              )}
+                            </dl>
+                          </div>
+                        </div>
                       </details>
                     </td>
                   </tr>

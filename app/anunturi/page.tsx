@@ -294,6 +294,7 @@ export default function AnunturiPage() {
                   imageCount={getImageCount(anunt.id)}
                   getTagIcon={getTagIcon}
                   href={`/anunturi/${anunt.id}`}
+                  showListingId
                 />
               ))}
             </div>

@@ -141,6 +141,7 @@ function getCasaGroups(d: any): DetailGroup[] {
     buildItem("Suprafață utilă", d.suprafataUtila, "m²"),
     buildItem("Suprafață teren", d.suprafataTeren, "m²"),
     buildItem("Număr camere", d.nrCamere),
+    buildItem("Număr dormitoare", d.nrDormitoareCasa ?? d.nrCamere),
     buildItem("Număr băi", d.nrBai),
     buildItem("Regim înălțime", d.regimInaltime),
     buildItem("Tip casă", d.tipCasa),

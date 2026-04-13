@@ -122,6 +122,37 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
     "București";
+  const pretLuna = formatPretLuna(anunt.pret);
+  const pretPerMpLuna =
+    anunt.suprafataUtil !== undefined && anunt.pret
+      ? `${Math.round((() => {
+          const pretVanzare = parsePretToNumber(anunt.pret);
+          let factor = 120;
+          if (pretVanzare < 50000) factor = 100;
+          if (pretVanzare > 150000) factor = 150;
+          const chirie = Math.round(pretVanzare / factor);
+          const chirieFinala = Math.max(300, Math.min(2000, chirie));
+          return chirieFinala / anunt.suprafataUtil;
+        })()).toLocaleString("ro-RO")} €/m²`
+      : undefined;
+  const formatHistoryDate = (iso?: string) =>
+    iso ? new Date(iso).toLocaleDateString("ro-RO") : "N/A";
+  const priceHistory = [
+    {
+      date: formatHistoryDate(anunt.createdAt),
+      event: "Listat pentru închiriere",
+      price: pretLuna,
+      pricePerMp: pretPerMpLuna,
+    },
+  ];
+  if (anunt.updatedAt && anunt.updatedAt !== anunt.createdAt) {
+    priceHistory.push({
+      date: formatHistoryDate(anunt.updatedAt),
+      event: "Actualizare anunț",
+      price: pretLuna,
+      pricePerMp: pretPerMpLuna,
+    });
+  }
 
   return (
     <div className="min-h-screen text-foreground">
@@ -183,7 +214,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
               {/* Preț + Oferte primite */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="text-2xl md:text-3xl font-bold">
-                  {formatPretLuna(anunt.pret)}
+                  {pretLuna}
                 </div>
                 <AnuntOffersModal anuntId={anunt.id} />
               </div>
@@ -278,16 +309,9 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
                   <AnuntDetailsExpanded 
                     anunt={anunt} 
-                    pretPerMp={anunt.suprafataUtil !== undefined && anunt.pret ? `${Math.round((() => {
-                      const pretVanzare = parsePretToNumber(anunt.pret);
-                      let factor = 120;
-                      if (pretVanzare < 50000) factor = 100;
-                      if (pretVanzare > 150000) factor = 150;
-                      const chirie = Math.round(pretVanzare / factor);
-                      const chirieFinala = Math.max(300, Math.min(2000, chirie));
-                      return chirieFinala / anunt.suprafataUtil;
-                    })()).toLocaleString("ro-RO")} €/m²` : undefined}
+                    pretPerMp={pretPerMpLuna}
                     isInchiriere={true}
+                    priceHistory={priceHistory}
                   />
                 </div>
 

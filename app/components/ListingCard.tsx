@@ -18,6 +18,8 @@ type ListingCardProps = {
   getTagIcon: (tag: string) => IconType | null;
   href: string;
   compact?: boolean;
+  /** Afișează ID-ul anunțului (referință în contracte / administrare). */
+  showListingId?: boolean;
 };
 
 function useDarkMode() {
@@ -45,6 +47,7 @@ export default function ListingCard({
   getTagIcon,
   href,
   compact = false,
+  showListingId = false,
 }: ListingCardProps) {
   const isDark = useDarkMode();
 
@@ -114,6 +117,11 @@ export default function ListingCard({
               >
                 {titlu}
               </h3>
+              {showListingId && (
+                <p className="mt-0.5 text-[9px] font-mono text-gray-500 dark:text-gray-400 truncate" title={id}>
+                  ID: {id}
+                </p>
+              )}
               <div className="mt-0.5 flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
                 <MdLocationOn size={11} />
                 <span className="truncate">București, {locationText}</span>
@@ -218,6 +226,11 @@ export default function ListingCard({
                 <CiHeart size={18} />
               </button>
             </div>
+            {showListingId && (
+              <p className="mt-1 text-xs font-mono text-gray-500 dark:text-gray-400 break-all">
+                ID anunț: {id}
+              </p>
+            )}
             <div className="mt-1 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <MdLocationOn size={16} />
               <span>București, {locationText}</span>

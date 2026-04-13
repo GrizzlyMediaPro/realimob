@@ -417,6 +417,7 @@ export default function AdaugaAnuntPage() {
   // ── Casă/Vilă ──
   const [suprafataTeren, setSuprafataTeren] = useState("");
   const [nrCamere, setNrCamere] = useState("");
+  const [nrDormitoareCasa, setNrDormitoareCasa] = useState("");
   const [nrBai, setNrBai] = useState("");
   const [regimInaltime, setRegimInaltime] = useState("");
   const [tipCasa, setTipCasa] = useState("");
@@ -658,6 +659,7 @@ export default function AdaugaAnuntPage() {
         tipCladire,
         suprafataTeren,
         nrCamere,
+        nrDormitoareCasa,
         nrBai,
         regimInaltime,
         tipCasa,
@@ -970,6 +972,15 @@ export default function AdaugaAnuntPage() {
         placeholder="Ex: 5"
         value={nrCamere}
         onChange={setNrCamere}
+        style={controlStyle}
+        type="number"
+        required
+      />
+      <InputField
+        label="Număr dormitoare"
+        placeholder="Ex: 3"
+        value={nrDormitoareCasa}
+        onChange={setNrDormitoareCasa}
         style={controlStyle}
         type="number"
         required
@@ -1541,6 +1552,9 @@ export default function AdaugaAnuntPage() {
       if (!suprafataUtila.trim()) return "Completează suprafața utilă.";
       if (!suprafataTeren.trim()) return "Completează suprafața terenului.";
       if (!nrCamere.trim()) return "Completează numărul de camere.";
+      if (!nrDormitoareCasa.trim()) {
+        return "Completează numărul de dormitoare.";
+      }
       if (!nrBai.trim()) return "Completează numărul de băi.";
       if (!regimInaltime) return "Selectează regimul de înălțime.";
       if (!stare) return "Selectează starea proprietății.";
