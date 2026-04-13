@@ -126,15 +126,31 @@ export default function AdminChestionareVizionariPanel({
                       >
                         {r.listing.title}
                       </Link>
+                      <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 break-all">
+                        ID: {r.listing.id}
+                      </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {r.listing.transactionType}
                       </p>
                     </td>
                     <td className="py-3 pr-3">
-                      <p className="font-medium">{r.agent.name}</p>
+                      <p className="font-medium">
+                        <Link
+                          href={`/admin/agent/${r.agent.id}`}
+                          className="text-[#C25A2B] hover:underline"
+                        >
+                          {r.agent.name}
+                        </Link>
+                      </p>
                       <p className="text-xs text-gray-500 break-all">
                         {r.agent.email ?? "—"}
                       </p>
+                      <Link
+                        href={`/admin/agent/${r.agent.id}`}
+                        className="inline-block mt-1 text-xs font-medium text-[#C25A2B] hover:underline"
+                      >
+                        Vezi profilul agentului →
+                      </Link>
                     </td>
                     <td className="py-3 pr-3">
                       <p className="font-medium">{r.viewingRequest.clientName}</p>

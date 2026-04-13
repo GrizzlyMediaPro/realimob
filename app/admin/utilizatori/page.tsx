@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import {
@@ -14,8 +14,12 @@ import {
   MdCheckCircle,
   MdCancel,
   MdMoreVert,
+  MdContentCopy,
+  MdBlock,
+  MdLockOpen,
 } from "react-icons/md";
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
 
 type UserStatus = "activ" | "inactiv" | "suspendat";
 
@@ -31,6 +35,7 @@ interface User {
 }
 
 export default function AdminUtilizatoriPage() {
+  const { userId: currentClerkUserId } = useAuth();
   const [isDark, setIsDark] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -38,6 +43,17 @@ export default function AdminUtilizatoriPage() {
   const [allUtilizatori, setAllUtilizatori] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
+  const [actionMenu, setActionMenu] = useState<{
+    user: User;
+    top: number;
+    left: number;
+  } | null>(null);
+  const [actingUserId, setActingUserId] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -52,36 +68,133 @@ export default function AdminUtilizatoriPage() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const fetchUtilizatori = async () => {
-      try {
+  const fetchUtilizatori = useCallback(async (opts?: { silent?: boolean }) => {
+    try {
+      if (!opts?.silent) {
         setIsLoadingUsers(true);
-        setUsersError(null);
+      }
+      setUsersError(null);
 
-        const response = await fetch("/api/admin/users", {
-          cache: "no-store",
-        });
+      const response = await fetch("/api/admin/users", {
+        cache: "no-store",
+      });
 
-        const payload = await response.json();
+      const payload = await response.json();
 
-        if (!response.ok) {
-          throw new Error(payload?.error || "Nu am putut încărca utilizatorii.");
-        }
+      if (!response.ok) {
+        throw new Error(payload?.error || "Nu am putut încărca utilizatorii.");
+      }
 
-        setAllUtilizatori(payload.users ?? []);
-      } catch (error) {
-        setUsersError(
-          error instanceof Error
-            ? error.message
-            : "Nu am putut încărca utilizatorii."
-        );
-      } finally {
+      setAllUtilizatori(payload.users ?? []);
+    } catch (error) {
+      setUsersError(
+        error instanceof Error
+          ? error.message
+          : "Nu am putut încărca utilizatorii."
+      );
+    } finally {
+      if (!opts?.silent) {
         setIsLoadingUsers(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchUtilizatori();
+  }, [fetchUtilizatori]);
+
+  useEffect(() => {
+    if (!banner) return;
+    const t = window.setTimeout(() => setBanner(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [banner]);
+
+  useEffect(() => {
+    if (!actionMenu) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const el = actionMenuRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setActionMenu(null);
       }
     };
 
-    fetchUtilizatori();
-  }, []);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActionMenu(null);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [actionMenu]);
+
+  const showBanner = (type: "success" | "error", message: string) => {
+    setBanner({ type, message });
+  };
+
+  const copyUserEmail = async (user: User) => {
+    try {
+      if (user.email && user.email !== "-") {
+        await navigator.clipboard.writeText(user.email);
+        showBanner("success", "Adresa de email a fost copiată în clipboard.");
+      } else {
+        showBanner("error", "Acest utilizator nu are un email copiabil.");
+      }
+    } catch {
+      showBanner("error", "Nu am putut copia emailul. Încearcă din nou.");
+    }
+    setActionMenu(null);
+  };
+
+  const patchUserBan = async (user: User, action: "ban" | "unban") => {
+    if (
+      action === "ban" &&
+      !window.confirm(
+        `Sigur vrei să suspendezi contul lui ${user.nume}? Utilizatorul nu se va mai putea autentifica până la reactivare.`
+      )
+    ) {
+      return;
+    }
+    if (
+      action === "unban" &&
+      !window.confirm(
+        `Sigur vrei să reactivezi contul lui ${user.nume}?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setActingUserId(user.id);
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Acțiunea a eșuat.");
+      }
+      showBanner(
+        "success",
+        action === "ban"
+          ? "Contul a fost suspendat."
+          : "Contul a fost reactivat."
+      );
+      setActionMenu(null);
+      await fetchUtilizatori({ silent: true });
+    } catch (e) {
+      showBanner(
+        "error",
+        e instanceof Error ? e.message : "Acțiunea a eșuat."
+      );
+    } finally {
+      setActingUserId(null);
+    }
+  };
 
   const filteredUtilizatori = useMemo(() => {
     let filtered = allUtilizatori;
@@ -173,6 +286,31 @@ export default function AdminUtilizatoriPage() {
               </p>
             </div>
           </div>
+
+          {banner && (
+            <div
+              role="status"
+              className="rounded-xl px-4 py-3 text-sm font-medium"
+              style={{
+                fontFamily: "var(--font-galak-regular)",
+                background:
+                  banner.type === "success"
+                    ? isDark
+                      ? "rgba(16, 185, 129, 0.15)"
+                      : "rgba(16, 185, 129, 0.12)"
+                    : isDark
+                    ? "rgba(239, 68, 68, 0.15)"
+                    : "rgba(239, 68, 68, 0.1)",
+                color: banner.type === "success" ? "#10B981" : "#EF4444",
+                border:
+                  banner.type === "success"
+                    ? "1px solid rgba(16, 185, 129, 0.35)"
+                    : "1px solid rgba(239, 68, 68, 0.35)",
+              }}
+            >
+              {banner.message}
+            </div>
+          )}
 
           {/* Search și Filtre */}
           <div
@@ -532,8 +670,35 @@ export default function AdminUtilizatoriPage() {
                           <td className="px-4 py-4">
                             <div className="flex justify-end">
                               <button
-                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                aria-label="Mai multe opțiuni"
+                                type="button"
+                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                                aria-label="Acțiuni utilizator"
+                                aria-expanded={
+                                  actionMenu?.user.id === user.id
+                                }
+                                disabled={actingUserId === user.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect =
+                                    e.currentTarget.getBoundingClientRect();
+                                  const width = 220;
+                                  const left = Math.max(
+                                    8,
+                                    Math.min(
+                                      rect.right - width,
+                                      window.innerWidth - width - 8
+                                    )
+                                  );
+                                  setActionMenu((prev) =>
+                                    prev?.user.id === user.id
+                                      ? null
+                                      : {
+                                          user,
+                                          top: rect.bottom + 6,
+                                          left,
+                                        }
+                                  );
+                                }}
                               >
                                 <MdMoreVert
                                   size={20}
@@ -552,6 +717,68 @@ export default function AdminUtilizatoriPage() {
           </div>
         </div>
       </div>
+
+      {actionMenu && (
+        <div
+          ref={actionMenuRef}
+          className="fixed z-[200] w-[min(220px,calc(100vw-16px))] rounded-xl py-1 text-left shadow-xl"
+          style={{
+            top: actionMenu.top,
+            left: actionMenu.left,
+            fontFamily: "var(--font-galak-regular)",
+            background: isDark
+              ? "rgba(30, 30, 40, 0.98)"
+              : "rgba(255, 255, 255, 0.98)",
+            border: isDark
+              ? "1px solid rgba(255, 255, 255, 0.12)"
+              : "1px solid rgba(0, 0, 0, 0.08)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200/80 dark:border-white/10 truncate">
+            {actionMenu.user.nume}
+          </p>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-gray-100 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+            disabled={Boolean(actingUserId)}
+            onClick={() => void copyUserEmail(actionMenu.user)}
+          >
+            <MdContentCopy size={18} className="shrink-0 text-gray-500" />
+            Copiază email
+          </button>
+          {actionMenu.user.status === "suspendat" ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-gray-100 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+              disabled={Boolean(actingUserId)}
+              onClick={() => void patchUserBan(actionMenu.user, "unban")}
+            >
+              <MdLockOpen size={18} className="shrink-0 text-emerald-600" />
+              Reactivează contul
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-gray-100 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+              disabled={
+                Boolean(actingUserId) ||
+                actionMenu.user.id === currentClerkUserId
+              }
+              title={
+                actionMenu.user.id === currentClerkUserId
+                  ? "Nu poți suspenda propriul cont din aici."
+                  : undefined
+              }
+              onClick={() => void patchUserBan(actionMenu.user, "ban")}
+            >
+              <MdBlock size={18} className="shrink-0 text-amber-600" />
+              Suspendă contul
+            </button>
+          )}
+        </div>
+      )}
+
       <Footer />
     </div>
   );

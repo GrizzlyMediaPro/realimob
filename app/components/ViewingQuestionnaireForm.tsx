@@ -19,6 +19,10 @@ const AGENT_RECOMMENDATION_OPTIONS = [
   { value: "not_a_match", label: "Nu este potrivire" },
 ] as const;
 
+/** Select nativ: fundal solid + color-scheme pentru listă/opțiuni în mod întunecat. */
+const questionnaireSelectClassName =
+  "w-full rounded-lg border border-black/10 dark:border-white/20 bg-white text-gray-900 dark:bg-zinc-950 dark:text-zinc-100 dark:[color-scheme:dark] px-3 py-2 text-sm";
+
 type Payload = {
   role: "agent" | "client";
   listing: { id: string; title: string; price: number; currency: string };
@@ -103,6 +107,7 @@ export default function ViewingQuestionnaireForm({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!payload) return;
     setSubmitError(null);
     if (attended === null || !interestLevel) {
       setSubmitError("Completează participarea și nivelul de interes.");
@@ -228,6 +233,19 @@ export default function ViewingQuestionnaireForm({
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="rounded-xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 p-4 text-sm space-y-1">
         <p className="font-semibold text-foreground">{payload.listing.title}</p>
+        <p className="text-xs font-mono text-gray-500 dark:text-gray-400 break-all">
+          ID anunț: {payload.listing.id}
+        </p>
+        <p>
+          <Link
+            href={`/anunturi/${payload.listing.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-[#C25A2B] hover:underline"
+          >
+            Vezi anunțul (pagină publică) →
+          </Link>
+        </p>
         <p className="text-gray-600 dark:text-gray-400">
           Vizionare:{" "}
           {new Date(payload.viewing.startAt).toLocaleString("ro-RO", {
@@ -274,7 +292,7 @@ export default function ViewingQuestionnaireForm({
         <select
           value={interestLevel}
           onChange={(e) => setInterestLevel(e.target.value as InterestLevel)}
-          className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+          className={questionnaireSelectClassName}
           required
         >
           <option value="">Alege…</option>
@@ -337,7 +355,7 @@ export default function ViewingQuestionnaireForm({
             onChange={(e) =>
               setExperienceRating(e.target.value ? Number(e.target.value) : "")
             }
-            className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+            className={questionnaireSelectClassName}
             required
           >
             <option value="">Alege nota…</option>
@@ -362,7 +380,7 @@ export default function ViewingQuestionnaireForm({
                     e.target.value ? Number(e.target.value) : "",
                   )
                 }
-                className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+                className={questionnaireSelectClassName}
                 required
               >
                 <option value="">Alege…</option>
@@ -384,7 +402,7 @@ export default function ViewingQuestionnaireForm({
                     e.target.value ? Number(e.target.value) : "",
                   )
                 }
-                className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+                className={questionnaireSelectClassName}
                 required
               >
                 <option value="">Alege…</option>
@@ -413,7 +431,7 @@ export default function ViewingQuestionnaireForm({
                     | "",
                 )
               }
-              className="w-full rounded-lg border border-black/10 dark:border-white/15 bg-white/80 dark:bg-black/30 px-3 py-2 text-sm"
+              className={questionnaireSelectClassName}
               required
             >
               <option value="">Alege recomandarea…</option>

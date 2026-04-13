@@ -3,6 +3,12 @@ import autoTable from "jspdf-autotable";
 
 /** Aceeași structură ca răspunsul GET /api/admin/analytics */
 export type ReportAnalyticsPayload = {
+  meta?: {
+    filtered: boolean;
+    from: string | null;
+    to: string | null;
+    timezone?: string;
+  };
   listings: {
     approved: number;
     denied: number;
@@ -57,6 +63,13 @@ export function buildAnalyticsCsv(payload: ReportAnalyticsPayload): string {
 
   L(["Raport platformă Realimob", ""]);
   L(["Generat la", new Date().toISOString()]);
+  if (
+    payload.meta?.filtered &&
+    payload.meta.from &&
+    payload.meta.to
+  ) {
+    L(["Perioadă (UTC)", `${payload.meta.from} … ${payload.meta.to}`]);
+  }
   L([]);
 
   L(["— Sumar anunțuri —", ""]);
@@ -76,13 +89,28 @@ export function buildAnalyticsCsv(payload: ReportAnalyticsPayload): string {
   L(["Agenți total", payload.agents.total]);
   L(["Agenți cu anunțuri", payload.agents.active]);
   L(["Utilizatori (Clerk)", payload.users.total]);
-  L(["Utilizatori noi (30 zile)", payload.users.newLast30Days]);
+  L([
+    payload.meta?.filtered
+      ? "Utilizatori noi în perioadă"
+      : "Utilizatori noi (30 zile)",
+    payload.users.newLast30Days,
+  ]);
   L([]);
 
   L(["— Anunțuri noi —", ""]);
   L(["Perioadă", "Număr"]);
-  L(["Ultimele 7 zile", payload.newListings.last7Days]);
-  L(["Ultimele 30 zile", payload.newListings.last30Days]);
+  L([
+    payload.meta?.filtered
+      ? "Fereastră 7 zile (până la sfârșitul intervalului)"
+      : "Ultimele 7 zile",
+    payload.newListings.last7Days,
+  ]);
+  L([
+    payload.meta?.filtered
+      ? "Fereastră 30 zile (până la sfârșitul intervalului)"
+      : "Ultimele 30 zile",
+    payload.newListings.last30Days,
+  ]);
   L([]);
 
   L(["— După tip tranzacție —", ""]);
@@ -214,8 +242,21 @@ export function downloadAnalyticsPdf(payload: ReportAnalyticsPayload): void {
   const d = new Date();
   const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   doc.text(pdfAscii(`Generat: ${stamp}`), 14, y);
+  y += 5;
+  if (
+    payload.meta?.filtered &&
+    payload.meta.from &&
+    payload.meta.to
+  ) {
+    doc.text(
+      pdfStr(`Perioada UTC: ${payload.meta.from} … ${payload.meta.to}`),
+      14,
+      y
+    );
+    y += 7;
+  }
   doc.setTextColor(0);
-  y += 12;
+  y += 5;
 
   autoTable(doc, {
     startY: y,
@@ -237,9 +278,30 @@ export function downloadAnalyticsPdf(payload: ReportAnalyticsPayload): void {
       [pdfStr("Agenți total"), String(payload.agents.total)],
       [pdfStr("Agenți cu anunțuri"), String(payload.agents.active)],
       [pdfStr("Utilizatori (Clerk)"), String(payload.users.total)],
-      [pdfStr("Utilizatori noi (30 zile)"), String(payload.users.newLast30Days)],
-      [pdfStr("Anunțuri noi (7 zile)"), String(payload.newListings.last7Days)],
-      [pdfStr("Anunțuri noi (30 zile)"), String(payload.newListings.last30Days)],
+      [
+        pdfStr(
+          payload.meta?.filtered
+            ? "Utilizatori noi in perioada"
+            : "Utilizatori noi (30 zile)"
+        ),
+        String(payload.users.newLast30Days),
+      ],
+      [
+        pdfStr(
+          payload.meta?.filtered
+            ? "Anunturi noi (7 zile, pana la final interval)"
+            : "Anunturi noi (7 zile)"
+        ),
+        String(payload.newListings.last7Days),
+      ],
+      [
+        pdfStr(
+          payload.meta?.filtered
+            ? "Anunturi noi (30 zile, pana la final interval)"
+            : "Anunturi noi (30 zile)"
+        ),
+        String(payload.newListings.last30Days),
+      ],
     ],
     styles: { fontSize: 9 },
     headStyles: { fillColor: [194, 90, 43] },

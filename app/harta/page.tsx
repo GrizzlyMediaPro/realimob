@@ -118,9 +118,9 @@ function HartaContent() {
   }, [allAnunturi, dbListingsForMap, drawnPolygon]);
 
   return (
-    <main className="flex-1 w-full min-h-0 flex flex-col relative">
-      {/* Hartă */}
-      <div className="w-full h-screen relative">
+    <main className="w-full relative flex flex-col">
+      {/* O înălțime viewport pe hartă (ca vechiul h-screen); footer-ul rămâne dedesubt, scroll pe pagină */}
+      <div className="h-dvh w-full min-h-0 relative">
         <BucharestMap
           markers={mapMarkers}
           initialSelectedId={selectedId}
@@ -146,9 +146,9 @@ function HartaContent() {
       </div>
 
       {/* Puncte de interes – separat de filtrarea anunțurilor */}
-      <div className="absolute top-24 md:top-24 left-1/2 -translate-x-1/2 z-20 px-4">
+      <div className="absolute top-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:top-24 left-1/2 -translate-x-1/2 z-20 px-2 sm:px-4 w-[calc(100%-1rem)] max-w-lg sm:max-w-none sm:w-auto">
         <div
-          className="inline-flex flex-col gap-2 backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 rounded-xl px-3 py-2 shadow-lg"
+          className="inline-flex flex-col gap-2 backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 rounded-xl px-3 py-2 shadow-lg max-h-[min(52dvh,calc(100dvh-12rem))] overflow-y-auto overscroll-contain w-full sm:w-auto sm:max-h-none sm:overflow-visible"
           style={{ fontFamily: "var(--font-galak-regular)" }}
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -266,17 +266,17 @@ function HartaContent() {
 
       {/* Butoane Filtre și Pen în colțul stânga sus */}
       <div
-        className={`absolute top-24 md:top-24 left-4 md:left-8 z-10 flex flex-col gap-2 transition-all duration-300 ease-in-out ${
+        className={`absolute top-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:top-24 left-2 sm:left-8 z-10 flex flex-col gap-2 transition-all duration-300 ease-in-out ${
           isFiltersOpen ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"
         }`}
       >
         <button
           onClick={() => setIsFiltersOpen(true)}
-          className="flex items-center gap-2 px-4 py-3 rounded-lg backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 shadow-lg hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 sm:gap-2 px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 shadow-lg hover:opacity-90 transition-opacity touch-manipulation"
           style={{ fontFamily: "var(--font-galak-regular)" }}
         >
           <CiFilter size={20} />
-          <span className="font-medium">Filtre</span>
+          <span className="font-medium text-sm sm:text-base">Filtre</span>
         </button>
         <button
           onClick={() => {
@@ -303,8 +303,8 @@ function HartaContent() {
 
       {/* Indicator mod desenare */}
       {isDrawingMode && (
-        <div className="absolute top-36 md:top-36 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg backdrop-blur-md bg-[#C25A2B]/90 text-white shadow-lg pointer-events-none">
-          <p className="text-sm font-medium" style={{ fontFamily: "var(--font-galak-regular)" }}>
+        <div className="absolute top-[calc(env(safe-area-inset-top,0px)+8.5rem)] sm:top-36 left-1/2 -translate-x-1/2 z-20 max-w-[min(calc(100vw-1.5rem),28rem)] px-3 sm:px-4 py-2 rounded-lg backdrop-blur-md bg-[#C25A2B]/90 text-white shadow-lg pointer-events-none">
+          <p className="text-xs sm:text-sm font-medium text-center leading-snug" style={{ fontFamily: "var(--font-galak-regular)" }}>
             Click pe hartă pentru a desena zona. Click pe primul punct pentru a închide poligonul.
           </p>
         </div>
@@ -312,13 +312,13 @@ function HartaContent() {
 
       {/* Filtre overlay transparente peste hartă */}
       <div
-        className={`absolute top-24 md:top-24 left-0 right-0 z-10 px-4 md:px-8 transition-all duration-300 ease-in-out ${
+        className={`absolute top-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:top-24 left-0 right-0 z-10 px-2 sm:px-8 transition-all duration-300 ease-in-out ${
           isFiltersOpen
             ? "opacity-100 translate-y-0 pointer-events-auto"
             : "opacity-0 -translate-y-4 pointer-events-none"
         }`}
       >
-        <div className="w-full">
+        <div className="w-full max-h-[min(72dvh,calc(100dvh-6rem))] overflow-y-auto overscroll-contain">
           <div className="flex flex-col gap-3 backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 rounded-xl p-3 shadow-lg transform transition-transform duration-300" style={{ fontFamily: "var(--font-galak-regular)" }}>
               {/* Header cu buton închidere */}
               <div className="flex items-center justify-between">
@@ -333,7 +333,7 @@ function HartaContent() {
               </div>
 
               {/* Filtre */}
-              <div className="flex flex-col md:flex-row gap-2 items-center">
+              <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center">
                 {/* Searchbar Zona */}
                 <input
                   type="text"
@@ -444,9 +444,9 @@ function HartaContent() {
 
 export default function HartaPage() {
   return (
-    <div className="min-h-screen text-foreground flex flex-col">
+    <div className="min-h-dvh text-foreground flex flex-col">
       <Navbar fullWidthContent />
-      <Suspense fallback={<div className="flex-1 flex items-center justify-center">Se încarcă harta...</div>}>
+      <Suspense fallback={<div className="h-dvh w-full flex items-center justify-center px-4 text-sm text-muted-foreground">Se încarcă harta…</div>}>
         <HartaContent />
       </Suspense>
       <div className="footer-no-margin">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,8 @@ import {
   MdNotifications,
   MdDone,
 } from "react-icons/md";
+
+type ContNotifTab = "necitite" | "citite";
 
 type AccountListing = {
   id: string;
@@ -160,6 +162,35 @@ export default function ContPage() {
       /* ignore */
     }
   }, []);
+
+  const [contNotifTab, setContNotifTab] = useState<ContNotifTab>("necitite");
+
+  const markContNotificationAsRead = useCallback(async (id: string) => {
+    try {
+      const r = await fetch(`/api/notifications/${id}/read`, {
+        method: "POST",
+      });
+      if (!r.ok) return;
+      setContNotifications((cur) =>
+        cur.map((x) =>
+          x.id === id ? { ...x, readAt: new Date().toISOString() } : x,
+        ),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const contNotifNecitite = useMemo(
+    () => contNotifications.filter((n) => !n.readAt),
+    [contNotifications],
+  );
+  const contNotifCitite = useMemo(
+    () => contNotifications.filter((n) => n.readAt),
+    [contNotifications],
+  );
+  const contNotifAfisate =
+    contNotifTab === "necitite" ? contNotifNecitite : contNotifCitite;
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -368,68 +399,126 @@ export default function ContPage() {
                 className="rounded-2xl p-5 md:p-6 relative overflow-hidden"
                 style={glassCard(isDark)}
               >
-                <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                  <MdNotifications className="text-[#C25A2B]" size={20} />
-                  Notificări
-                </h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <MdNotifications className="text-[#C25A2B]" size={20} />
+                    Notificări
+                  </h2>
+                  {contNotifications.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setContNotifTab("necitite")}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                          contNotifTab === "necitite"
+                            ? "bg-[#C25A2B]/20 text-[#C25A2B]"
+                            : "bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400"
+                        }`}
+                      >
+                        Necitite ({contNotifNecitite.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContNotifTab("citite")}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                          contNotifTab === "citite"
+                            ? "bg-[#C25A2B]/20 text-[#C25A2B]"
+                            : "bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400"
+                        }`}
+                      >
+                        Citite ({contNotifCitite.length})
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 {contNotifications.length === 0 ? (
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Nu ai notificări în acest moment.
                   </p>
+                ) : contNotifAfisate.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {contNotifTab === "necitite"
+                      ? "Nu ai notificări necitite."
+                      : "Nu ai notificări citite încă."}
+                  </p>
                 ) : (
                   <ul className="space-y-2">
-                    {contNotifications.map((n) => {
+                    {contNotifAfisate.map((n) => {
                       const unread = !n.readAt;
                       return (
-                        <li
-                          key={n.id}
-                          className={`flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm border border-black/5 dark:border-white/10 ${
-                            unread ? "bg-white/50 dark:bg-white/10" : "bg-transparent"
-                          }`}
-                        >
-                          <span
-                            className={`mt-1.5 inline-block w-2 h-2 rounded-full shrink-0 ${
-                              unread ? "bg-[#C25A2B]" : "bg-gray-300 dark:bg-gray-600"
-                            }`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-foreground">{n.title}</p>
-                            <p className="text-gray-600 dark:text-gray-400 text-xs mt-0.5">
-                              {n.body}
-                            </p>
-                            {n.href ? (
-                              <Link
-                                href={n.href}
-                                className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
-                              >
-                                Deschide chestionarul
-                              </Link>
-                            ) : null}
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={unread ? "Marchează ca citit" : "Marchează ca necitit"}
-                            onClick={async () => {
-                              try {
-                                await fetch(
-                                  `/api/notifications/${n.id}/${unread ? "read" : "unread"}`,
-                                  { method: "POST" },
-                                );
-                              } catch {
-                                return;
-                              }
-                              setContNotifications((cur) =>
-                                cur.map((x) =>
-                                  x.id === n.id
-                                    ? { ...x, readAt: unread ? new Date().toISOString() : null }
-                                    : x,
-                                ),
-                              );
+                        <li key={n.id}>
+                          <div
+                            role={unread ? "button" : undefined}
+                            tabIndex={unread ? 0 : undefined}
+                            onClick={() => {
+                              if (unread) void markContNotificationAsRead(n.id);
                             }}
-                            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 text-gray-500"
+                            onKeyDown={
+                              unread
+                                ? (e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      void markContNotificationAsRead(n.id);
+                                    }
+                                  }
+                                : undefined
+                            }
+                            className={`flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm border border-black/5 dark:border-white/10 ${
+                              unread ? "bg-white/50 dark:bg-white/10" : "bg-transparent"
+                            } ${unread ? "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#C25A2B]/40" : ""}`}
                           >
-                            <MdDone size={18} />
-                          </button>
+                            <span
+                              className={`mt-1.5 inline-block w-2 h-2 rounded-full shrink-0 ${
+                                unread ? "bg-[#C25A2B]" : "bg-gray-300 dark:bg-gray-600"
+                              }`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground">{n.title}</p>
+                              <p className="text-gray-600 dark:text-gray-400 text-xs mt-0.5">
+                                {n.body}
+                              </p>
+                              {n.href ? (
+                                <Link
+                                  href={n.href}
+                                  className="inline-block mt-2 text-xs font-semibold text-[#C25A2B] hover:underline"
+                                >
+                                  Deschide chestionarul
+                                </Link>
+                              ) : null}
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={
+                                unread ? "Marchează ca citit" : "Marchează ca necitit"
+                              }
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await fetch(
+                                    `/api/notifications/${n.id}/${unread ? "read" : "unread"}`,
+                                    { method: "POST" },
+                                  );
+                                } catch {
+                                  return;
+                                }
+                                setContNotifications((cur) =>
+                                  cur.map((x) =>
+                                    x.id === n.id
+                                      ? {
+                                          ...x,
+                                          readAt: unread
+                                            ? new Date().toISOString()
+                                            : null,
+                                        }
+                                      : x,
+                                  ),
+                                );
+                              }}
+                              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 text-gray-500"
+                            >
+                              {unread ? <MdDone size={18} /> : <MdNotifications size={18} />}
+                            </button>
+                          </div>
                         </li>
                       );
                     })}

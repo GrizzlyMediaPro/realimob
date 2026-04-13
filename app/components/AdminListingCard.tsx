@@ -161,6 +161,9 @@ export default function AdminListingCard({
           >
             {titlu}
           </h3>
+          <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mb-1 break-all">
+            ID anunț: {id}
+          </p>
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1.5">
             <MdLocationOn size={12} />
             <span className="truncate">București, {locationText}</span>

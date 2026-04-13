@@ -116,7 +116,18 @@ export default function BucharestMap({
   useEffect(() => {
     syncPoiLayersRef.current = (map: any) => {
       const pf = poiFiltersRef.current;
-      if (!pf || !map?.getStyle || !map.getStyle() || !map.isStyleLoaded?.()) return;
+      // IMPORTANT: nu apela `getStyle()` înainte ca stilul să fie încărcat — Mapbox aruncă
+      // "Style is not done loading" dacă ordinea e inversă față de `isStyleLoaded()`.
+      if (!pf || !map?.isStyleLoaded || !map.isStyleLoaded()) return;
+      let style: { layers?: Array<{ source?: string; id: string; "source-layer"?: string }> };
+      try {
+        style = map.getStyle?.() ?? { layers: [] };
+      } catch {
+        return;
+      }
+      // Nu cerem `layers.length` — la unele evenimente `styledata` stilul poate raporta încărcat
+      // înainte ca lista de layere să fie populată complet; totuși `addLayer` e sigur după `isStyleLoaded`.
+      if (!Array.isArray(style?.layers)) return;
 
       const beforeId = map.getLayer("poi-label") ? "poi-label" : undefined;
 
@@ -142,7 +153,7 @@ export default function BucharestMap({
       };
 
       /** Layere din stil care citesc direct `transit_stop_label` (etichete reale Mapbox). */
-      const transitStopLayerIds = (map.getStyle()?.layers ?? [])
+      const transitStopLayerIds = (style.layers ?? [])
         .filter(
           (l: { source?: string; id: string; "source-layer"?: string }) =>
             l.source === "composite" && l["source-layer"] === "transit_stop_label"
@@ -442,11 +453,21 @@ export default function BucharestMap({
     if (!selected) return "top";
     const map = mapRef.current?.getMap?.() ?? mapRef.current;
     if (!map?.project || !map?.getContainer) return "top";
+    if (map.isStyleLoaded && !map.isStyleLoaded()) return "top";
 
-    const { x, y } = map.project([selected.lng, selected.lat]);
+    let x: number;
+    let y: number;
+    try {
+      ({ x, y } = map.project([selected.lng, selected.lat]));
+    } catch {
+      return "top";
+    }
     const container = map.getContainer();
     const w = container.clientWidth;
     const h = container.clientHeight;
+
+    const popupW = Math.min(POPUP_W, Math.max(220, w - 2 * POPUP_MARGIN));
+    const popupH = Math.min(POPUP_H, Math.max(200, h - 2 * POPUP_MARGIN));
 
     const spaceBelow = h - y - POPUP_MARGIN;
     const spaceAbove = y - POPUP_MARGIN;
@@ -454,12 +475,12 @@ export default function BucharestMap({
     const spaceLeft = x - POPUP_MARGIN;
 
     // 1) Prefer sub marker dacă încape
-    if (spaceBelow >= POPUP_H) return "top";
+    if (spaceBelow >= popupH) return "top";
     // 2) Altfel deasupra markerului dacă încape
-    if (spaceAbove >= POPUP_H) return "bottom";
+    if (spaceAbove >= popupH) return "bottom";
 
     // 3) Altfel, pe lateral (alegem partea cu mai mult spațiu)
-    if (spaceRight >= POPUP_W || spaceRight >= spaceLeft) return "right";
+    if (spaceRight >= popupW || spaceRight >= spaceLeft) return "right";
     return "left";
   }, [
     selected?.lng,
@@ -515,8 +536,8 @@ export default function BucharestMap({
           border-radius: 0.75rem !important;
           box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
           overflow: hidden !important;
-          width: 320px !important;
-          max-width: 320px !important;
+          width: min(320px, calc(100vw - 2rem)) !important;
+          max-width: min(320px, calc(100vw - 2rem)) !important;
         }
         .mapboxgl-popup-close-button {
           width: 32px !important;
@@ -562,8 +583,17 @@ export default function BucharestMap({
           border-radius: 1rem !important;
         }
       `}</style>
-      <div className={`realimob-map--rounded w-full ${fillContainer ? 'h-full' : fullscreen ? 'h-screen' : 'h-[560px]'} ${fullscreen || fillContainer ? 'overflow-visible' : 'rounded-2xl overflow-visible border border-[#d5dae0] dark:border-[#2b2b33]'} bg-white dark:bg-[#0b0b10] relative`}>
+      <div
+        className={`realimob-map--rounded w-full min-h-0 ${
+          fillContainer
+            ? "h-full min-h-[200px]"
+            : fullscreen
+              ? "h-full min-h-[200px]"
+              : "h-[min(28rem,55dvh)] min-h-[17.5rem] sm:h-[35rem] sm:min-h-0"
+        } ${fullscreen || fillContainer ? "overflow-visible" : "rounded-2xl overflow-visible border border-[#d5dae0] dark:border-[#2b2b33]"} bg-white dark:bg-[#0b0b10] relative`}
+      >
       <Map
+        style={{ width: "100%", height: "100%" }}
         ref={mapRef}
         {...viewState}
         onLoad={handleMapLoad}
@@ -771,7 +801,7 @@ export default function BucharestMap({
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="absolute top-24 md:top-24 right-4 md:right-8 z-10 w-10 h-10 rounded-full backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center text-foreground"
+                className="absolute top-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:top-24 right-3 sm:right-8 z-10 w-10 h-10 rounded-full backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center text-foreground touch-manipulation"
                 aria-label="Înapoi"
               >
                 <MdArrowBack size={20} />
@@ -782,7 +812,7 @@ export default function BucharestMap({
                 <button
                   type="button"
                   onClick={handleClearDrawing}
-                  className="absolute top-32 md:top-36 right-4 md:right-8 z-10 w-10 h-10 rounded-full backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center text-foreground"
+                  className="absolute top-[calc(env(safe-area-inset-top,0px)+8.25rem)] sm:top-36 right-3 sm:right-8 z-10 w-10 h-10 rounded-full backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center text-foreground touch-manipulation"
                   aria-label="Șterge zonă desenată"
                   title="Șterge zonă desenată"
                 >

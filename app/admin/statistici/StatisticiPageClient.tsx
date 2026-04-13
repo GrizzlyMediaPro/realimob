@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import Navbar from "../../components/Navbar";
@@ -8,6 +8,8 @@ import Footer from "../../components/Footer";
 import { MdArrowBack, MdAnalytics, MdDescription } from "react-icons/md";
 import { AdminAnaliticaPanel } from "../_components/AdminAnaliticaPanel";
 import { AdminRapoartePanel } from "../_components/AdminRapoartePanel";
+import { AdminAnalyticsTimeFilter } from "../_components/AdminAnalyticsTimeFilter";
+import { resolveAdminAnalyticsFetchUrl } from "@/lib/adminAnalyticsQuery";
 
 export default function StatisticiPageClient() {
   const searchParams = useSearchParams();
@@ -25,6 +27,17 @@ export default function StatisticiPageClient() {
   };
 
   const [isDark, setIsDark] = useState(false);
+
+  const analyticsFetchUrl = useMemo(
+    () =>
+      resolveAdminAnalyticsFetchUrl(
+        new URLSearchParams(searchParams.toString())
+      ),
+    [searchParams]
+  );
+
+  const customIntervalIncomplete =
+    searchParams.get("interval") === "custom" && analyticsFetchUrl === null;
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -102,10 +115,22 @@ export default function StatisticiPageClient() {
             ))}
           </div>
 
+          <AdminAnalyticsTimeFilter isDark={isDark} tab={tab} />
+
+          {customIntervalIncomplete && (
+            <div
+              className="rounded-2xl px-4 py-3 text-sm border border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+              style={{ fontFamily: "var(--font-galak-regular)" }}
+            >
+              Pentru interval personalizat, alege ambele date și apasă
+              „Aplică interval”. Datele sunt interpretate în UTC.
+            </div>
+          )}
+
           {tab === "statistici" ? (
-            <AdminAnaliticaPanel />
+            <AdminAnaliticaPanel analyticsFetchUrl={analyticsFetchUrl} />
           ) : (
-            <AdminRapoartePanel />
+            <AdminRapoartePanel analyticsFetchUrl={analyticsFetchUrl} />
           )}
         </div>
       </div>

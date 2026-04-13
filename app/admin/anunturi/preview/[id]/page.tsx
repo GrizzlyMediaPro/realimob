@@ -600,6 +600,9 @@ export default function AdminPreviewPage() {
               <h1 className="text-2xl md:text-4xl font-bold mb-2">
                 {listing.title}
               </h1>
+              <p className="text-xs font-mono text-gray-500 dark:text-gray-400 break-all mb-2">
+                ID anunț: {listing.id}
+              </p>
               <div className="flex flex-wrap items-center gap-2 text-gray-600 dark:text-gray-300 text-sm md:text-base">
                 <div className="flex items-center gap-1.5">
                   <MdLocationOn size={18} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, useCallback, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   MdAnalytics,
@@ -20,6 +20,12 @@ import {
 } from "react-icons/md";
 
 type AnalyticsPayload = {
+  meta?: {
+    filtered: boolean;
+    from: string | null;
+    to: string | null;
+    timezone?: string;
+  };
   listings: {
     approved: number;
     denied: number;
@@ -114,7 +120,11 @@ function GlassReflection({ isDark }: { isDark: boolean }) {
   );
 }
 
-export function AdminAnaliticaPanel() {
+export function AdminAnaliticaPanel({
+  analyticsFetchUrl,
+}: {
+  analyticsFetchUrl: string | null;
+}) {
   const [isDark, setIsDark] = useState(false);
   const [data, setData] = useState<AnalyticsPayload>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -133,26 +143,33 @@ export function AdminAnaliticaPanel() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+  const load = useCallback(async () => {
+    if (analyticsFetchUrl === null) {
+      setData(EMPTY);
       setError(null);
-      try {
-        const res = await fetch("/api/admin/analytics", { cache: "no-store" });
-        const payload = await res.json();
-        if (!res.ok) {
-          throw new Error(payload?.error || "Nu am putut încărca analiticele.");
-        }
-        setData(payload as AnalyticsPayload);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Eroare necunoscută.");
-        setData(EMPTY);
-      } finally {
-        setLoading(false);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(analyticsFetchUrl, { cache: "no-store" });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Nu am putut încărca analiticele.");
       }
-    };
-    load();
-  }, []);
+      setData(payload as AnalyticsPayload);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Eroare necunoscută.");
+      setData(EMPTY);
+    } finally {
+      setLoading(false);
+    }
+  }, [analyticsFetchUrl]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const formatNumber = (n: number) => n.toLocaleString("ro-RO");
   const formatPrice = (n: number, currency: string) =>
@@ -284,27 +301,31 @@ export function AdminAnaliticaPanel() {
     [data.topAgents]
   );
 
+  const isFiltered = data.meta?.filtered === true;
+  const nDailyBars = data.dailyCreatedLast7.length;
+  const nMonthlyBars = monthlyBars.length;
+
   const primaryKpis = [
     {
-      titlu: "Total anunțuri",
+      titlu: isFiltered ? "Total anunțuri (perioadă)" : "Total anunțuri",
       valoare: formatNumber(data.listings.total),
       icon: MdHome,
       culoare: "#3B82F6",
     },
     {
-      titlu: "Aprobate",
+      titlu: isFiltered ? "Aprobate (perioadă)" : "Aprobate",
       valoare: formatNumber(data.listings.approved),
       icon: MdCheckCircle,
       culoare: "#10B981",
     },
     {
-      titlu: "În așteptare",
+      titlu: isFiltered ? "În așteptare (perioadă)" : "În așteptare",
       valoare: formatNumber(data.listings.pending),
       icon: MdPending,
       culoare: "#F59E0B",
     },
     {
-      titlu: "Rată aprobare",
+      titlu: isFiltered ? "Rată aprobare (perioadă)" : "Rată aprobare",
       valoare: `${data.listings.approvalRatePercent.toLocaleString("ro-RO", {
         minimumFractionDigits: 0,
         maximumFractionDigits: 1,
@@ -316,13 +337,17 @@ export function AdminAnaliticaPanel() {
 
   const secondaryKpis = [
     {
-      titlu: "Anunțuri noi (7 zile)",
+      titlu: isFiltered
+        ? "Anunțuri noi (7 zile, până la final interval)"
+        : "Anunțuri noi (7 zile)",
       valoare: formatNumber(data.newListings.last7Days),
       icon: MdAnalytics,
       culoare: "#8B5CF6",
     },
     {
-      titlu: "Anunțuri noi (30 zile)",
+      titlu: isFiltered
+        ? "Anunțuri noi (30 zile, până la final interval)"
+        : "Anunțuri noi (30 zile)",
       valoare: formatNumber(data.newListings.last30Days),
       icon: MdBarChart,
       culoare: "#6366F1",
@@ -334,7 +359,9 @@ export function AdminAnaliticaPanel() {
       culoare: "#0EA5E9",
     },
     {
-      titlu: "Utilizatori noi (30 zile)",
+      titlu: isFiltered
+        ? "Utilizatori noi în perioadă"
+        : "Utilizatori noi (30 zile)",
       valoare: formatNumber(data.users.newLast30Days),
       icon: MdPeople,
       culoare: "#14B8A6",
@@ -346,7 +373,7 @@ export function AdminAnaliticaPanel() {
       culoare: "#C25A2B",
     },
     {
-      titlu: "Agenți cu anunțuri",
+      titlu: isFiltered ? "Agenți cu anunțuri (perioadă)" : "Agenți cu anunțuri",
       valoare: formatNumber(data.agents.active),
       icon: MdPerson,
       culoare: "#D97706",
@@ -368,7 +395,15 @@ export function AdminAnaliticaPanel() {
             </div>
           )}
 
-          {loading ? (
+          {analyticsFetchUrl === null ? (
+            <p
+              className="text-gray-500 dark:text-gray-400"
+              style={{ fontFamily: "var(--font-galak-regular)" }}
+            >
+              Selectează și aplică un interval personalizat pentru a vedea
+              statisticile, sau alege un alt preset de mai sus.
+            </p>
+          ) : loading ? (
             <p
               className="text-gray-500 dark:text-gray-400"
               style={{ fontFamily: "var(--font-galak-regular)" }}
@@ -550,7 +585,8 @@ export function AdminAnaliticaPanel() {
                           className="text-lg md:text-xl font-bold text-foreground"
                           style={{ fontFamily: "var(--font-galak-regular)" }}
                         >
-                          Stare anunțuri (total)
+                          Stare anunțuri
+                          {isFiltered ? " (în perioadă)" : " (total)"}
                         </h3>
                       </div>
                       {!moderationDonut ? (
@@ -649,7 +685,8 @@ export function AdminAnaliticaPanel() {
                           className="text-lg md:text-xl font-bold text-foreground"
                           style={{ fontFamily: "var(--font-galak-regular)" }}
                         >
-                          Anunțuri create pe zi (7 zile, UTC)
+                          Anunțuri create pe zi ({nDailyBars}{" "}
+                          {nDailyBars === 1 ? "zi" : "zile"}, UTC)
                         </h3>
                       </div>
                       {data.dailyCreatedLast7.length === 0 ? (
@@ -1082,7 +1119,8 @@ export function AdminAnaliticaPanel() {
                       className="text-lg md:text-xl font-bold text-foreground mb-6"
                       style={{ fontFamily: "var(--font-galak-regular)" }}
                     >
-                      Anunțuri create (ultimele 6 luni, UTC)
+                      Anunțuri create pe lună ({nMonthlyBars}{" "}
+                      {nMonthlyBars === 1 ? "lună" : "luni"}, UTC)
                     </h3>
                     {monthlyBars.length === 0 ? (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
