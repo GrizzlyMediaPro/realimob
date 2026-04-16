@@ -51,6 +51,7 @@ model Listing {
 
   viewingQuestionnaires ViewingQuestionnaire[]
   listingOffers         ListingOffer[]
+  favorites             Favorite[]
 
   // Alte detalii salvate flexibil
   details Json?
@@ -203,6 +204,18 @@ model EmailTemplate {
   subject   String
   bodyHtml  String
   active    Boolean  @default(true)
+}
+
+/// Favorite: Clerk userId + listingId (unic per pereche).
+model Favorite {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  userId    String
+  listingId String   @db.ObjectId
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
 }
 
 /// Setări globale platformă (un singur document cu key unică).

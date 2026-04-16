@@ -82,7 +82,7 @@ export default function AnuntOffersModal({ anuntId }: AnuntOffersModalProps) {
       <button
         type="button"
         onClick={handleOpen}
-        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm md:text-[15px] font-medium transition-all duration-300 border bg-white/70 dark:bg-white/5 text-gray-900 dark:text-foreground border-gray-200/80 dark:border-gray-700/70 hover:border-[#C25A2B] hover:text-[#C25A2B]"
+        className="flex w-full md:w-auto items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm md:text-[15px] font-medium transition-all duration-300 border bg-white/70 dark:bg-white/5 text-gray-900 dark:text-foreground border-gray-200/80 dark:border-gray-700/70 hover:border-[#C25A2B] hover:text-[#C25A2B]"
         style={{
           boxShadow: isDark
             ? "0 2px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)"

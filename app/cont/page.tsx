@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { getFirstListingImageUrl } from "../../lib/listingToAnunt";
 import {
   MdPerson,
   MdHome,
@@ -19,6 +20,8 @@ import {
   MdCancel,
   MdNotifications,
   MdDone,
+  MdFavorite,
+  MdDelete,
 } from "react-icons/md";
 
 type ContNotifTab = "necitite" | "citite";
@@ -121,15 +124,7 @@ function viewingStatusLabel(status: string) {
   }
 }
 
-function firstListingImage(images: unknown): string {
-  if (!Array.isArray(images) || images.length === 0) return "/ap2.jpg";
-  const first = images[0];
-  if (first && typeof first === "object" && first !== null && "url" in first) {
-    const u = (first as { url?: string }).url;
-    if (typeof u === "string" && u) return u;
-  }
-  return "/ap2.jpg";
-}
+const firstListingImage = (images: unknown) => getFirstListingImageUrl(images, "/ap2.jpg");
 
 export default function ContPage() {
   const router = useRouter();
@@ -151,6 +146,46 @@ export default function ContPage() {
       readAt: string | null;
     }[]
   >([]);
+
+  type FavoriteListing = {
+    id: string;
+    title: string;
+    transactionType: string;
+    price: number;
+    currency: string;
+    location: string;
+    status: string;
+    images: unknown;
+  };
+  const [favorites, setFavorites] = useState<FavoriteListing[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+
+  const loadFavorites = useCallback(async () => {
+    try {
+      setFavoritesLoading(true);
+      const r = await fetch("/api/favorites", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = (await r.json()) as { listings: FavoriteListing[] };
+      setFavorites(j.listings ?? []);
+    } catch {
+      /* ignore */
+    } finally {
+      setFavoritesLoading(false);
+    }
+  }, []);
+
+  const removeFavorite = useCallback(async (listingId: string) => {
+    setFavorites((prev) => prev.filter((l) => l.id !== listingId));
+    try {
+      await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
+      });
+    } catch {
+      void loadFavorites();
+    }
+  }, [loadFavorites]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -212,12 +247,13 @@ export default function ContPage() {
       }
       setData(j as AccountPayload);
       void loadNotifications();
+      void loadFavorites();
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Eroare");
     } finally {
       setLoading(false);
     }
-  }, [loadNotifications]);
+  }, [loadNotifications, loadFavorites]);
 
   useEffect(() => {
     if (isSignedIn) load();
@@ -519,6 +555,81 @@ export default function ContPage() {
                               {unread ? <MdDone size={18} /> : <MdNotifications size={18} />}
                             </button>
                           </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              {/* Favorite */}
+              <section
+                className="rounded-2xl p-5 md:p-6 relative overflow-hidden"
+                style={glassCard(isDark)}
+              >
+                <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+                  <MdFavorite className="text-[#C25A2B]" size={20} />
+                  Favorite
+                </h2>
+                {favoritesLoading && favorites.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Se încarcă favoritele…
+                  </p>
+                ) : favorites.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Nu ai încă anunțuri salvate la favorite. Apasă pe iconița
+                    inimă de pe orice anunț pentru a-l salva aici.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {favorites.map((l) => {
+                      const img = firstListingImage(l.images);
+                      const txLabel = l.transactionType === "inchiriere" ? "Închiriere" : "Vânzare";
+                      const href =
+                        l.transactionType === "inchiriere"
+                          ? `/inchiriere/${l.id}`
+                          : `/vanzare/${l.id}`;
+                      return (
+                        <li
+                          key={l.id}
+                          className="flex gap-3 p-3 rounded-xl border border-black/5 dark:border-white/10 bg-white/30 dark:bg-white/5"
+                        >
+                          <Link
+                            href={href}
+                            className="relative w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-gray-200 dark:bg-gray-800"
+                          >
+                            <Image
+                              src={img}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="80px"
+                            />
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <Link href={href} className="block">
+                              <p className="font-medium text-sm line-clamp-2 hover:text-[#C25A2B] transition-colors">
+                                {l.title}
+                              </p>
+                            </Link>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {txLabel} · {Number(l.price).toLocaleString("ro-RO")}{" "}
+                              {l.currency}
+                            </p>
+                            {l.location && (
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                {l.location}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void removeFavorite(l.id)}
+                            aria-label="Elimină din favorite"
+                            className="self-center shrink-0 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/40 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <MdDelete size={18} />
+                          </button>
                         </li>
                       );
                     })}

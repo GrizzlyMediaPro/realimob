@@ -9,6 +9,7 @@ import SmallMapPreview from "../../components/SmallMapPreview";
 import { GlassSpecCard, GlassStatsCard, GlassDivider } from "../../components/LiquidGlassCards";
 import AnuntDetailsExpanded from "../../components/AnuntDetailsExpanded";
 import AnuntOffersModal from "../../components/AnuntOffersModal";
+import ListingFavoriteButton from "../../components/ListingFavoriteButton";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
@@ -211,12 +212,18 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
 
             {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">
-              {/* Preț + Oferte primite */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="text-2xl md:text-3xl font-bold">
+              {/* Preț + favorite (mobile) / preț + favorite + oferte (md+) */}
+              <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto] gap-3 items-center">
+                <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
                   {pretLuna}
                 </div>
-                <AnuntOffersModal anuntId={anunt.id} />
+                <ListingFavoriteButton
+                  anuntId={anunt.id}
+                  className="row-start-1 col-start-2 justify-self-end md:justify-self-start"
+                />
+                <div className="row-start-2 col-span-2 md:row-start-1 md:col-span-1 md:col-start-3 w-full min-w-0 md:flex md:justify-end">
+                  <AnuntOffersModal anuntId={anunt.id} />
+                </div>
               </div>
 
               {/* Carduri cu detalii + Contact card */}

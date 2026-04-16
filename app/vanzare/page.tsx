@@ -28,7 +28,6 @@ import Footer from "../components/Footer";
 import ListingCard from "../components/ListingCard";
 import ListingFiltersModal from "../components/ListingFiltersModal";
 import {
-  getAllAnunturi,
   getImageCount,
   parsePretToNumber,
   type Anunt,
@@ -107,10 +106,14 @@ function VanzarePageContent() {
   const [drawnPolygon, setDrawnPolygon] = useState<number[][] | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [dbListings, setDbListings] = useState<Anunt[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const sortRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const categorieParam = searchParams.get("categorie");
+  const roomsMinParam = searchParams.get("roomsMin");
+  const roomsMaxParam = searchParams.get("roomsMax");
+  const surfaceMinParam = searchParams.get("surfaceMin");
+  const surfaceMaxParam = searchParams.get("surfaceMax");
+  const tagParam = searchParams.get("tag");
 
   // Fetch listings din baza de date (doar pentru vânzare)
   useEffect(() => {
@@ -126,8 +129,6 @@ function VanzarePageContent() {
         }
       } catch (error) {
         console.error("Failed to fetch listings:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
     fetchListings();
@@ -144,16 +145,6 @@ function VanzarePageContent() {
   const isDarkMode =
     typeof document !== "undefined" &&
     document.documentElement.classList.contains("dark");
-
-  // Combină anunțurile din DB cu cele mock (prioritate pentru DB)
-  const allAnunturi = useMemo<Anunt[]>(() => {
-    const mockAnunturi = getAllAnunturi();
-    // Filtrează mock-urile care au ID-uri care nu sunt în DB (pentru a evita duplicatele)
-    const dbIds = new Set(dbListings.map(a => a.id));
-    const uniqueMock = mockAnunturi.filter(a => !dbIds.has(a.id));
-    // DB listings primează, apoi mock-urile
-    return [...dbListings, ...uniqueMock];
-  }, [dbListings]);
 
   const filterByCategorie = (anunturi: Anunt[], categorie: string | null) => {
     if (!categorie) return anunturi;
@@ -178,6 +169,38 @@ function VanzarePageContent() {
     }
   };
 
+  const filterByPopularParams = (anunturi: Anunt[]) => {
+    const parseOptionalNumber = (value: string | null): number | null => {
+      if (!value) return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const roomsMin = parseOptionalNumber(roomsMinParam);
+    const roomsMax = parseOptionalNumber(roomsMaxParam);
+    const surfaceMin = parseOptionalNumber(surfaceMinParam);
+    const surfaceMax = parseOptionalNumber(surfaceMaxParam);
+    const requiredTags = (tagParam ?? "")
+      .split(",")
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
+
+    return anunturi.filter((anunt) => {
+      if (roomsMin !== null && (anunt.dormitoare ?? 0) < roomsMin) return false;
+      if (roomsMax !== null && (anunt.dormitoare ?? 0) > roomsMax) return false;
+      if (surfaceMin !== null && (anunt.suprafataUtil ?? 0) < surfaceMin) return false;
+      if (surfaceMax !== null && (anunt.suprafataUtil ?? 0) > surfaceMax) return false;
+
+      if (requiredTags.length > 0) {
+        const haystack = [...anunt.tags, anunt.titlu].join(" ").toLowerCase();
+        const hasAnyTag = requiredTags.some((tag) => haystack.includes(tag));
+        if (!hasAnyTag) return false;
+      }
+
+      return true;
+    });
+  };
+
   // Funcție pentru a verifica dacă un punct este în interiorul unui poligon
   const pointInPolygon = (point: [number, number], polygon: number[][]): boolean => {
     const [x, y] = point;
@@ -192,7 +215,8 @@ function VanzarePageContent() {
   };
 
   const sortedAnunturi = useMemo(() => {
-    let copy = filterByCategorie(allAnunturi, categorieParam);
+    let copy = filterByCategorie(dbListings, categorieParam);
+    copy = filterByPopularParams(copy);
     
     // Filtrează pe baza poligonului desenat
     if (drawnPolygon && drawnPolygon.length >= 3) {
@@ -212,7 +236,17 @@ function VanzarePageContent() {
       copy.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     }
     return copy;
-  }, [allAnunturi, sortOption, drawnPolygon, categorieParam]);
+  }, [
+    dbListings,
+    sortOption,
+    drawnPolygon,
+    categorieParam,
+    roomsMinParam,
+    roomsMaxParam,
+    surfaceMinParam,
+    surfaceMaxParam,
+    tagParam,
+  ]);
 
   const visibleAnunturi = useMemo(
     () => sortedAnunturi.slice(0, visibleCount),
@@ -588,6 +622,7 @@ function VanzarePageContent() {
                       getTagIcon={getTagIcon}
                       href={`/vanzare/${anunt.id}`}
                       compact={isMapView && isMobile}
+                      contactPhone={anunt.assignedAgent?.phone}
                     />
                   ))}
                 </div>

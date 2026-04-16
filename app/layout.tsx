@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
+import CookieBlockerScript from "./components/CookieBlockerScript";
+import CookieConsent from "./components/CookieConsent";
 import "./globals.css";
 
 const kurskMedium = localFont({
@@ -40,6 +42,9 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="ro">
+        <head>
+          <CookieBlockerScript />
+        </head>
         <body className={`${kurskMedium.variable} ${galakThin.variable} ${galakRegular.variable} antialiased`}>
         {/* Zonă safe-area top (notch / dynamic island) cu același efect de "glass" ca navbar-ul */}
         <div aria-hidden="true" className="safe-area-nav-glass" />
@@ -64,6 +69,7 @@ export default function RootLayout({
           }}
         />
           {children}
+          <CookieConsent />
         </body>
       </html>
     </ClerkProvider>
