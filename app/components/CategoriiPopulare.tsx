@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { 
   MdOutlineKeyboardArrowRight, 
   MdOutlineKeyboardArrowLeft,
@@ -83,31 +84,72 @@ const categorii = [
     titlu: "Studio",
     image: "/studio.jpg",
     tags: ["de la 25.000 €", "20-30 m²", "Centru", "Mobilat"],
+    filters: {
+      categorie: "garsoniere",
+      roomsMin: 1,
+      roomsMax: 1,
+      surfaceMin: 20,
+      surfaceMax: 40,
+      tag: "centru,mobilat",
+    },
   },
   {
     titlu: "2 Camere",
     image: "/ap2.jpg",
     tags: ["de la 45.000 €", "40-60 m²", "Balcon", "Parter"],
+    filters: {
+      categorie: "apartamente",
+      roomsMin: 2,
+      roomsMax: 2,
+      surfaceMin: 40,
+      surfaceMax: 70,
+      tag: "balcon,parter",
+    },
   },
   {
     titlu: "3 Camere",
     image: "/ap3.jpg",
     tags: ["de la 75.000 €", "70-90 m²", "Etaj 2-5", "Renovat"],
+    filters: {
+      categorie: "apartamente",
+      roomsMin: 3,
+      roomsMax: 3,
+      surfaceMin: 70,
+      surfaceMax: 95,
+      tag: "renovat,etaj",
+    },
   },
   {
     titlu: "4+ Camere",
     image: "/ap4.jpg",
     tags: ["de la 120.000 €", "100+ m²", "Duplex", "Lux"],
+    filters: {
+      roomsMin: 4,
+      surfaceMin: 100,
+      tag: "duplex,lux",
+    },
   },
   {
     titlu: "Penthouse",
     image: "/ap4.jpg",
     tags: ["de la 200.000 €", "150+ m²", "Ultimul etaj", "Terasa"],
+    filters: {
+      roomsMin: 4,
+      surfaceMin: 140,
+      tag: "terasa,ultimul etaj,penthouse",
+    },
   },
   {
     titlu: "Decomandat",
     image: "/ap3.jpg",
     tags: ["de la 50.000 €", "50-80 m²", "Compartimentare", "Modern"],
+    filters: {
+      categorie: "apartamente",
+      roomsMin: 2,
+      surfaceMin: 50,
+      surfaceMax: 90,
+      tag: "decomandat,modern",
+    },
   },
 ];
 
@@ -117,6 +159,7 @@ export default function CategoriiPopulare() {
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [selectedType, setSelectedType] = useState<"vanzare" | "inchiriere">("vanzare");
   const [isDark, setIsDark] = useState(false);
+  const router = useRouter();
 
   const checkScroll = () => {
     if (scrollContainerRef.current) {
@@ -162,6 +205,23 @@ export default function CategoriiPopulare() {
       // Check scroll position after a short delay
       setTimeout(checkScroll, 100);
     }
+  };
+
+  const goToCategorie = (categorie: (typeof categorii)[number]) => {
+    const params = new URLSearchParams();
+    const { filters } = categorie;
+
+    if (filters.categorie) params.set("categorie", filters.categorie);
+    if (filters.roomsMin) params.set("roomsMin", String(filters.roomsMin));
+    if (filters.roomsMax) params.set("roomsMax", String(filters.roomsMax));
+    if (filters.surfaceMin) params.set("surfaceMin", String(filters.surfaceMin));
+    if (filters.surfaceMax) params.set("surfaceMax", String(filters.surfaceMax));
+    if (filters.tag) params.set("tag", filters.tag);
+
+    const basePath =
+      selectedType === "vanzare" ? "/vanzare" : "/inchiriere";
+
+    router.push(`${basePath}?${params.toString()}`);
   };
 
   return (
@@ -276,6 +336,18 @@ export default function CategoriiPopulare() {
                         ? "0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
                         : "0 4px 20px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5)";
                     }}
+                    onClick={() => {
+                      goToCategorie(categorie);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        goToCategorie(categorie);
+                      }
+                    }}
+                    aria-label={`Vezi ${categorie.titlu} pe ${selectedType}`}
                   >
                     {/* Reflexie mată */}
                     <div

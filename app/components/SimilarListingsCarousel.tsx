@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -100,7 +100,11 @@ export default function SimilarListingsCarousel({
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [isDark, setIsDark] = useState(false);
 
-  const similarAnunturi = getSimilarAnunturi(anunt, 10);
+  const similarAnunturi = useMemo(() => {
+    // Pentru anunțurile reale (ID din DB) nu mai afișăm recomandări din datasetul mock.
+    if (!anunt.id.startsWith("anunt-")) return [];
+    return getSimilarAnunturi(anunt, 10);
+  }, [anunt]);
 
   const checkScroll = () => {
     if (scrollContainerRef.current) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { CiFilter } from "react-icons/ci";
@@ -40,6 +40,8 @@ function HartaContent() {
   const [pendingShowScoli, setPendingShowScoli] = useState(true);
   const [pendingShowRestaurante, setPendingShowRestaurante] = useState(true);
   const [pendingShowMagazine, setPendingShowMagazine] = useState(true);
+  const [isPoiCustomPanelOpen, setIsPoiCustomPanelOpen] = useState(false);
+  const poiPanelRef = useRef<HTMLDivElement | null>(null);
 
   const [dbListingsForMap, setDbListingsForMap] = useState<Anunt[]>([]);
 
@@ -61,6 +63,20 @@ function HartaContent() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isPoiCustomPanelOpen) return;
+
+    const handlePointerDownOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (poiPanelRef.current && !poiPanelRef.current.contains(target)) {
+        setIsPoiCustomPanelOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDownOutside);
+    return () => document.removeEventListener("mousedown", handlePointerDownOutside);
+  }, [isPoiCustomPanelOpen]);
 
   const [pretMinim, setPretMinim] = useState("");
   const [pretMaxim, setPretMaxim] = useState("");
@@ -148,6 +164,7 @@ function HartaContent() {
       {/* Puncte de interes – separat de filtrarea anunțurilor */}
       <div className="absolute top-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:top-24 left-1/2 -translate-x-1/2 z-20 px-2 sm:px-4 w-[calc(100%-1rem)] max-w-lg sm:max-w-none sm:w-auto">
         <div
+          ref={poiPanelRef}
           className="inline-flex flex-col gap-2 backdrop-blur-md bg-white/90 dark:bg-[#1B1B21]/90 border border-white/20 dark:border-[#2b2b33]/50 rounded-xl px-3 py-2 shadow-lg max-h-[min(52dvh,calc(100dvh-12rem))] overflow-y-auto overscroll-contain w-full sm:w-auto sm:max-h-none sm:overflow-visible"
           style={{ fontFamily: "var(--font-galak-regular)" }}
         >
@@ -161,23 +178,35 @@ function HartaContent() {
                   type="radio"
                   className="accent-[#C25A2B]"
                   checked={pendingPoiMode === "all"}
-                  onChange={() => setPendingPoiMode("all")}
+                  onChange={() => {
+                    setPendingPoiMode("all");
+                    setIsPoiCustomPanelOpen(false);
+                  }}
                 />
                 <span>Hartă completă</span>
               </label>
-              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+              <label
+                className="inline-flex items-center gap-1.5 cursor-pointer"
+                onClick={() => {
+                  setPendingPoiMode("custom");
+                  setIsPoiCustomPanelOpen(true);
+                }}
+              >
                 <input
                   type="radio"
                   className="accent-[#C25A2B]"
                   checked={pendingPoiMode === "custom"}
-                  onChange={() => setPendingPoiMode("custom")}
+                  onChange={() => {
+                    setPendingPoiMode("custom");
+                    setIsPoiCustomPanelOpen(true);
+                  }}
                 />
                 <span>Selectez manual</span>
               </label>
             </div>
           </div>
 
-          {pendingPoiMode === "custom" && (
+          {pendingPoiMode === "custom" && isPoiCustomPanelOpen && (
             <div className="flex flex-col gap-2 mt-1 w-full max-w-[min(100vw-2rem,520px)]">
               <div className="flex flex-col gap-1">
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400 px-0.5">
@@ -252,6 +281,7 @@ function HartaContent() {
                   setShowScoli(pendingShowScoli);
                   setShowRestaurante(pendingShowRestaurante);
                   setShowMagazine(pendingShowMagazine);
+                  setIsPoiCustomPanelOpen(false);
                 }}
                 className="ml-auto px-3 py-1.5 rounded-full text-[11px] md:text-xs font-medium text-white hover:opacity-90 transition-opacity"
                 style={{ backgroundColor: "#C25A2B" }}

@@ -9,11 +9,12 @@ import SmallMapPreview from "../../components/SmallMapPreview";
 import { GlassSpecCard, GlassStatsCard, GlassDivider } from "../../components/LiquidGlassCards";
 import AnuntDetailsExpanded from "../../components/AnuntDetailsExpanded";
 import AnuntOffersModal from "../../components/AnuntOffersModal";
+import ListingFavoriteButton from "../../components/ListingFavoriteButton";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
 import PropertyDetailsSection from "../../components/PropertyDetailsSection";
-import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import { getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
@@ -30,36 +31,28 @@ type AnuntPageProps = {
 
 export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
-  
-  // Încearcă mai întâi în mock-uri
-  let anunt = getAnuntById(id);
+  let anunt: (Anunt & { description?: string; dbDetails?: any }) | undefined;
   let roomImages: RoomImage[] = [];
-  
-  // Dacă nu e găsit în mock-uri, caută în DB
-  if (!anunt) {
-    try {
-      const listing = await prisma.listing.findUnique({
-        where: { id },
-        include: { agent: true },
-      });
-      
-      if (listing && listing.status === "approved") {
-        anunt = transformListingToAnunt(listing);
-        // Transformă imaginile din DB în format RoomImage
-        const dbImages = listing.images as any[];
-        if (dbImages && Array.isArray(dbImages)) {
-          roomImages = transformImagesToRoomImages(dbImages);
-        } else {
-          // Fallback la getRoomImages dacă nu sunt imagini în DB
-          roomImages = getRoomImages(anunt.id, anunt.image);
-        }
+
+  try {
+    const listing = await prisma.listing.findUnique({
+      where: { id },
+      include: { agent: true },
+    });
+
+    if (listing && listing.status === "approved") {
+      anunt = transformListingToAnunt(listing);
+      const dbImages = listing.images as any[];
+      if (dbImages && Array.isArray(dbImages)) {
+        roomImages = transformImagesToRoomImages(dbImages);
+      } else {
+        roomImages = getRoomImages(anunt.id, anunt.image);
       }
-    } catch (error) {
-      console.error("Failed to fetch listing from DB:", error);
     }
+  } catch (error) {
+    console.error("Failed to fetch listing from DB:", error);
   }
   
-  // Dacă tot nu e găsit, folosește getRoomImages normal
   if (anunt && roomImages.length === 0) {
     roomImages = getRoomImages(anunt.id, anunt.image);
   }
@@ -205,12 +198,18 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
 
             {/* Conținut principal: preț + specificații + descriere */}
             <section className="space-y-6 md:space-y-8 mb-0">
-              {/* Preț + Oferte primite */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="text-2xl md:text-3xl font-bold">
+              {/* Preț + favorite (mobile) / preț + favorite + oferte (md+) */}
+              <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto] gap-3 items-center">
+                <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
                   {anunt.pret}
                 </div>
-                <AnuntOffersModal anuntId={anunt.id} />
+                <ListingFavoriteButton
+                  anuntId={anunt.id}
+                  className="row-start-1 col-start-2 justify-self-end md:justify-self-start"
+                />
+                <div className="row-start-2 col-span-2 md:row-start-1 md:col-span-1 md:col-start-3 w-full min-w-0 md:flex md:justify-end">
+                  <AnuntOffersModal anuntId={anunt.id} />
+                </div>
               </div>
 
               {/* Carduri cu detalii + Contact card */}
