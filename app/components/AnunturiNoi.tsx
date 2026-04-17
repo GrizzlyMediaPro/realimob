@@ -21,10 +21,9 @@ import {
 } from "react-icons/md";
 import type { IconType } from "react-icons";
 import {
-  getHighlightedAnunturi,
-  parsePretToNumber,
   type Anunt,
 } from "../../lib/anunturiData";
+import { countListingImages, transformListingToAnunt } from "../../lib/listingToAnunt";
 
 // Funcție helper pentru a obține icoana potrivită pentru fiecare tag
 const getTagIcon = (tag: string): IconType | null => {
@@ -70,17 +69,26 @@ const getTagIcon = (tag: string): IconType | null => {
   return null;
 };
 
-// Funcție helper pentru a formata prețul ca "X €/lună" pentru închiriere
-const formatPretLuna = (pret: string): string => {
-  const pretVanzare = parsePretToNumber(pret);
-  let factor = 120;
-  if (pretVanzare < 50000) factor = 100;
-  if (pretVanzare > 150000) factor = 150;
-  
-  const chirie = Math.round(pretVanzare / factor);
-  const chirieFinala = Math.max(300, Math.min(2000, chirie));
-  
-  return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
+type UiAnunt = Anunt & {
+  transactionType?: string;
+  realImageCount?: number;
+};
+
+const normalizeText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const matchesSelectedType = (
+  selectedType: "vanzare" | "inchiriere",
+  transactionType?: string,
+) => {
+  if (!transactionType) return false;
+  const normalized = normalizeText(transactionType);
+  return selectedType === "vanzare"
+    ? normalized.includes("vanzare")
+    : normalized.includes("inchiriere");
 };
 
 export default function AnunturiNoi() {
@@ -89,6 +97,39 @@ export default function AnunturiNoi() {
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [selectedType, setSelectedType] = useState<"vanzare" | "inchiriere">("vanzare");
   const [isDark, setIsDark] = useState(false);
+  const [dbAnunturi, setDbAnunturi] = useState<UiAnunt[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchLatestListings = async () => {
+      try {
+        const response = await fetch("/api/listings?limit=40");
+        if (!response.ok || cancelled) return;
+
+        const data = await response.json();
+        const listings = Array.isArray(data?.listings) ? data.listings : [];
+        const transformed: UiAnunt[] = listings.map((listing: any) => ({
+          ...transformListingToAnunt(listing),
+          transactionType: listing?.transactionType,
+          realImageCount: countListingImages(listing?.images),
+        }));
+
+        if (!cancelled) setDbAnunturi(transformed);
+      } catch (error) {
+        console.error("Failed to fetch latest listings:", error);
+      }
+    };
+
+    fetchLatestListings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const highlightedAnunturi = dbAnunturi
+    .filter((anunt) => matchesSelectedType(selectedType, anunt.transactionType))
+    .slice(0, 10);
 
   const checkScroll = () => {
     if (scrollContainerRef.current) {
@@ -208,8 +249,8 @@ export default function AnunturiNoi() {
               ref={scrollContainerRef}
               className="flex gap-6 overflow-x-auto hide-scrollbar pb-4"
             >
-              {getHighlightedAnunturi().map((anunt: Anunt) => {
-                const pret = selectedType === "inchiriere" ? formatPretLuna(anunt.pret) : anunt.pret;
+              {highlightedAnunturi.map((anunt: Anunt) => {
+                const pret = anunt.pret;
                 const href = selectedType === "vanzare" ? `/vanzare/${anunt.id}` : `/inchiriere/${anunt.id}`;
                 
                 return (

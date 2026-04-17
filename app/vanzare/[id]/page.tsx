@@ -14,7 +14,7 @@ import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
 import PropertyDetailsSection from "../../components/PropertyDetailsSection";
-import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import { getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
@@ -31,36 +31,28 @@ type AnuntPageProps = {
 
 export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
-  
-  // Încearcă mai întâi în mock-uri
-  let anunt = getAnuntById(id);
+  let anunt: (Anunt & { description?: string; dbDetails?: any }) | undefined;
   let roomImages: RoomImage[] = [];
-  
-  // Dacă nu e găsit în mock-uri, caută în DB
-  if (!anunt) {
-    try {
-      const listing = await prisma.listing.findUnique({
-        where: { id },
-        include: { agent: true },
-      });
-      
-      if (listing && listing.status === "approved") {
-        anunt = transformListingToAnunt(listing);
-        // Transformă imaginile din DB în format RoomImage
-        const dbImages = listing.images as any[];
-        if (dbImages && Array.isArray(dbImages)) {
-          roomImages = transformImagesToRoomImages(dbImages);
-        } else {
-          // Fallback la getRoomImages dacă nu sunt imagini în DB
-          roomImages = getRoomImages(anunt.id, anunt.image);
-        }
+
+  try {
+    const listing = await prisma.listing.findUnique({
+      where: { id },
+      include: { agent: true },
+    });
+
+    if (listing && listing.status === "approved") {
+      anunt = transformListingToAnunt(listing);
+      const dbImages = listing.images as any[];
+      if (dbImages && Array.isArray(dbImages)) {
+        roomImages = transformImagesToRoomImages(dbImages);
+      } else {
+        roomImages = getRoomImages(anunt.id, anunt.image);
       }
-    } catch (error) {
-      console.error("Failed to fetch listing from DB:", error);
     }
+  } catch (error) {
+    console.error("Failed to fetch listing from DB:", error);
   }
   
-  // Dacă tot nu e găsit, folosește getRoomImages normal
   if (anunt && roomImages.length === 0) {
     roomImages = getRoomImages(anunt.id, anunt.image);
   }

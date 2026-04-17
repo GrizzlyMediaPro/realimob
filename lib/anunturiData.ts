@@ -176,43 +176,9 @@ export const getAnuntById = (
 ): Anunt | undefined => {
   if (!id) return undefined;
 
-  // Recombinăm anunțul direct din baza de template-uri, folosind indexul din ID,
-  // ca să fim 100% aliniați cu link-urile de forma /anunturi/anunt-1
+  // ID-urile de forma "anunt-*" aparțin datasetului mock și nu mai sunt expuse public.
   if (id.startsWith("anunt-")) {
-    const n = Number(id.replace("anunt-", ""));
-    if (Number.isFinite(n) && n >= 1) {
-      const index = n - 1;
-      const b = baseAnunturi[index % baseAnunturi.length];
-      const basePret = parsePretToNumber(b.pret);
-      const delta = (index % 10) * 2500;
-      const pret = `${(basePret + delta).toLocaleString("ro-RO")} €`;
-      const createdAt = new Date(
-        Date.now() - index * 36 * 60 * 60 * 1000,
-      ).toISOString();
-
-      const zilePostat = Math.floor(index * 1.5);
-      const vizualizari = Math.floor(Math.random() * 500) + 50 + (index * 10);
-      const favorite = Math.floor(Math.random() * 30) + 5 + (index % 10);
-
-      return {
-        id,
-        titlu: `${b.titlu}`,
-        image: b.image,
-        pret,
-        tags: b.tags,
-        createdAt,
-        lat: b.lat,
-        lng: b.lng,
-        dormitoare: b.dormitoare,
-        bai: b.bai,
-        suprafataUtil: b.suprafataUtil,
-        etaj: b.etaj,
-        anConstructie: b.anConstructie,
-        zilePostat,
-        vizualizari,
-        favorite,
-      };
-    }
+    return undefined;
   }
 
   const all = getAllAnunturi();
