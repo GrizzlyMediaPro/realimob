@@ -7,6 +7,8 @@
 :root {
   --background: #E6EAEF;
   --foreground: #1B1920;
+  /* Zona de sub navbar fixă (pt-20 ≈ 5rem) + bandă safe-area pentru notch — modale admin: top = acest offset */
+  --navbar-overlay-offset: calc(5rem + env(safe-area-inset-top, 0px));
 }
 
 /* Dark theme - activat prin clasa .dark pe <html> */

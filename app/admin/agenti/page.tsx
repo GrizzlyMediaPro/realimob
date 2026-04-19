@@ -1244,21 +1244,23 @@ export default function AdminAgentiPage() {
       {/* Modal detalii + contract */}
       {detailAgent && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          className="fixed left-0 right-0 top-[var(--navbar-overlay-offset)] bottom-0 z-[210] flex flex-col bg-black/50 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="detail-agent-title"
         >
-          <div
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-xl text-foreground"
-            style={{
-              fontFamily: "var(--font-galak-regular)",
-              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
-              border: isDark
-                ? "1px solid rgba(255, 255, 255, 0.12)"
-                : "1px solid rgba(0, 0, 0, 0.08)",
-            }}
-          >
+          {/* flex-1 min-h-0: obligatoriu ca overflow-y-auto să deruleze pe fixed (inclusiv iOS/Safari) */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-3 pb-10 sm:px-4 [-webkit-overflow-scrolling:touch]">
+            <div
+              className="relative mx-auto w-full max-w-lg shrink-0 rounded-2xl p-6 shadow-xl text-foreground"
+              style={{
+                fontFamily: "var(--font-galak-regular)",
+                background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+                border: isDark
+                  ? "1px solid rgba(255, 255, 255, 0.12)"
+                  : "1px solid rgba(0, 0, 0, 0.08)",
+              }}
+            >
             <div className="flex items-start justify-between gap-4 mb-4">
               <h2 id="detail-agent-title" className="text-xl font-bold">
                 Detalii cerere
@@ -1472,6 +1474,7 @@ export default function AdminAgentiPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
@@ -1479,20 +1482,21 @@ export default function AdminAgentiPage() {
       {/* Modal editare */}
       {editAgent && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          className="fixed left-0 right-0 top-[var(--navbar-overlay-offset)] bottom-0 z-[210] flex flex-col bg-black/50 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div
-            className="w-full max-w-md rounded-2xl p-6 shadow-xl text-foreground space-y-4"
-            style={{
-              fontFamily: "var(--font-galak-regular)",
-              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
-              border: isDark
-                ? "1px solid rgba(255, 255, 255, 0.12)"
-                : "1px solid rgba(0, 0, 0, 0.08)",
-            }}
-          >
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-10 [-webkit-overflow-scrolling:touch]">
+            <div
+              className="mx-auto w-full max-w-md shrink-0 rounded-2xl p-6 shadow-xl text-foreground space-y-4"
+              style={{
+                fontFamily: "var(--font-galak-regular)",
+                background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+                border: isDark
+                  ? "1px solid rgba(255, 255, 255, 0.12)"
+                  : "1px solid rgba(0, 0, 0, 0.08)",
+              }}
+            >
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold">Editează agent</h2>
               <button
@@ -1554,6 +1558,7 @@ export default function AdminAgentiPage() {
                 Salvează
               </button>
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -1561,17 +1566,18 @@ export default function AdminAgentiPage() {
       {/* Modal respingere */}
       {rejectAgentId && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          className="fixed left-0 right-0 top-[var(--navbar-overlay-offset)] bottom-0 z-[220] flex flex-col bg-black/50 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div
-            className="w-full max-w-md rounded-2xl p-6 shadow-xl text-foreground space-y-4"
-            style={{
-              fontFamily: "var(--font-galak-regular)",
-              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
-            }}
-          >
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-10 [-webkit-overflow-scrolling:touch]">
+            <div
+              className="mx-auto w-full max-w-md shrink-0 rounded-2xl p-6 shadow-xl text-foreground space-y-4"
+              style={{
+                fontFamily: "var(--font-galak-regular)",
+                background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+              }}
+            >
             <h2 className="text-lg font-bold">Respinge cererea</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Explică agentului ce trebuie să corecteze sau să trimită pentru a fi aprobat.
@@ -1602,6 +1608,7 @@ export default function AdminAgentiPage() {
                 Trimite respingerea
               </button>
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -1609,17 +1616,18 @@ export default function AdminAgentiPage() {
       {/* Confirmare ștergere */}
       {deleteAgentId && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          className="fixed left-0 right-0 top-[var(--navbar-overlay-offset)] bottom-0 z-[220] flex flex-col bg-black/50 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
-          <div
-            className="w-full max-w-sm rounded-2xl p-6 shadow-xl text-foreground space-y-4"
-            style={{
-              fontFamily: "var(--font-galak-regular)",
-              background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
-            }}
-          >
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 pb-10 [-webkit-overflow-scrolling:touch]">
+            <div
+              className="mx-auto w-full max-w-sm shrink-0 rounded-2xl p-6 shadow-xl text-foreground space-y-4"
+              style={{
+                fontFamily: "var(--font-galak-regular)",
+                background: isDark ? "rgba(35, 35, 48, 0.98)" : "rgba(255, 255, 255, 0.98)",
+              }}
+            >
             <h2 className="text-lg font-bold">Ștergi înregistrarea?</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Contul Clerk rămâne, dar rolul de agent și datele cererii sunt eliminate. Anunțurile
@@ -1641,6 +1649,7 @@ export default function AdminAgentiPage() {
               >
                 Șterge
               </button>
+            </div>
             </div>
           </div>
         </div>
