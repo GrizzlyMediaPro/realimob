@@ -277,7 +277,9 @@ export async function PATCH(request: Request) {
     }
 
     if (body.action === "approve") {
-      if (!app.signedContractUrl?.trim()) {
+      const currentStatus = getUserStatus(targetMetadata.agentStatus);
+      const fromRejected = currentStatus === "rejected";
+      if (!fromRejected && !app.signedContractUrl?.trim()) {
         return NextResponse.json(
           {
             error:
@@ -287,13 +289,16 @@ export async function PATCH(request: Request) {
         );
       }
 
+      const appForApprove: AgentApplicationMetadata = { ...app };
+      delete appForApprove.rejectionMessage;
+
       await client.users.updateUserMetadata(targetUserId, {
         publicMetadata: {
           ...(targetUser.publicMetadata ?? {}),
           isAgent: true,
           agentStatus: "approved",
           agentApplication: {
-            ...app,
+            ...appForApprove,
             reviewedAt: new Date().toISOString(),
             reviewedBy: userId,
           },

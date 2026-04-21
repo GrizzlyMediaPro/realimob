@@ -13,12 +13,20 @@ import ListingFavoriteButton from "../../components/ListingFavoriteButton";
 import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
-import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  getAnuntById,
+  getRoomImages,
+  inferCurrencyFromPret,
+  parsePretToNumber,
+  type Anunt,
+  type RoomImage,
+} from "../../../lib/anunturiData";
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
 } from "../../../lib/listingToAnunt";
 import RoomGallery from "../../components/RoomGallery";
+import ConvertedListingPrice from "../../components/ConvertedListingPrice";
 import { prisma } from "../../../lib/prisma";
 
 type AnuntPageProps = {
@@ -110,15 +118,29 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
     "București";
   const formatHistoryDate = (iso?: string) =>
     iso ? new Date(iso).toLocaleDateString("ro-RO") : "N/A";
+  const saleAmount =
+    anunt.priceAmount ?? parsePretToNumber(anunt.pret);
+  const saleCurrency =
+    anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret);
+  const perMpAmount =
+    anunt.suprafataUtil !== undefined && saleAmount > 0
+      ? Math.round(saleAmount / anunt.suprafataUtil)
+      : undefined;
+  const perMpFallback =
+    perMpAmount !== undefined
+      ? `${perMpAmount.toLocaleString("ro-RO")} ${saleCurrency === "EUR" ? "€" : saleCurrency}/m²`
+      : undefined;
+
   const priceHistory = [
     {
       date: formatHistoryDate(anunt.createdAt),
       event: "Listat pentru vânzare",
       price: anunt.pret,
-      pricePerMp:
-        anunt.suprafataUtil !== undefined && anunt.pret
-          ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
-          : undefined,
+      pricePerMp: perMpFallback,
+      priceAmount: saleAmount,
+      priceCurrency: saleCurrency,
+      pricePerMpAmount: perMpAmount,
+      priceDetails: anunt.priceDetails ?? null,
     },
   ];
   if (anunt.updatedAt && anunt.updatedAt !== anunt.createdAt) {
@@ -126,10 +148,11 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
       date: formatHistoryDate(anunt.updatedAt),
       event: "Actualizare anunț",
       price: anunt.pret,
-      pricePerMp:
-        anunt.suprafataUtil !== undefined && anunt.pret
-          ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
-          : undefined,
+      pricePerMp: perMpFallback,
+      priceAmount: saleAmount,
+      priceCurrency: saleCurrency,
+      pricePerMpAmount: perMpAmount,
+      priceDetails: anunt.priceDetails ?? null,
     });
   }
 
@@ -177,6 +200,14 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                   titlu={anunt.titlu}
                   lat={anunt.lat}
                   lng={anunt.lng}
+                  pret={anunt.pret}
+                  image={anunt.image}
+                  descriere={
+                    anunt.tags.length > 0
+                      ? anunt.tags.join(" • ")
+                      : locationText
+                  }
+                  routePath={`/anunturi/${anunt.id}`}
                 />
               </div>
             </div>
@@ -193,7 +224,12 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
               {/* Preț + favorite (mobile) / preț + favorite + oferte (md+) */}
               <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto] gap-3 items-center">
                 <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
-                  {anunt.pret}
+                  <ConvertedListingPrice
+                    amount={saleAmount}
+                    fromCurrency={saleCurrency}
+                    fallback={anunt.pret}
+                    priceDetails={anunt.priceDetails ?? null}
+                  />
                 </div>
                 <ListingFavoriteButton
                   anuntId={anunt.id}
@@ -245,10 +281,17 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                           label="An construcție"
                         />
                       )}
-                      {anunt.suprafataUtil !== undefined && anunt.pret && (
+                      {anunt.suprafataUtil !== undefined && anunt.pret && perMpAmount !== undefined && (
                         <GlassSpecCard
                           icon={<MdAttachMoney className="text-[#C25A2B] text-xl md:text-2xl mb-2" />}
-                          value={`${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`}
+                          value={
+                            <ConvertedListingPrice
+                              amount={perMpAmount}
+                              fromCurrency={saleCurrency}
+                              fallback={perMpFallback ?? "—"}
+                              suffix="/m²"
+                            />
+                          }
                           label="Preț pe m²"
                         />
                       )}
@@ -348,9 +391,9 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                   </GlassStatsCard>
 
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
-                  <AnuntDetailsExpanded 
-                    anunt={anunt} 
-                    pretPerMp={anunt.suprafataUtil !== undefined && anunt.pret ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²` : undefined}
+                  <AnuntDetailsExpanded
+                    anunt={anunt}
+                    pretPerMp={perMpFallback}
                     priceHistory={priceHistory}
                   />
                 </div>
@@ -369,6 +412,14 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
                         titlu={anunt.titlu}
                         lat={anunt.lat}
                         lng={anunt.lng}
+                        pret={anunt.pret}
+                        image={anunt.image}
+                        descriere={
+                          anunt.tags.length > 0
+                            ? anunt.tags.join(" • ")
+                            : locationText
+                        }
+                        routePath={`/anunturi/${anunt.id}`}
                       />
                     </div>
                   )}

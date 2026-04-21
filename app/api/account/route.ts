@@ -36,6 +36,15 @@ export async function GET() {
     await syncCompletedViewingQuestionnaires();
 
     const emailNorm = email?.trim().toLowerCase() ?? null;
+    const emailTrim = email?.trim() ?? null;
+
+    const dbAgentPublic =
+      emailTrim && isAgent
+        ? await prisma.agent.findFirst({
+            where: { email: emailTrim },
+            select: { avatar: true, bio: true },
+          })
+        : null;
 
     const [listings, viewingRequests] = await Promise.all([
       prisma.listing.findMany({
@@ -77,6 +86,8 @@ export async function GET() {
         name: fullName,
         email,
         imageUrl: user.imageUrl,
+        agentAvatarUrl: dbAgentPublic?.avatar ?? null,
+        agentBio: dbAgentPublic?.bio?.trim() ? dbAgentPublic.bio.trim() : null,
       },
       role: {
         isAdmin: Boolean(publicMetadata.isAdmin),

@@ -4,8 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { CiCirclePlus, CiUser, CiLogin } from "react-icons/ci";
 import { MdClose, MdMenu, MdApartment, MdHomeWork, MdLocationCity } from "react-icons/md";
 import Link from "next/link";
-import Image from "next/image";
+import { MdExpandMore } from "react-icons/md";
 import { SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
+import {
+  DISPLAY_CURRENCIES,
+  useCurrency,
+  type DisplayCurrency,
+} from "../contexts/CurrencyContext";
 
 type NavbarProps = {
   /** Dacă este true, conținutul intern NU mai este limitat la max-w-[1250px] și se întinde full-width. */
@@ -16,9 +21,21 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const currencyRef = useRef<HTMLDivElement>(null);
+  const { displayCurrency, setDisplayCurrency, rateDate, loading: currencyLoading } =
+    useCurrency();
   const { user } = useUser();
+  const platformAvatarUrlRaw = (
+    user?.publicMetadata as { agentProfile?: { avatarUrl?: string | null } } | undefined
+  )?.agentProfile?.avatarUrl;
+  const platformAvatarUrl =
+    typeof platformAvatarUrlRaw === "string" && platformAvatarUrlRaw.trim().length > 0
+      ? platformAvatarUrlRaw.trim()
+      : null;
+  const navbarAvatarUrl = platformAvatarUrl ?? user?.imageUrl ?? null;
   const isAdmin = Boolean((user?.publicMetadata as { isAdmin?: boolean } | undefined)?.isAdmin);
   const agentMetadata = (user?.publicMetadata as { isAgent?: boolean; agentStatus?: string } | undefined);
   const isAgent = Boolean(agentMetadata?.isAgent);
@@ -54,7 +71,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
     };
   }, []);
 
-  // Închide meniul când se face click în afara lui
+  // Închide meniul / selector monedă la click în afară
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -66,16 +83,71 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
       ) {
         setIsMenuOpen(false);
       }
+      if (
+        currencyRef.current &&
+        !currencyRef.current.contains(target)
+      ) {
+        setCurrencyOpen(false);
+      }
     };
 
-    if (isMenuOpen) {
+    if (isMenuOpen || currencyOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isMenuOpen]);
+  }, [isMenuOpen, currencyOpen]);
+
+  const currencyDropdown = (
+    <div className="relative" ref={currencyRef}>
+      <button
+        type="button"
+        onClick={() => setCurrencyOpen((o) => !o)}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium text-black dark:text-foreground border border-black/10 dark:border-white/15 bg-white/40 dark:bg-white/5 hover:opacity-90 transition-opacity"
+        aria-expanded={currencyOpen}
+        aria-haspopup="listbox"
+        aria-label="Monedă afișare"
+        title={
+          rateDate
+            ? `Curs BNR din ${rateDate}${currencyLoading ? " (încărcare…)" : ""}`
+            : "Monedă (curs BNR)"
+        }
+      >
+        {displayCurrency}
+        <MdExpandMore
+          size={18}
+          className={`transition-transform ${currencyOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      {currencyOpen && (
+        <ul
+          className="absolute right-0 mt-1.5 min-w-[120px] py-1 rounded-xl border z-300 text-sm shadow-lg bg-white dark:bg-[#2a2a38] border-black/10 dark:border-white/12"
+          role="listbox"
+        >
+          {DISPLAY_CURRENCIES.map((code) => (
+            <li key={code}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={code === displayCurrency}
+                className={`w-full text-left px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 ${
+                  code === displayCurrency ? "text-[#C25A2B] font-semibold" : ""
+                }`}
+                onClick={() => {
+                  setDisplayCurrency(code as DisplayCurrency);
+                  setCurrencyOpen(false);
+                }}
+              >
+                {code}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
   const menuItems = {
     "De vânzare": {
@@ -168,11 +240,11 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
           </Link>
 
           {/* Butoane pe dreapta */}
-          <div 
-            className="flex items-center gap-4"
+          <div
+            className="flex items-center gap-3 md:gap-4"
             style={{ fontFamily: "var(--font-galak-regular)" }}
           >
-              {/* Desktop: butoane normale + steag + hamburger */}
+              {/* Desktop: butoane + cont (moneda și meniul sunt în afara acestui grup) */}
               <div className="items-center gap-4 hidden md:flex">
                 <Link
                   href="/adauga-anunt"
@@ -231,74 +303,55 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                       Agent
                     </Link>
                   )}
-                  <UserButton
-                    afterSignOutUrl="/"
-                    appearance={{
-                      elements: {
-                        avatarBox: "w-9 h-9",
-                      },
-                    }}
-                  />
+                  <div className="relative w-9 h-9">
+                    {navbarAvatarUrl ? (
+                      <img
+                        src={navbarAvatarUrl}
+                        alt="Avatar cont"
+                        className="absolute inset-0 w-9 h-9 rounded-full object-cover border border-white/20 pointer-events-none"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 w-9 h-9 rounded-full bg-[#C25A2B]/15 flex items-center justify-center text-[#C25A2B] pointer-events-none">
+                        <CiUser size={18} />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 opacity-0">
+                      <UserButton
+                        afterSignOutUrl="/"
+                        appearance={{
+                          elements: {
+                            avatarBox: "w-9 h-9",
+                          },
+                        }}
+                      />
+                    </div>
+                  </div>
                 </SignedIn>
-                <Image 
-                  src="/Flag_of_Romania.svg.webp" 
-                  alt="România" 
-                  width={24} 
-                  height={18}
-                  className="cursor-pointer hover:opacity-80 transition-opacity"
-                />
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="flex items-center justify-center w-10 h-10 text-black dark:text-foreground hover:opacity-80 transition-opacity relative"
-                  aria-label="Menu"
-                >
-                  <div className="relative w-6 h-6">
-                    <MdMenu 
-                      size={24} 
-                      className={`absolute inset-0 transition-all duration-300 ${
-                        isMenuOpen ? "opacity-0 rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
-                      }`}
-                    />
-                    <MdClose 
-                      size={24} 
-                      className={`absolute inset-0 transition-all duration-300 ${
-                        isMenuOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-75"
-                      }`}
-                    />
-                  </div>
-                </button>
               </div>
-            
-              {/* Mobile: hamburger + steag */}
-              <div className="flex items-center gap-4 md:hidden">
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="flex items-center justify-center w-10 h-10 text-black dark:text-foreground hover:opacity-80 transition-opacity relative"
-                  aria-label="Menu"
-                >
-                  <div className="relative w-6 h-6">
-                    <MdMenu 
-                      size={24} 
-                      className={`absolute inset-0 transition-all duration-300 ${
-                        isMenuOpen ? "opacity-0 rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
-                      }`}
-                    />
-                    <MdClose 
-                      size={24} 
-                      className={`absolute inset-0 transition-all duration-300 ${
-                        isMenuOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-75"
-                      }`}
-                    />
-                  </div>
-                </button>
-                <Image 
-                  src="/Flag_of_Romania.svg.webp" 
-                  alt="România" 
-                  width={24} 
-                  height={18}
-                  className="cursor-pointer hover:opacity-80 transition-opacity"
-                />
-              </div>
+
+              {currencyDropdown}
+
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="flex items-center justify-center w-10 h-10 text-black dark:text-foreground hover:opacity-80 transition-opacity relative"
+                aria-label="Menu"
+              >
+                <div className="relative w-6 h-6">
+                  <MdMenu
+                    size={24}
+                    className={`absolute inset-0 transition-all duration-300 ${
+                      isMenuOpen ? "opacity-0 rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
+                    }`}
+                  />
+                  <MdClose
+                    size={24}
+                    className={`absolute inset-0 transition-all duration-300 ${
+                      isMenuOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-75"
+                    }`}
+                  />
+                </div>
+              </button>
             </div>
         </div>
       </nav>
@@ -449,14 +502,29 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                         Agent
                       </Link>
                     )}
-                    <UserButton
-                      afterSignOutUrl="/"
-                      appearance={{
-                        elements: {
-                          avatarBox: "w-9 h-9",
-                        },
-                      }}
-                    />
+                    <div className="relative w-9 h-9">
+                      {navbarAvatarUrl ? (
+                        <img
+                          src={navbarAvatarUrl}
+                          alt="Avatar cont"
+                          className="absolute inset-0 w-9 h-9 rounded-full object-cover border border-white/20 pointer-events-none"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 w-9 h-9 rounded-full bg-[#C25A2B]/15 flex items-center justify-center text-[#C25A2B] pointer-events-none">
+                          <CiUser size={18} />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 opacity-0">
+                        <UserButton
+                          afterSignOutUrl="/"
+                          appearance={{
+                            elements: {
+                              avatarBox: "w-9 h-9",
+                            },
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </SignedIn>
               </div>

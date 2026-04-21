@@ -14,12 +14,20 @@ import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
 import PropertyDetailsSection from "../../components/PropertyDetailsSection";
-import { getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  getRoomImages,
+  inferCurrencyFromPret,
+  parsePretToNumber,
+  type Anunt,
+  type RoomImage,
+} from "../../../lib/anunturiData";
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
 } from "../../../lib/listingToAnunt";
 import RoomGallery from "../../components/RoomGallery";
+import ConvertedListingPrice from "../../components/ConvertedListingPrice";
+import ListingDescriptionDisplay from "../../components/ListingDescriptionDisplay";
 import { prisma } from "../../../lib/prisma";
 import { getListingNearbyInsights } from "../../../lib/listing-nearby-insights";
 
@@ -118,15 +126,29 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
       : null;
   const formatHistoryDate = (iso?: string) =>
     iso ? new Date(iso).toLocaleDateString("ro-RO") : "N/A";
+  const saleAmount =
+    anunt.priceAmount ?? parsePretToNumber(anunt.pret);
+  const saleCurrency =
+    anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret);
+  const perMpAmount =
+    anunt.suprafataUtil !== undefined && saleAmount > 0
+      ? Math.round(saleAmount / anunt.suprafataUtil)
+      : undefined;
+  const perMpFallback =
+    perMpAmount !== undefined
+      ? `${perMpAmount.toLocaleString("ro-RO")} ${saleCurrency === "EUR" ? "€" : saleCurrency}/m²`
+      : undefined;
+
   const priceHistory = [
     {
       date: formatHistoryDate(anunt.createdAt),
       event: "Listat pentru vânzare",
       price: anunt.pret,
-      pricePerMp:
-        anunt.suprafataUtil !== undefined && anunt.pret
-          ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
-          : undefined,
+      pricePerMp: perMpFallback,
+      priceAmount: saleAmount,
+      priceCurrency: saleCurrency,
+      pricePerMpAmount: perMpAmount,
+      priceDetails: anunt.priceDetails ?? null,
     },
   ];
   if (anunt.updatedAt && anunt.updatedAt !== anunt.createdAt) {
@@ -134,10 +156,11 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
       date: formatHistoryDate(anunt.updatedAt),
       event: "Actualizare anunț",
       price: anunt.pret,
-      pricePerMp:
-        anunt.suprafataUtil !== undefined && anunt.pret
-          ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
-          : undefined,
+      pricePerMp: perMpFallback,
+      priceAmount: saleAmount,
+      priceCurrency: saleCurrency,
+      pricePerMpAmount: perMpAmount,
+      priceDetails: anunt.priceDetails ?? null,
     });
   }
 
@@ -185,6 +208,14 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                   titlu={anunt.titlu}
                   lat={anunt.lat}
                   lng={anunt.lng}
+                  pret={anunt.pret}
+                  image={anunt.image}
+                  descriere={
+                    anunt.tags.length > 0
+                      ? anunt.tags.join(" • ")
+                      : locationText
+                  }
+                  routePath={`/vanzare/${anunt.id}`}
                 />
               </div>
             </div>
@@ -201,7 +232,12 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
               {/* Preț + favorite (mobile) / preț + favorite + oferte (md+) */}
               <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto] gap-3 items-center">
                 <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
-                  {anunt.pret}
+                  <ConvertedListingPrice
+                    amount={saleAmount}
+                    fromCurrency={saleCurrency}
+                    fallback={anunt.pret}
+                    priceDetails={anunt.priceDetails ?? null}
+                  />
                 </div>
                 <ListingFavoriteButton
                   anuntId={anunt.id}
@@ -253,10 +289,17 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                           label="An construcție"
                         />
                       )}
-                      {anunt.suprafataUtil !== undefined && anunt.pret && (
+                      {anunt.suprafataUtil !== undefined && anunt.pret && perMpAmount !== undefined && (
                         <GlassSpecCard
                           icon={<MdAttachMoney className="text-[#C25A2B] text-xl md:text-2xl mb-2" />}
-                          value={`${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`}
+                          value={
+                            <ConvertedListingPrice
+                              amount={perMpAmount}
+                              fromCurrency={saleCurrency}
+                              fallback={perMpFallback ?? "—"}
+                              suffix="/m²"
+                            />
+                          }
                           label="Preț pe m²"
                         />
                       )}
@@ -271,9 +314,10 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                             <MdDescription className="text-[#C25A2B]" />
                             Descriere
                           </h2>
-                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
-                            {(anunt as any).description || "Acest anunț este un exemplu realist pentru prezentarea proprietăților în București. Poți folosi această secțiune pentru a evidenția avantajele principale ale locuinței: compartimentare, lumină naturală, finisaje, acces la transport, magazine și zone verzi."}
-                          </p>
+                          <ListingDescriptionDisplay
+                            html={(anunt as any).description}
+                            fallback="Acest anunț este un exemplu realist pentru prezentarea proprietăților în București. Poți folosi această secțiune pentru a evidenția avantajele principale ale locuinței: compartimentare, lumină naturală, finisaje, acces la transport, magazine și zone verzi."
+                          />
                         </div>
                       </div>
                   </GlassStatsCard>
@@ -295,11 +339,7 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                   {/* Component expandabil pentru Istoric prețuri, Calitate transport și Școli */}
                   <AnuntDetailsExpanded
                     anunt={anunt}
-                    pretPerMp={
-                      anunt.suprafataUtil !== undefined && anunt.pret
-                        ? `${Math.round(parsePretToNumber(anunt.pret) / anunt.suprafataUtil).toLocaleString("ro-RO")} €/m²`
-                        : undefined
-                    }
+                    pretPerMp={perMpFallback}
                     priceHistory={priceHistory}
                     nearbyInsights={nearbyInsights}
                   />
@@ -320,6 +360,14 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
                         titlu={anunt.titlu}
                         lat={anunt.lat}
                         lng={anunt.lng}
+                        pret={anunt.pret}
+                        image={anunt.image}
+                        descriere={
+                          anunt.tags.length > 0
+                            ? anunt.tags.join(" • ")
+                            : locationText
+                        }
+                        routePath={`/vanzare/${anunt.id}`}
                       />
                     </div>
                   )}

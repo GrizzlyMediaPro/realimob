@@ -24,7 +24,9 @@ import {
   formatListingPriceDisplay,
   getFirstListingImageUrl,
   countListingImages,
+  listingPriceToNumber,
 } from "@/lib/listingToAnunt";
+import { normalizeListingCurrencyCode } from "@/lib/bnrFxRates";
 import AdminChestionareVizionariPanel from "./AdminChestionareVizionariPanel";
 import AdminListingSalesPanel from "./AdminListingSalesPanel";
 
@@ -41,6 +43,8 @@ interface AdminAnuntCardItem {
   image: string;
   pret: string;
   priceNumber: number;
+  priceCurrency: string;
+  priceDetails: Record<string, unknown> | null;
   tags: string[];
   locationText: string;
   imageCount: number;
@@ -369,16 +373,22 @@ export default function AdminAnunturiPage() {
 
   const allAnunturi = useMemo<AdminAnuntCardItem[]>(() => {
     const approved = dbApprovedListings.map((listing) => {
+      const pn = listingPriceToNumber(listing.price);
+      const n = Number.isFinite(pn) ? pn : 0;
       return {
         id: listing.id,
         titlu: listing.title,
         image: getFirstListingImageUrl(listing.images),
         pret: formatListingPriceDisplay(
-          listing.price,
+          n,
           listing.currency,
           listing.details as Record<string, unknown> | null,
         ),
-        priceNumber: listing.price,
+        priceNumber: n,
+        priceCurrency: normalizeListingCurrencyCode(
+          String(listing.currency ?? "RON").trim() || "RON",
+        ),
+        priceDetails: (listing.details as Record<string, unknown> | null) ?? null,
         tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
         locationText: listing.sector || listing.location || "Zona centrală",
         imageCount: countListingImages(listing.images),
@@ -388,16 +398,22 @@ export default function AdminAnunturiPage() {
     });
 
     const denied = dbDeniedListings.map((listing) => {
+      const pn = listingPriceToNumber(listing.price);
+      const n = Number.isFinite(pn) ? pn : 0;
       return {
         id: listing.id,
         titlu: listing.title,
         image: getFirstListingImageUrl(listing.images),
         pret: formatListingPriceDisplay(
-          listing.price,
+          n,
           listing.currency,
           listing.details as Record<string, unknown> | null,
         ),
-        priceNumber: listing.price,
+        priceNumber: n,
+        priceCurrency: normalizeListingCurrencyCode(
+          String(listing.currency ?? "RON").trim() || "RON",
+        ),
+        priceDetails: (listing.details as Record<string, unknown> | null) ?? null,
         tags: [listing.propertyType, listing.transactionType, listing.sector || listing.location].filter(Boolean),
         locationText: listing.sector || listing.location || "Zona centrală",
         imageCount: countListingImages(listing.images),
@@ -1633,6 +1649,9 @@ export default function AdminAnunturiPage() {
                           titlu={anunt.titlu}
                           image={anunt.image}
                           pret={anunt.pret}
+                          priceAmount={anunt.priceNumber}
+                          priceCurrency={anunt.priceCurrency}
+                          priceDetails={anunt.priceDetails}
                           tags={anunt.tags}
                           locationText={
                             anunt.tags.find((t) => t.includes("Sector")) ??

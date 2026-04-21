@@ -4,6 +4,8 @@ export type AssignedAgentPublic = {
   name: string;
   phone?: string;
   avatar?: string;
+  /** Text scurt despre agent (afișat public) */
+  bio?: string;
   rating: number;
 };
 
@@ -12,6 +14,10 @@ export type Anunt = {
   titlu: string;
   image: string;
   pret: string;
+  /** Valoare numerică pentru conversie BNR (opțional pentru date vechi doar-text). */
+  priceAmount?: number;
+  priceCurrency?: string;
+  priceDetails?: Record<string, unknown> | null;
   tags: string[];
   createdAt: string;
   updatedAt?: string;
@@ -40,6 +46,15 @@ export const parsePretToNumber = (pret: string) => {
   const value = Number(digitsOnly);
   return Number.isFinite(value) ? value : 0;
 };
+
+/** Heuristic pentru anunțuri fără `priceCurrency` în date. */
+export function inferCurrencyFromPret(pret: string): string {
+  if (pret.includes("€")) return "EUR";
+  if (/\$|USD/i.test(pret)) return "USD";
+  if (/£|GBP/i.test(pret)) return "GBP";
+  if (/lei|RON/i.test(pret)) return "RON";
+  return "EUR";
+}
 
 const baseAnunturi = [
   {
@@ -130,7 +145,8 @@ export const generateAnunturi = (total = 80): Anunt[] => {
     const b = baseAnunturi[i % baseAnunturi.length];
     const basePret = parsePretToNumber(b.pret);
     const delta = (i % 10) * 2500; // mică variație ca să aibă sens sortarea
-    const pret = `${(basePret + delta).toLocaleString("ro-RO")} €`;
+    const amount = basePret + delta;
+    const pret = `${amount.toLocaleString("ro-RO")} €`;
 
     const createdAt = new Date(
       Date.now() - i * 36 * 60 * 60 * 1000,
@@ -145,6 +161,8 @@ export const generateAnunturi = (total = 80): Anunt[] => {
       titlu: `${b.titlu}`,
       image: b.image,
       pret,
+      priceAmount: amount,
+      priceCurrency: "EUR",
       tags: b.tags,
       createdAt,
       lat: b.lat,

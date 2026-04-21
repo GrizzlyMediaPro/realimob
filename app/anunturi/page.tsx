@@ -30,6 +30,7 @@ import ListingCard from "../components/ListingCard";
 import {
   getAllAnunturi,
   getImageCount,
+  inferCurrencyFromPret,
   parsePretToNumber,
   type Anunt,
   type SortOption,
@@ -289,6 +290,9 @@ export default function AnunturiPage() {
                   titlu={anunt.titlu}
                   image={anunt.image}
                   pret={anunt.pret}
+                  priceAmount={anunt.priceAmount ?? parsePretToNumber(anunt.pret)}
+                  priceCurrency={anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret)}
+                  priceDetails={anunt.priceDetails}
                   tags={anunt.tags}
                   locationText={anunt.tags.find((t) => t.includes("Sector")) ?? "Zona centrală"}
                   imageCount={getImageCount(anunt.id)}

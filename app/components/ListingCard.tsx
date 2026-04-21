@@ -9,12 +9,18 @@ import { MdClose, MdLocationOn, MdPhone } from "react-icons/md";
 import type { IconType } from "react-icons";
 import ViewingBookingModal from "./ViewingBookingModal";
 import ListingFavoriteButton from "./ListingFavoriteButton";
+import ConvertedListingPrice from "./ConvertedListingPrice";
 
 type ListingCardProps = {
   id: string;
   titlu: string;
   image: string;
   pret: string;
+  priceAmount?: number;
+  priceCurrency?: string;
+  priceDetails?: Record<string, unknown> | null;
+  /** Ex. „ / lună” pentru estimări de chirie. */
+  priceSuffix?: string;
   tags: string[];
   locationText: string;
   imageCount: number;
@@ -45,6 +51,10 @@ export default function ListingCard({
   titlu,
   image,
   pret,
+  priceAmount,
+  priceCurrency,
+  priceDetails,
+  priceSuffix,
   tags,
   locationText,
   imageCount,
@@ -92,6 +102,21 @@ export default function ListingCard({
   const resolvedWaPhone = normalizePhoneForWhatsApp(contactPhone || "") ??
     normalizePhoneForWhatsApp(fallbackWaPhone);
   const canWhatsApp = Boolean(resolvedWaPhone);
+
+  const pretAfisat =
+    priceAmount != null &&
+    priceCurrency?.trim() &&
+    Number.isFinite(priceAmount) ? (
+      <ConvertedListingPrice
+        amount={priceAmount}
+        fromCurrency={priceCurrency}
+        fallback={pret}
+        priceDetails={priceDetails}
+        suffix={priceSuffix}
+      />
+    ) : (
+      pret
+    );
 
   useEffect(() => {
     if (!showContactPopup) return;
@@ -187,7 +212,7 @@ export default function ListingCard({
               </div>
 
               <div className="mt-1 flex items-center justify-between">
-                <div className="text-sm font-bold text-foreground">{pret}</div>
+                <div className="text-sm font-bold text-foreground">{pretAfisat}</div>
                 <button
                   type="button"
                   className="w-6 h-6 rounded-full bg-[#1F2D44] flex items-center justify-center text-white hover:opacity-90 transition-opacity"
@@ -393,7 +418,7 @@ export default function ListingCard({
 
           <div className="mt-4 flex items-center justify-between">
             <div className="text-2xl font-bold text-foreground">
-              {pret}
+              {pretAfisat}
             </div>
             <div className="flex items-center gap-2">
               <button

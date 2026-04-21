@@ -4,6 +4,18 @@ import { useState } from "react";
 import { GlassStatsCard, GlassCTAButton } from "./LiquidGlassCards";
 import { MdHistory, MdDirectionsTransit, MdSchool, MdDirectionsWalk, MdDirectionsBike } from "react-icons/md";
 import type { ListingNearbyInsights } from "../../lib/listing-nearby-insights";
+import ConvertedListingPrice from "./ConvertedListingPrice";
+
+type PriceHistoryRow = {
+  date: string;
+  event: string;
+  price: string;
+  pricePerMp?: string;
+  priceAmount?: number;
+  priceCurrency?: string;
+  pricePerMpAmount?: number;
+  priceDetails?: Record<string, unknown> | null;
+};
 
 type AnuntDetailsExpandedProps = {
   anunt: {
@@ -14,12 +26,7 @@ type AnuntDetailsExpandedProps = {
   };
   pretPerMp?: string;
   isInchiriere?: boolean;
-  priceHistory?: {
-    date: string;
-    event: string;
-    price: string;
-    pricePerMp?: string;
-  }[];
+  priceHistory?: PriceHistoryRow[];
   /** `undefined` = secțiunea clasică (mock); `null` = fără date (lipsă coordonate sau eroare); obiect = date OSM. */
   nearbyInsights?: ListingNearbyInsights | null;
 };
@@ -32,7 +39,7 @@ export default function AnuntDetailsExpanded({
   nearbyInsights,
 }: AnuntDetailsExpandedProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const fallbackHistory = [
+  const fallbackHistory: PriceHistoryRow[] = [
     {
       date: anunt.createdAt
         ? new Date(anunt.createdAt).toLocaleDateString("ro-RO")
@@ -42,9 +49,8 @@ export default function AnuntDetailsExpanded({
       pricePerMp: pretPerMp,
     },
   ];
-  const historyRows = (priceHistory && priceHistory.length > 0)
-    ? priceHistory
-    : fallbackHistory;
+  const historyRows: PriceHistoryRow[] =
+    priceHistory && priceHistory.length > 0 ? priceHistory : fallbackHistory;
 
   if (!isExpanded) {
     return (
@@ -81,7 +87,7 @@ export default function AnuntDetailsExpanded({
                 </tr>
               </thead>
               <tbody>
-                {historyRows.map((row, index) => (
+                {historyRows.map((row: PriceHistoryRow, index) => (
                   <tr
                     key={`${row.date}-${row.event}-${index}`}
                     className={index < historyRows.length - 1 ? "border-b border-gray-100 dark:border-gray-800/50" : ""}
@@ -89,8 +95,35 @@ export default function AnuntDetailsExpanded({
                     <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{row.date}</td>
                     <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{row.event}</td>
                     <td className="py-3 px-4 text-sm">
-                      <div className="font-semibold text-gray-900 dark:text-white">{row.price}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-500">{row.pricePerMp || "N/A"}</div>
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        {row.priceAmount != null &&
+                        row.priceCurrency?.trim() &&
+                        Number.isFinite(row.priceAmount) ? (
+                          <ConvertedListingPrice
+                            amount={row.priceAmount}
+                            fromCurrency={row.priceCurrency}
+                            fallback={row.price}
+                            priceDetails={row.priceDetails}
+                            suffix={isInchiriere ? " / lună" : ""}
+                          />
+                        ) : (
+                          row.price
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-500">
+                        {row.pricePerMpAmount != null &&
+                        row.priceCurrency?.trim() &&
+                        Number.isFinite(row.pricePerMpAmount) ? (
+                          <ConvertedListingPrice
+                            amount={row.pricePerMpAmount}
+                            fromCurrency={row.priceCurrency}
+                            fallback={row.pricePerMp ?? "N/A"}
+                            suffix="/m²"
+                          />
+                        ) : (
+                          row.pricePerMp || "N/A"
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

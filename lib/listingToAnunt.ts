@@ -1,4 +1,19 @@
 import type { Anunt, AssignedAgentPublic, RoomImage } from "./anunturiData";
+import {
+  currencyDisplaySymbol,
+  normalizeListingCurrencyCode,
+} from "./bnrFxRates";
+
+/** Sufix TVA pentru afișare (aliniat cu `formatListingPriceDisplay`). */
+export function listingTvaSuffix(
+  details?: Record<string, unknown> | null,
+): string {
+  if (!details || typeof details !== "object") return "";
+  const tva = details.tvaInclus;
+  if (tva === true) return " (TVA inclus)";
+  if (tva === false) return " (TVA neinclus)";
+  return "";
+}
 
 /** Afișare preț cu mențiune TVA (din `details.tvaInclus`). */
 export function formatListingPriceDisplay(
@@ -7,11 +22,38 @@ export function formatListingPriceDisplay(
   details?: Record<string, unknown> | null,
 ): string {
   const base = `${Number(price).toLocaleString("ro-RO")} ${currency}`;
-  if (!details || typeof details !== "object") return base;
-  const tva = details.tvaInclus;
-  if (tva === true) return `${base} (TVA inclus)`;
-  if (tva === false) return `${base} (TVA neinclus)`;
-  return base;
+  return `${base}${listingTvaSuffix(details)}`;
+}
+
+/** Preț din Prisma/JSON: `Decimal`, număr, string numeric. */
+export function listingPriceToNumber(price: unknown): number {
+  if (price == null) return NaN;
+  if (typeof price === "number") return Number.isFinite(price) ? price : NaN;
+  if (typeof price === "bigint") return Number(price);
+  if (typeof price === "object" && price !== null) {
+    const o = price as { toNumber?: () => number; toString?: () => string };
+    if (typeof o.toNumber === "function") {
+      try {
+        const n = o.toNumber();
+        if (Number.isFinite(n)) return n;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (typeof o.toString === "function") {
+      const s = String(o.toString()).trim().replace(",", ".");
+      if (s) {
+        const n = Number(s);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+  }
+  if (typeof price === "string") {
+    const n = Number(price.trim().replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(price);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 /** Coordonate din Mongo/JSON pot fi număr, string, Decimal BSON sau obiect Prisma. */
@@ -62,6 +104,7 @@ function mapDbAgentToPublic(agent: {
   name: string;
   phone?: string | null;
   avatar?: string | null;
+  bio?: string | null;
   rating: number;
 }): AssignedAgentPublic {
   return {
@@ -69,6 +112,7 @@ function mapDbAgentToPublic(agent: {
     name: agent.name,
     phone: agent.phone ?? undefined,
     avatar: agent.avatar ?? undefined,
+    bio: agent.bio?.trim() ? agent.bio.trim() : undefined,
     rating: agent.rating,
   };
 }
@@ -186,15 +230,24 @@ export function transformListingToAnunt(
   const dormitoare =
     dormitoareApartament ?? dormitoareCasa ?? dormitoareCasaFallback;
 
+  const normCur = normalizeListingCurrencyCode(
+    String(listing.currency ?? "RON").trim() || "RON",
+  );
+  const numPrice = listingPriceToNumber(listing.price);
+  const displayPrice = Number.isFinite(numPrice) ? numPrice : 0;
+
   return {
     id: listing.id,
     titlu: listing.title,
     image: firstImage,
     pret: formatListingPriceDisplay(
-      listing.price,
-      listing.currency,
+      displayPrice,
+      currencyDisplaySymbol(normCur),
       listing.details as Record<string, unknown> | null,
     ),
+    priceAmount: Number.isFinite(numPrice) ? numPrice : undefined,
+    priceCurrency: normCur,
+    priceDetails: (listing.details as Record<string, unknown> | null) ?? null,
     tags,
     createdAt: listing.createdAt,
     updatedAt: listing.updatedAt,

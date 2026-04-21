@@ -58,6 +58,8 @@ type AccountPayload = {
     name: string | null;
     email: string | null;
     imageUrl: string | null;
+    agentAvatarUrl?: string | null;
+    agentBio?: string | null;
   };
   role: {
     isAdmin: boolean;
@@ -376,13 +378,17 @@ export default function ContPage() {
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                   <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 shrink-0">
-                    {data.user.imageUrl ? (
+                    {data.user.agentAvatarUrl || data.user.imageUrl ? (
                       <Image
-                        src={data.user.imageUrl}
+                        src={data.user.agentAvatarUrl || data.user.imageUrl || ""}
                         alt=""
                         fill
                         className="object-cover"
                         sizes="64px"
+                        unoptimized={Boolean(
+                          data.user.agentAvatarUrl &&
+                            !data.user.agentAvatarUrl.includes("img.clerk.com"),
+                        )}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -400,6 +406,11 @@ export default function ContPage() {
                         {data.user.email}
                       </p>
                     )}
+                    {data.user.agentBio ? (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 whitespace-pre-wrap">
+                        {data.user.agentBio}
+                      </p>
+                    ) : null}
                     <div className="flex flex-wrap gap-2 mt-3">
                       {data.role.isAdmin && (
                         <Link

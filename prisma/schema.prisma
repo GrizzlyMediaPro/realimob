@@ -68,6 +68,9 @@ model Agent {
   phone     String?
   avatar    String?
 
+  /// Descriere publică (profil anunțuri / modal contact)
+  bio       String?
+
   // Sectoare în care operează agentul (ex: ["Sector 1", "Sector 2"])
   sectors   String[]
 
@@ -232,6 +235,11 @@ model PlatformSettings {
   /// Centru oraș (Punctul 0) pentru scoruri distanță — opțional; altfel env / default București
   cityCenterLatitude  Float?
   cityCenterLongitude Float?
+
+  /// Secțiune „Colaboratori” pe homepage (deasupra newsletter)
+  collaboratorsTitle       String?
+  collaboratorsImageUrl    String?
+  collaboratorsDescription String?
 
   updatedAt DateTime @updatedAt
 }

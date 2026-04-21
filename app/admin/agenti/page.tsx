@@ -1228,6 +1228,17 @@ export default function AdminAgentiPage() {
                                   </button>
                                 </>
                               )}
+                              {agent.status === "respins" && (
+                                <button
+                                  type="button"
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#10B981] hover:opacity-90 transition-opacity disabled:opacity-50"
+                                  disabled={actionLoading}
+                                  title="Readuce cererea la aprobat (override administrativ)"
+                                  onClick={() => approveAgent(agent.id)}
+                                >
+                                  Aprobă
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1324,6 +1335,23 @@ export default function AdminAgentiPage() {
               )}
             </dl>
 
+            {detailAgent.status === "respins" && (
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                <p className="text-sm text-foreground">
+                  Cererea este marcată ca respinsă. Poți aproba din nou agentul dacă ai reevaluat cazul (nu este
+                  necesar contractul semnat în acest scenariu).
+                </p>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => approveAgent(detailAgent.id)}
+                  className="w-full py-2.5 rounded-xl text-white text-sm font-medium bg-[#10B981] hover:opacity-90 disabled:opacity-45"
+                >
+                  Aprobă din nou
+                </button>
+              </div>
+            )}
+
             {detailAgent.status === "pending" && (
               <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
                 <h3 className="font-semibold text-sm">Contract de trimis agentului</h3>
@@ -1361,43 +1389,50 @@ export default function AdminAgentiPage() {
                   data-testid="admin-contract-upload"
                 >
                   <p className="text-xs font-medium text-foreground">Încărcare fișier</p>
-                  <UploadDropzone
-                    endpoint="documentUploader"
-                    onClientUploadComplete={(res) => {
-                      const f = res?.[0];
-                      if (f?.url) {
-                        setContractUrlDraft(f.url);
-                        setContractFileNameDraft(f.name ?? "");
-                      }
-                    }}
-                    onUploadError={(e: Error) => setAgentsError(e.message)}
-                    appearance={{
-                      container: "border-0 bg-transparent p-0",
-                      uploadIcon: "text-[#C25A2B]",
-                    }}
-                    content={{
-                      label: "Trage fișierul aici sau click pentru a alege",
-                      allowedContent: "PDF sau imagine (max. 8 MB pentru PDF)",
-                    }}
-                  />
+                  <div className="rounded-xl border border-blue-300/90 bg-blue-200/90 p-3 dark:border-blue-500/35 dark:bg-blue-950/45">
+                    <UploadDropzone
+                      endpoint="documentUploader"
+                      onClientUploadComplete={(res) => {
+                        const f = res?.[0];
+                        if (f?.url) {
+                          setContractUrlDraft(f.url);
+                          setContractFileNameDraft(f.name ?? "");
+                        }
+                      }}
+                      onUploadError={(e: Error) => setAgentsError(e.message)}
+                      appearance={{
+                        container: "border-0 bg-transparent p-0",
+                        uploadIcon: "text-[#C25A2B]",
+                      }}
+                      content={{
+                        label: "Trage fișierul aici sau click pentru a alege",
+                        allowedContent: "PDF sau imagine (max. 8 MB pentru PDF)",
+                      }}
+                    />
+                  </div>
                   <div className="flex justify-center">
                     <span className="text-xs text-gray-400">sau</span>
                   </div>
-                  <UploadButton
-                    endpoint="documentUploader"
-                    onClientUploadComplete={(res) => {
-                      const f = res?.[0];
-                      if (f?.url) {
-                        setContractUrlDraft(f.url);
-                        setContractFileNameDraft(f.name ?? "");
-                      }
-                    }}
-                    onUploadError={(e: Error) => setAgentsError(e.message)}
-                    content={{
-                      button: "Încarcă din buton",
-                      allowedContent: "PDF / imagine",
-                    }}
-                  />
+                  <div className="rounded-xl border border-blue-300/90 bg-blue-200/90 p-3 dark:border-blue-500/35 dark:bg-blue-950/45 flex justify-center">
+                    <UploadButton
+                      endpoint="documentUploader"
+                      onClientUploadComplete={(res) => {
+                        const f = res?.[0];
+                        if (f?.url) {
+                          setContractUrlDraft(f.url);
+                          setContractFileNameDraft(f.name ?? "");
+                        }
+                      }}
+                      onUploadError={(e: Error) => setAgentsError(e.message)}
+                      appearance={{
+                        container: "border-0 bg-transparent p-0",
+                      }}
+                      content={{
+                        button: "Încarcă din buton",
+                        allowedContent: "PDF / imagine",
+                      }}
+                    />
+                  </div>
                 </div>
 
                 {contractUrlDraft ? (

@@ -11,6 +11,9 @@ export async function GET() {
       supportPhone: s.supportPhone,
       defaultCurrency: s.defaultCurrency,
       registrationsEnabled: s.registrationsEnabled,
+      collaboratorsTitle: s.collaboratorsTitle,
+      collaboratorsImageUrl: s.collaboratorsImageUrl,
+      collaboratorsDescription: s.collaboratorsDescription,
     });
   } catch (e) {
     console.error("GET /api/settings/public", e);
@@ -21,6 +24,9 @@ export async function GET() {
         supportPhone: null,
         defaultCurrency: "RON",
         registrationsEnabled: true,
+        collaboratorsTitle: null,
+        collaboratorsImageUrl: null,
+        collaboratorsDescription: null,
       },
       { status: 200 }
     );

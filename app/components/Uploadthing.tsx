@@ -17,8 +17,8 @@ export { useUploadThing };
 
 /** Texte implicite pentru linia „tipuri permise” când nu e suprascris `content.allowedContent`. */
 const DEFAULT_ALLOWED_BY_ENDPOINT: Record<keyof OurFileRouter, string> = {
-  imageUploader: "Imagini (max. 4 MB, până la 20 de fișiere)",
-  documentUploader: "Imagine sau PDF (max. 4 MB pentru imagine, 8 MB pentru PDF)",
+  imageUploader: "Imagini (max. 16 MB, până la 20 de fișiere)",
+  documentUploader: "Imagine sau PDF (max. 8 MB)",
 };
 
 const DEFAULT_DROPZONE_LABEL: Record<keyof OurFileRouter, string> = {
@@ -75,7 +75,7 @@ function defaultButtonCaption(args: ButtonArgs): ReactNode | null {
     const n = args.files.length;
     return n === 1 ? "Încarcă fișierul" : `Încarcă cele ${n} fișiere`;
   }
-  return "Alege fișierul";
+  return "Alege fisier";
 }
 
 function mergeButtonContent(

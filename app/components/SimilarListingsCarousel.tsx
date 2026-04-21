@@ -23,9 +23,12 @@ import type { IconType } from "react-icons";
 
 import {
   getSimilarAnunturi,
+  inferCurrencyFromPret,
   parsePretToNumber,
   type Anunt,
 } from "../../lib/anunturiData";
+import { estimateMonthlyRentFromSaleAmount } from "../../lib/estimateMonthlyRent";
+import ConvertedListingPrice from "./ConvertedListingPrice";
 
 type SimilarListingsCarouselProps = {
   anunt: Anunt;
@@ -204,7 +207,23 @@ export default function SimilarListingsCarousel({
                 className="flex gap-6 overflow-x-auto hide-scrollbar pb-4"
               >
                 {similarAnunturi.map((item) => {
-                  const pretAfisat = isInchiriere ? formatPretLuna(item.pret) : item.pret;
+                  const saleN = item.priceAmount ?? parsePretToNumber(item.pret);
+                  const saleC = item.priceCurrency ?? inferCurrencyFromPret(item.pret);
+                  const priceOverlay = isInchiriere ? (
+                    <ConvertedListingPrice
+                      amount={estimateMonthlyRentFromSaleAmount(saleN)}
+                      fromCurrency={saleC}
+                      fallback={formatPretLuna(item.pret)}
+                      suffix=" / lună"
+                    />
+                  ) : (
+                    <ConvertedListingPrice
+                      amount={saleN}
+                      fromCurrency={saleC}
+                      fallback={item.pret}
+                      priceDetails={item.priceDetails ?? null}
+                    />
+                  );
                   const href = `${basePath}/${item.id}`;
 
                   return (
@@ -268,7 +287,7 @@ export default function SimilarListingsCarousel({
                             className="text-xl font-bold text-white"
                             style={{ fontFamily: "var(--font-galak-regular)" }}
                           >
-                            {pretAfisat}
+                            {priceOverlay}
                           </div>
                         </div>
                       </div>

@@ -29,10 +29,12 @@ import ListingCard from "../components/ListingCard";
 import ListingFiltersModal from "../components/ListingFiltersModal";
 import {
   getImageCount,
+  inferCurrencyFromPret,
   parsePretToNumber,
   type Anunt,
   type SortOption,
 } from "../../lib/anunturiData";
+import { estimateMonthlyRentFromSaleAmount } from "../../lib/estimateMonthlyRent";
 import { transformListingToAnunt as listingFromDb } from "../../lib/listingToAnunt";
 
 const BucharestMap = dynamic(() => import("../components/BucharestMap"), {
@@ -633,6 +635,13 @@ function InchirierePageContent() {
                       titlu={anunt.titlu}
                       image={anunt.image}
                       pret={formatPretLuna(anunt.pret)}
+                      priceAmount={estimateMonthlyRentFromSaleAmount(
+                        anunt.priceAmount ?? parsePretToNumber(anunt.pret),
+                      )}
+                      priceCurrency={
+                        anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret)
+                      }
+                      priceSuffix=" / lună"
                       tags={anunt.tags}
                       locationText={anunt.tags.find((t) => t.includes("Sector")) ?? "Zona centrală"}
                       imageCount={(anunt as any).realImageCount ?? getImageCount(anunt.id)}

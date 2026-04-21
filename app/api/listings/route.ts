@@ -1,18 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreatePlatformSettings } from "@/lib/platformSettings";
+import {
+  isListingDescriptionEmpty,
+  sanitizeListingDescription,
+} from "@/lib/listingDescription";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const { userId } = await auth();
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20));
     const skip = (page - 1) * limit;
 
-    const statusFilter = searchParams.get("status");
-    // Dacă se cere un status specific (ex: admin), filtrează după el
-    // Altfel, returnează doar anunțurile aprobate (pentru public)
+    const statusFilter = searchParams.get("status")?.trim();
+    let isAdmin = false;
+    if (statusFilter && userId) {
+      const client = await clerkClient();
+      const currentUser = await client.users.getUser(userId);
+      isAdmin = Boolean(currentUser.publicMetadata?.isAdmin);
+    }
+
+    if (statusFilter && !isAdmin) {
+      return NextResponse.json(
+        { error: "Doar administratorii pot filtra după status." },
+        { status: 403 },
+      );
+    }
+
+    // Public: doar anunțuri aprobate. Admin: poate cere explicit orice status.
     const where = statusFilter ? { status: statusFilter } : { status: "approved" };
 
     const [listings, total] = await Promise.all([
@@ -70,7 +88,17 @@ export async function POST(request: Request) {
       images,
     } = body;
 
-    if (!titlu || !descriere || !tipTranzactie || !tipProprietate || !pret || !moneda || !locatie) {
+    const descriptionSanitized = sanitizeListingDescription(descriere);
+
+    if (
+      !titlu ||
+      isListingDescriptionEmpty(descriptionSanitized) ||
+      !tipTranzactie ||
+      !tipProprietate ||
+      !pret ||
+      !moneda ||
+      !locatie
+    ) {
       return NextResponse.json(
         { error: "Câmpuri obligatorii lipsă" },
         { status: 400 },
@@ -92,7 +120,7 @@ export async function POST(request: Request) {
     const listing = await prisma.listing.create({
       data: {
         title: titlu,
-        description: descriere,
+        description: descriptionSanitized,
         transactionType: tipTranzactie,
         propertyType: tipProprietate,
         commercialSubtype: subtipComercial || null,

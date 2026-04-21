@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -7,7 +8,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
+    const { userId } = await auth();
+
     const listing = await prisma.listing.findUnique({
       where: { id },
       include: { agent: true },
@@ -18,6 +20,23 @@ export async function GET(
         { error: "Anunțul nu a fost găsit" },
         { status: 404 },
       );
+    }
+
+    if (listing.status !== "approved") {
+      if (!userId) {
+        return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
+      }
+
+      let canAccess = listing.submittedByUserId === userId;
+      if (!canAccess) {
+        const client = await clerkClient();
+        const currentUser = await client.users.getUser(userId);
+        canAccess = Boolean(currentUser.publicMetadata?.isAdmin);
+      }
+
+      if (!canAccess) {
+        return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
+      }
     }
 
     return NextResponse.json(listing);

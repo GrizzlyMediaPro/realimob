@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { UploadButton, UploadDropzone } from "../components/Uploadthing";
+import { UploadButton, UploadDropzone, useUploadThing } from "../components/Uploadthing";
 import AdminListingCard from "../components/AdminListingCard";
 import {
   MdPerson,
@@ -33,7 +33,14 @@ import {
 import {
   type Anunt,
 } from "../../lib/anunturiData";
-import { formatListingPriceDisplay } from "../../lib/listingToAnunt";
+import {
+  formatListingPriceDisplay,
+  listingPriceToNumber,
+} from "../../lib/listingToAnunt";
+import {
+  currencyDisplaySymbol,
+  normalizeListingCurrencyCode,
+} from "../../lib/bnrFxRates";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import MarkListingSoldModal from "../components/MarkListingSoldModal";
@@ -145,6 +152,8 @@ type AgentProfile = {
   phone: string;
   role: string;
   location: string;
+  bio: string;
+  avatarUrl: string | null;
   createdAt: string | null;
 };
 
@@ -351,7 +360,7 @@ function MonthCalendar({
    ═══════════════════════════════════════════ */
 
 export default function AgentDashboardPage() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user: clerkUser } = useUser();
   const isDark = useDarkMode();
   const [allListingsData, setAllListingsData] = useState<AgentListing[]>([]);
 
@@ -412,9 +421,15 @@ export default function AgentDashboardPage() {
     phone: "",
     role: "",
     location: "",
+    bio: "",
+    avatarUrl: "" as string,
   });
   const [profileSaveLoading, setProfileSaveLoading] = useState(false);
   const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
+  const profileAvatarInputRef = useRef<HTMLInputElement | null>(null);
+  const { startUpload: startAvatarUpload, isUploading: isAvatarUploading } = useUploadThing(
+    "imageUploader",
+  );
   const [formaOrganizare, setFormaOrganizare] = useState("");
   const [cui, setCui] = useState("");
   const [buletinUrl, setBuletinUrl] = useState("");
@@ -606,13 +621,21 @@ export default function AgentDashboardPage() {
           phone: payload?.agentProfile?.phone ?? payload?.phone ?? "",
           role: payload?.agentProfile?.role ?? "Agent imobiliar",
           location: payload?.agentProfile?.location ?? "Bucuresti",
+          bio: typeof payload?.agentProfile?.bio === "string" ? payload.agentProfile.bio : "",
+          avatarUrl:
+            typeof payload?.agentProfile?.avatarUrl === "string"
+              ? payload.agentProfile.avatarUrl
+              : null,
           createdAt: payload?.createdAt ?? null,
         });
+        const avatarFromApi = payload?.agentProfile?.avatarUrl;
         setProfileForm({
           name: payload?.name ?? "Agent",
           phone: payload?.agentProfile?.phone ?? payload?.phone ?? "",
           role: payload?.agentProfile?.role ?? "Agent imobiliar",
           location: payload?.agentProfile?.location ?? "Bucuresti",
+          bio: typeof payload?.agentProfile?.bio === "string" ? payload.agentProfile.bio : "",
+          avatarUrl: typeof avatarFromApi === "string" ? avatarFromApi : "",
         });
         {
           const fo = (payload?.agentApplication?.formaOrganizare ?? "")
@@ -740,15 +763,23 @@ export default function AgentDashboardPage() {
               Boolean(listing.saleRejectedAt) &&
               !listing.saleSubmittedAt;
 
+            const cur = normalizeListingCurrencyCode(
+              String(listing.currency ?? "EUR").trim() || "EUR",
+            );
+            const priceNum = listingPriceToNumber(listing.price);
+            const displayNum = Number.isFinite(priceNum) ? priceNum : 0;
             return {
               id: listing.id,
               titlu: listing.title,
               image: imageUrl || "/ap2.jpg",
               pret: formatListingPriceDisplay(
-                Number(listing.price ?? 0),
-                listing.currency ?? "EUR",
+                displayNum,
+                currencyDisplaySymbol(cur),
                 (listing.details ?? null) as Record<string, unknown> | null,
               ),
+              priceAmount: displayNum,
+              priceCurrency: cur,
+              priceDetails: (listing.details ?? null) as Record<string, unknown> | null,
               tags: [
                 suprafata,
                 listing.sector ?? listing.location,
@@ -877,7 +908,14 @@ export default function AgentDashboardPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(profileForm),
+        body: JSON.stringify({
+          name: profileForm.name,
+          phone: profileForm.phone,
+          role: profileForm.role,
+          location: profileForm.location,
+          bio: profileForm.bio,
+          avatarUrl: profileForm.avatarUrl.trim() || null,
+        }),
       });
       const payload = await response.json();
 
@@ -891,10 +929,16 @@ export default function AgentDashboardPage() {
         phone: payload?.profile?.phone ?? profileForm.phone,
         role: payload?.profile?.role ?? profileForm.role,
         location: payload?.profile?.location ?? profileForm.location,
+        bio: payload?.profile?.bio ?? profileForm.bio,
+        avatarUrl:
+          payload?.profile?.avatarUrl !== undefined
+            ? payload.profile.avatarUrl
+            : profileForm.avatarUrl.trim() || null,
         createdAt: current?.createdAt ?? null,
       }));
       setIsEditingProfile(false);
       setProfileSaveMessage("Profilul a fost actualizat.");
+      void clerkUser?.reload();
     } catch (error) {
       setProfileSaveMessage(
         error instanceof Error ? error.message : "A aparut o eroare la salvarea profilului."
@@ -903,6 +947,29 @@ export default function AgentDashboardPage() {
       setProfileSaveLoading(false);
     }
   };
+
+  const handleProfileAvatarUpload = useCallback(
+    async (files: FileList | null) => {
+      const file = files?.[0];
+      if (!file) return;
+      setProfileSaveMessage(null);
+      try {
+        const uploaded = await startAvatarUpload([file]);
+        const uploadedUrl = uploaded?.[0]?.url;
+        if (uploadedUrl) {
+          setProfileForm((current) => ({
+            ...current,
+            avatarUrl: uploadedUrl,
+          }));
+        } else {
+          setProfileSaveMessage("Nu am putut încărca fișierul. Încearcă din nou.");
+        }
+      } catch (error) {
+        setProfileSaveMessage(error instanceof Error ? error.message : "Eroare la încărcare.");
+      }
+    },
+    [startAvatarUpload],
+  );
 
   const approveViewing = async (id: string) => {
     setViewingActionId(id);
@@ -976,6 +1043,8 @@ export default function AgentDashboardPage() {
         role: "Agent imobiliar",
         location: "Bucuresti",
         monthsOnPlatform: 0,
+        bio: "",
+        avatarUrl: null as string | null,
       };
     }
 
@@ -999,6 +1068,8 @@ export default function AgentDashboardPage() {
       role: agentProfile.role,
       location: agentProfile.location,
       monthsOnPlatform,
+      bio: agentProfile.bio?.trim() ?? "",
+      avatarUrl: agentProfile.avatarUrl?.trim() ? agentProfile.avatarUrl.trim() : null,
     };
   }, [agentProfile]);
 
@@ -1906,16 +1977,26 @@ export default function AgentDashboardPage() {
               <div className="p-6 md:p-7 relative z-1 flex flex-col flex-1 min-h-0 overflow-y-auto">
                 {/* Avatar */}
                 <div className="flex items-center gap-4 mb-6">
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white shrink-0"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #C25A2B 0%, #8B3A1A 100%)",
-                      boxShadow: "0 6px 20px rgba(194, 90, 43, 0.35)",
-                    }}
-                  >
-                    {displayProfile.initials}
-                  </div>
+                  {displayProfile.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={displayProfile.avatarUrl}
+                      alt=""
+                      className="w-16 h-16 rounded-2xl object-cover shrink-0 border border-white/30 dark:border-white/10"
+                      style={{ boxShadow: "0 6px 20px rgba(194, 90, 43, 0.25)" }}
+                    />
+                  ) : (
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #C25A2B 0%, #8B3A1A 100%)",
+                        boxShadow: "0 6px 20px rgba(194, 90, 43, 0.35)",
+                      }}
+                    >
+                      {displayProfile.initials}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <h2 className="text-lg font-bold text-foreground truncate">
                       {displayProfile.name}
@@ -1945,6 +2026,12 @@ export default function AgentDashboardPage() {
                     </span>
                   </div>
                 </div>
+
+                {displayProfile.bio ? (
+                  <div className="mb-6 text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap rounded-xl px-3 py-2.5 bg-black/[0.04] dark:bg-white/[0.06]">
+                    {displayProfile.bio}
+                  </div>
+                ) : null}
 
                 {/* Score badge */}
                 <div
@@ -2000,7 +2087,20 @@ export default function AgentDashboardPage() {
                   type="button"
                   onClick={() => {
                     setProfileSaveMessage(null);
-                    setIsEditingProfile((value) => !value);
+                    setIsEditingProfile((value) => {
+                      const next = !value;
+                      if (next && agentProfile) {
+                        setProfileForm({
+                          name: agentProfile.name,
+                          phone: agentProfile.phone,
+                          role: agentProfile.role,
+                          location: agentProfile.location,
+                          bio: agentProfile.bio,
+                          avatarUrl: agentProfile.avatarUrl ?? "",
+                        });
+                      }
+                      return next;
+                    });
                   }}
                   className="mt-5 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-foreground transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
                   style={{
@@ -2051,6 +2151,68 @@ export default function AgentDashboardPage() {
                       placeholder="Locatie"
                       className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white/80 dark:bg-black/30"
                     />
+                    <label className="block text-xs text-gray-500 dark:text-gray-400">
+                      Descriere publică (vizibilă pe anunțuri și în fereastra de contact)
+                    </label>
+                    <textarea
+                      value={profileForm.bio}
+                      onChange={(e) =>
+                        setProfileForm((current) => ({ ...current, bio: e.target.value }))
+                      }
+                      placeholder="Prezentare scurtă: experiență, zone, ce oferi clienților…"
+                      rows={5}
+                      maxLength={2500}
+                      className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white/80 dark:bg-black/30 resize-y min-h-[100px]"
+                    />
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 -mt-2">
+                      {profileForm.bio.length}/2500 caractere
+                    </p>
+                    <div className="space-y-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Poza de profil (afișată pe anunțuri și în cont)
+                      </span>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {profileForm.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={profileForm.avatarUrl}
+                            alt=""
+                            className="w-14 h-14 rounded-xl object-cover border border-white/30 dark:border-white/10"
+                          />
+                        ) : null}
+                        <div className="w-full max-w-full rounded-xl border border-slate-400/60 bg-slate-300/75 dark:border-slate-600/45 dark:bg-slate-900/60 p-3 overflow-hidden">
+                          <input
+                            ref={profileAvatarInputRef}
+                            type="file"
+                            accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={(event) => {
+                              void handleProfileAvatarUpload(event.target.files);
+                              event.currentTarget.value = "";
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => profileAvatarInputRef.current?.click()}
+                            disabled={isAvatarUploading}
+                            className="w-full max-w-full px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-[#C25A2B] hover:opacity-90 disabled:opacity-50"
+                          >
+                            {isAvatarUploading ? "Se incarca..." : "Alege fisier"}
+                          </button>
+                        </div>
+                        {profileForm.avatarUrl ? (
+                          <button
+                            type="button"
+                            className="text-xs text-red-600 dark:text-red-400 underline"
+                            onClick={() =>
+                              setProfileForm((current) => ({ ...current, avatarUrl: "" }))
+                            }
+                          >
+                            Elimină poza
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -2063,7 +2225,19 @@ export default function AgentDashboardPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsEditingProfile(false)}
+                        onClick={() => {
+                          if (agentProfile) {
+                            setProfileForm({
+                              name: agentProfile.name,
+                              phone: agentProfile.phone,
+                              role: agentProfile.role,
+                              location: agentProfile.location,
+                              bio: agentProfile.bio,
+                              avatarUrl: agentProfile.avatarUrl ?? "",
+                            });
+                          }
+                          setIsEditingProfile(false);
+                        }}
                         className="px-3 py-2.5 rounded-lg text-sm border"
                       >
                         Renunta
@@ -2813,6 +2987,9 @@ export default function AgentDashboardPage() {
                           titlu={anunt.titlu}
                           image={anunt.image}
                           pret={anunt.pret}
+                          priceAmount={anunt.priceAmount}
+                          priceCurrency={anunt.priceCurrency}
+                          priceDetails={anunt.priceDetails}
                           tags={anunt.tags}
                           locationText={
                             anunt.tags.find((t) => t.includes("Sector")) ??
@@ -2958,6 +3135,9 @@ export default function AgentDashboardPage() {
                       titlu={anunt.titlu}
                       image={anunt.image}
                       pret={anunt.pret}
+                      priceAmount={anunt.priceAmount}
+                      priceCurrency={anunt.priceCurrency}
+                      priceDetails={anunt.priceDetails}
                       tags={anunt.tags}
                       locationText={
                         anunt.tags.find((t) => t.includes("Sector")) ??

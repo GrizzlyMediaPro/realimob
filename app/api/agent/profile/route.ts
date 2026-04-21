@@ -6,6 +6,9 @@ import { syncCompletedViewingQuestionnaires } from "@/lib/viewing-questionnaire-
 import { getAgentQuestionnaireCompliance } from "@/lib/agent-questionnaire-compliance";
 import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
+const MAX_AGENT_BIO_LEN = 2500;
+const MAX_AVATAR_URL_LEN = 2048;
+
 type AgentPublicMetadata = {
   isAgent?: boolean;
   agentStatus?: "none" | "pending" | "approved" | "rejected" | "suspended";
@@ -13,15 +16,57 @@ type AgentPublicMetadata = {
     phone?: string;
     role?: string;
     location?: string;
+    avatarUrl?: string | null;
   };
   agentApplication?: AgentApplicationMetadata;
 };
+
+/** UserButton / Clerk folosesc `imageUrl`, nu avatarul din DB — îl aliniem după salvare. */
+async function syncClerkProfileImageIfNeeded(
+  userId: string,
+  client: Awaited<ReturnType<typeof clerkClient>>,
+  avatarUrl: string | null,
+  previousAgentAvatar: string | null,
+) {
+  const next = avatarUrl ?? null;
+  const prev = previousAgentAvatar ?? null;
+  if (next === prev) return;
+
+  try {
+    if (!next) {
+      await client.users.deleteUserProfileImage(userId);
+      return;
+    }
+    const res = await fetch(next, { redirect: "follow", signal: AbortSignal.timeout(25_000) });
+    if (!res.ok) {
+      console.warn("Clerk profile image sync: fetch failed", res.status, next);
+      return;
+    }
+    const mime =
+      res.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
+    if (!mime.startsWith("image/")) {
+      console.warn("Clerk profile image sync: unexpected content-type", mime);
+      return;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0) {
+      console.warn("Clerk profile image sync: empty body");
+      return;
+    }
+    const file = new File([buf], "profile.jpg", { type: mime });
+    await client.users.updateUserProfileImage(userId, { file });
+  } catch (e) {
+    console.warn("Clerk profile image sync failed", e);
+  }
+}
 
 type UpdateAgentProfilePayload = {
   name?: string;
   phone?: string;
   role?: string;
   location?: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
 };
 
 const splitFullName = (name: string) => {
@@ -35,6 +80,26 @@ const splitFullName = (name: string) => {
   const lastName = parts.slice(1).join(" ");
   return { firstName, lastName };
 };
+
+function sanitizeAgentBio(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim().slice(0, MAX_AGENT_BIO_LEN);
+  if (!s) return null;
+  return s.replace(/[<>]/g, "");
+}
+
+function normalizeAvatarUrl(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim().slice(0, MAX_AVATAR_URL_LEN);
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "https:") return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET() {
   try {
@@ -65,6 +130,8 @@ export async function GET() {
     const phoneFromApplication =
       publicMetadata.agentApplication?.telefon?.trim() || null;
     let phoneFromDb: string | null = null;
+    let avatarFromDb: string | null = null;
+    let bioFromDb: string | null = null;
 
     let googleCalendarConnected = false;
     let googleCalendarEmail: string | null = null;
@@ -79,11 +146,15 @@ export async function GET() {
         select: {
           id: true,
           phone: true,
+          avatar: true,
+          bio: true,
           googleRefreshToken: true,
           googleCalendarEmail: true,
         },
       });
       phoneFromDb = dbAgent?.phone ?? null;
+      avatarFromDb = dbAgent?.avatar ?? null;
+      bioFromDb = dbAgent?.bio ?? null;
       googleCalendarConnected = Boolean(dbAgent?.googleRefreshToken);
       googleCalendarEmail = dbAgent?.googleCalendarEmail ?? null;
       if (dbAgent?.id && agentStatus === "approved") {
@@ -112,6 +183,8 @@ export async function GET() {
           phoneFromClerk,
         role: publicMetadata.agentProfile?.role ?? "Agent imobiliar",
         location: publicMetadata.agentProfile?.location ?? "Bucuresti",
+        bio: bioFromDb ?? "",
+        avatarUrl: avatarFromDb,
       },
       googleCalendar: {
         connected: googleCalendarConnected,
@@ -123,7 +196,7 @@ export async function GET() {
     console.error("Failed to fetch agent profile", error);
     return NextResponse.json(
       { error: "Eroare la citirea profilului de agent" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -143,11 +216,20 @@ export async function PATCH(request: Request) {
     const phone = body.phone?.trim() ?? "";
     const role = body.role?.trim() ?? "";
     const location = body.location?.trim() ?? "";
+    const bio = sanitizeAgentBio(body.bio);
+    const avatarUrl = normalizeAvatarUrl(body.avatarUrl);
+
+    if (body.avatarUrl != null && body.avatarUrl !== "" && avatarUrl === null) {
+      return NextResponse.json(
+        { error: "URL-ul imaginii de profil trebuie să fie HTTPS valid." },
+        { status: 400 },
+      );
+    }
 
     if (!name || !phone || !role || !location) {
       return NextResponse.json(
         { error: "Completeaza toate campurile profilului." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -156,6 +238,18 @@ export async function PATCH(request: Request) {
     const currentMetadata = (user.publicMetadata ?? {}) as AgentPublicMetadata;
     const { firstName, lastName } = splitFullName(name);
     const email = user.emailAddresses[0]?.emailAddress ?? null;
+
+    const previousAgentAvatar =
+      email != null
+        ? (
+            await prisma.agent.findFirst({
+              where: { email },
+              select: { avatar: true },
+            })
+          )?.avatar ?? null
+        : typeof currentMetadata.agentProfile?.avatarUrl === "string"
+          ? currentMetadata.agentProfile.avatarUrl
+          : null;
 
     await client.users.updateUser(userId, {
       firstName,
@@ -166,9 +260,11 @@ export async function PATCH(request: Request) {
       publicMetadata: {
         ...currentMetadata,
         agentProfile: {
+          ...(currentMetadata.agentProfile ?? {}),
           phone,
           role,
           location,
+          avatarUrl,
         },
       },
     });
@@ -179,9 +275,13 @@ export async function PATCH(request: Request) {
         data: {
           name,
           phone,
+          avatar: avatarUrl,
+          bio,
         },
       });
     }
+
+    await syncClerkProfileImageIfNeeded(userId, client, avatarUrl, previousAgentAvatar);
 
     return NextResponse.json({
       success: true,
@@ -191,13 +291,15 @@ export async function PATCH(request: Request) {
         phone,
         role,
         location,
+        bio: bio ?? "",
+        avatarUrl,
       },
     });
   } catch (error) {
     console.error("Failed to update agent profile", error);
     return NextResponse.json(
       { error: "Eroare la actualizarea profilului de agent" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -22,6 +22,7 @@ import {
   MdMyLocation,
 } from "react-icons/md";
 import dynamic from "next/dynamic";
+import { isListingDescriptionEmpty } from "@/lib/listingDescription";
 import { useAuth } from "@clerk/nextjs";
 import { useUploadThing } from "../components/Uploadthing";
 import Navbar from "../components/Navbar";
@@ -31,6 +32,24 @@ import Footer from "../components/Footer";
 const LocationPickerMap = dynamic(
   () => import("../components/LocationPickerMap"),
   { ssr: false, loading: () => <div className="h-[350px] rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse flex items-center justify-center text-gray-400">Se încarcă harta...</div> }
+);
+
+const ListingDescriptionEditor = dynamic(
+  () =>
+    import("../components/ListingDescriptionEditor").then(
+      (m) => m.ListingDescriptionEditor,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-1">
+        <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+          Descriere<span className="text-[#C25A2B] ml-0.5">*</span>
+        </span>
+        <div className="min-h-[220px] rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-100/60 dark:bg-gray-800/50 animate-pulse" />
+      </div>
+    ),
+  },
 );
 
 // ─── Tipuri ──────────────────────────────────────────────────────────────
@@ -140,41 +159,6 @@ function InputField({
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-function TextAreaField({
-  label,
-  placeholder,
-  value,
-  onChange,
-  style,
-  required = false,
-  rows = 4,
-}: {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-  style: React.CSSProperties;
-  required?: boolean;
-  rows?: number;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-        {label}
-        {required && <span className="text-[#C25A2B] ml-0.5">*</span>}
-      </label>
-      <textarea
-        placeholder={placeholder || label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={rows}
-        className="w-full px-4 py-3 rounded-xl border backdrop-blur-xl text-black dark:text-foreground placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/50 transition-all duration-300 text-sm resize-none"
-        style={style}
-      />
     </div>
   );
 }
@@ -609,7 +593,7 @@ export default function AdaugaAnuntPage() {
         return;
       }
 
-      if (!descriere.trim()) {
+      if (isListingDescriptionEmpty(descriere)) {
         setSubmitError("Completează descrierea anunțului.");
         return;
       }
@@ -1847,15 +1831,12 @@ export default function AdaugaAnuntPage() {
                   required
                 />
 
-                {/* Descriere */}
-                <TextAreaField
-                  label="Descriere"
-                  placeholder="Descrie proprietatea ta în detaliu: compartimentare, finisaje, vecinătăți, avantaje..."
+                {/* Descriere (rich text) */}
+                <ListingDescriptionEditor
                   value={descriere}
                   onChange={setDescriere}
-                  style={controlStyle}
-                  required
-                  rows={5}
+                  placeholder="Descrie proprietatea ta în detaliu: compartimentare, finisaje, vecinătăți, avantaje…"
+                  controlStyle={controlStyle}
                 />
 
                 {/* Locație */}

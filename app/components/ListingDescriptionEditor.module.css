@@ -1,0 +1,70 @@
+/* TipTap / ProseMirror — aliniat cu tema formularului */
+.editorRoot :global(.ProseMirror) {
+  min-height: 180px;
+  outline: none;
+}
+
+.editorRoot :global(.ProseMirror:focus) {
+  outline: none;
+}
+
+.editorRoot :global(.ProseMirror p.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: rgb(107 114 128);
+}
+
+:global(.dark) .editorRoot :global(.ProseMirror p.is-editor-empty:first-child::before) {
+  color: rgb(156 163 175);
+}
+
+.editorRoot :global(.ProseMirror ul),
+.editorRoot :global(.ProseMirror ol) {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+.editorRoot :global(.ProseMirror li) {
+  margin: 0.15rem 0;
+}
+
+.editorRoot :global(.ProseMirror h2) {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.editorRoot :global(.ProseMirror h3) {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.6rem 0 0.25rem;
+}
+
+.editorRoot :global(.ProseMirror blockquote) {
+  border-left: 2px solid rgba(0, 0, 0, 0.12);
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  font-style: italic;
+}
+
+:global(.dark) .editorRoot :global(.ProseMirror blockquote) {
+  border-left-color: rgba(255, 255, 255, 0.2);
+}
+
+.editorRoot :global(.ProseMirror a) {
+  color: #c25a2b;
+  text-decoration: underline;
+}
+
+.toolbarBtnActive {
+  background: rgba(194, 90, 43, 0.2);
+  border-color: rgba(194, 90, 43, 0.45);
+  color: #c25a2b;
+}
+
+:global(.dark) .toolbarBtnActive {
+  background: rgba(194, 90, 43, 0.25);
+  color: #f0a080;
+}

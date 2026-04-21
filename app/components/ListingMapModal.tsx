@@ -1,15 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { MdClose, MdMyLocation } from "react-icons/md";
-import Map, { Marker, ViewState } from "react-map-gl/mapbox";
-import "mapbox-gl/dist/mapbox-gl.css";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { MdClose } from "react-icons/md";
+
+const BucharestMap = dynamic(() => import("./BucharestMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full min-h-[200px] w-full items-center justify-center bg-white/80 text-sm text-gray-600 dark:bg-[#0b0b10]/80 dark:text-gray-300">
+      Se încarcă harta…
+    </div>
+  ),
+});
 
 type ListingMapModalProps = {
   id: string;
   titlu: string;
   lat?: number;
   lng?: number;
+  /** Preț afișat pe marker (ex. chirie „X €/lună” sau preț vânzare). */
+  pret?: string;
+  image?: string;
+  descriere?: string;
+  routePath?: string;
   open?: boolean;
   onClose?: () => void;
   showButton?: boolean;
@@ -20,55 +33,89 @@ export default function ListingMapModal({
   titlu,
   lat,
   lng,
+  pret,
+  image,
+  descriere,
+  routePath,
   open: controlledOpen,
   onClose: controlledOnClose,
   showButton = true,
 }: ListingMapModalProps) {
+  const coordsValid = typeof lat === "number" && typeof lng === "number";
+
   const [internalOpen, setInternalOpen] = useState(false);
-  
-  // Folosim controlled state dacă este furnizat, altfel folosim internal state
+
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const handleOpen = () => {
     if (controlledOpen === undefined) {
       setInternalOpen(true);
     }
   };
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (controlledOnClose) {
       controlledOnClose();
     } else {
       setInternalOpen(false);
     }
-  };
+  }, [controlledOnClose]);
 
-  // Dacă nu avem coordonate valide, nu afișăm deloc butonul.
-  if (typeof lat !== "number" || typeof lng !== "number") {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, handleClose]);
+
+  const [poiMode, setPoiMode] = useState<"all" | "custom">("all");
+  const [showTransportMetrou, setShowTransportMetrou] = useState(true);
+  const [showTransportTramvai, setShowTransportTramvai] = useState(true);
+  const [showTransportAutobuz, setShowTransportAutobuz] = useState(true);
+  const [showScoli, setShowScoli] = useState(true);
+  const [showRestaurante, setShowRestaurante] = useState(true);
+  const [showMagazine, setShowMagazine] = useState(true);
+
+  const markers = useMemo(() => {
+    if (!coordsValid) return [];
+    return [
+      {
+        id,
+        titlu,
+        lat: lat as number,
+        lng: lng as number,
+        pret,
+        image,
+        descriere,
+        routePath,
+      },
+    ];
+  }, [coordsValid, id, titlu, lat, lng, pret, image, descriere, routePath]);
+
+  const poiFilters = useMemo(
+    () => ({
+      mode: poiMode,
+      transportMetrou: showTransportMetrou,
+      transportTramvai: showTransportTramvai,
+      transportAutobuz: showTransportAutobuz,
+      scoli: showScoli,
+      restaurante: showRestaurante,
+      magazine: showMagazine,
+    }),
+    [
+      poiMode,
+      showTransportMetrou,
+      showTransportTramvai,
+      showTransportAutobuz,
+      showScoli,
+      showRestaurante,
+      showMagazine,
+    ],
+  );
+
+  if (!coordsValid) {
     return null;
   }
-
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
-
-  const initialView: ViewState = {
-    longitude: lng,
-    latitude: lat,
-    zoom: 14.5,
-    bearing: 0,
-    pitch: 0,
-    padding: { top: 0, bottom: 0, left: 0, right: 0 },
-  };
-
-  const [viewState, setViewState] = useState<ViewState>(initialView);
-
-  const handleZoom = (delta: number) => {
-    setViewState((prev) => ({
-      ...prev,
-      zoom: Math.min(18, Math.max(12, prev.zoom + delta)),
-    }));
-  };
-
-  const handleRecenter = () => {
-    setViewState(initialView);
-  };
 
   return (
     <>
@@ -83,97 +130,140 @@ export default function ListingMapModal({
       )}
 
       {open && (
-        <div className="fixed inset-0 z-300 flex items-center justify-center px-4">
-          {/* Overlay */}
+        <div
+          className="fixed inset-0 z-[300] flex max-sm:items-stretch sm:items-center sm:justify-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="listing-map-modal-title"
+        >
           <div
             className="absolute inset-0 bg-black/50"
             onClick={handleClose}
+            aria-hidden="true"
           />
 
-          {/* Conținut modal */}
-          <div className="relative w-full max-w-[960px] h-[520px] bg-white dark:bg-[#0b0b10] rounded-2xl border border-[#d5dae0] dark:border-[#2b2b33] shadow-2xl overflow-hidden">
-            {/* Buton închidere (dreapta sus) */}
-            <div className="absolute top-3 right-3 z-10 flex items-center justify-center">
+          <div
+            className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border-0 bg-white shadow-2xl dark:bg-[#0b0b10] sm:max-h-[min(86dvh,720px)] sm:max-w-[960px] sm:rounded-2xl sm:border sm:border-[#d5dae0] dark:sm:border-[#2b2b33]"
+            style={{ fontFamily: "var(--font-galak-regular)" }}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-2 border-b border-[#d5dae0] px-3 py-2.5 pt-[max(0.5rem,env(safe-area-inset-top,0px))] dark:border-[#2b2b33] sm:px-4 sm:py-3">
+              <div className="min-w-0 flex-1 pr-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Locația proprietății
+                </p>
+                <h2
+                  id="listing-map-modal-title"
+                  className="line-clamp-2 text-sm font-semibold text-foreground sm:text-base"
+                >
+                  {titlu}
+                </h2>
+              </div>
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-9 h-9 rounded-full bg-white/90 dark:bg-black/70 flex items-center justify-center shadow hover:opacity-90 transition-opacity"
+                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/90 shadow hover:opacity-90 dark:bg-black/70"
                 aria-label="Închide harta"
               >
                 <MdClose size={20} />
               </button>
             </div>
 
-            {/* Butoane zoom + recentrare (stânga jos) */}
-            <div className="absolute left-4 bottom-4 z-10 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => handleZoom(0.75)}
-                className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/70 flex items-center justify-center shadow hover:opacity-90 transition-opacity text-lg font-semibold"
-                aria-label="Zoom in"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                onClick={() => handleZoom(-0.75)}
-                className="w-10 h-10 rounded-full bg-white/90 dark:bg-black/70 flex items-center justify-center shadow hover:opacity-90 transition-opacity text-lg font-semibold"
-                aria-label="Zoom out"
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={handleRecenter}
-                className="mt-1 w-10 h-10 rounded-full bg-white/90 dark:bg-black/70 flex items-center justify-center shadow hover:opacity-90 transition-opacity"
-                aria-label="Recentrează harta pe proprietate"
-              >
-                <MdMyLocation size={18} />
-              </button>
-            </div>
-
-            <div className="absolute top-3 left-4 z-10 max-w-[70%] bg-white/90 dark:bg-black/70 rounded-lg px-3 py-2">
-              <div className="text-sm font-semibold text-foreground">
-                Locația proprietății
-              </div>
-            </div>
-
-            <Map
-              {...viewState}
-              onMove={(evt) => setViewState(evt.viewState)}
-              mapStyle="mapbox://styles/mapbox/streets-v11"
-              mapboxAccessToken={token}
-              maxBounds={[
-                [25.7, 44.2], // sud-vest (Ilfov)
-                [26.6, 44.7], // nord-est
-              ]}
-              maxZoom={18}
-              minZoom={12}
-            >
-              <Marker longitude={lng} latitude={lat} anchor="bottom">
-                <div className="flex flex-col items-center gap-1">
-                  <svg
-                    width="40"
-                    height="40"
-                    viewBox="0 0 24 24"
-                    className="drop-shadow-xl"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M12 2C8.686 2 6 4.686 6 8c0 4.418 4.5 9.5 5.658 10.793.18.202.504.202.684 0C13.5 17.5 18 12.418 18 8c0-3.314-2.686-6-6-6z"
-                      fill="#C25A2B"
-                      stroke="white"
-                      strokeWidth="1.5"
+            <div className="shrink-0 border-b border-[#d5dae0] px-2 py-2 dark:border-[#2b2b33] sm:px-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <h3 className="text-xs font-semibold text-foreground sm:text-sm">
+                  Puncte de interes
+                </h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      className="accent-[#C25A2B]"
+                      checked={poiMode === "all"}
+                      onChange={() => setPoiMode("all")}
                     />
-                    <circle cx="12" cy="8.25" r="2.4" fill="white" />
-                  </svg>
+                    <span>Hartă completă</span>
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      className="accent-[#C25A2B]"
+                      checked={poiMode === "custom"}
+                      onChange={() => setPoiMode("custom")}
+                    />
+                    <span>Selectez manual</span>
+                  </label>
                 </div>
-              </Marker>
-            </Map>
+              </div>
+
+              {poiMode === "custom" && (
+                <div className="mt-2 flex max-h-[min(36dvh,220px)] flex-col gap-2 overflow-y-auto overscroll-contain sm:max-h-none sm:overflow-visible">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                    Transport în comun
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        ["Metrou", showTransportMetrou, setShowTransportMetrou] as const,
+                        ["Tramvai", showTransportTramvai, setShowTransportTramvai] as const,
+                        ["Autobuz", showTransportAutobuz, setShowTransportAutobuz] as const,
+                      ] as const
+                    ).map(([label, checked, set]) => (
+                      <label
+                        key={label}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/40 bg-white/70 px-2.5 py-1.5 text-[11px] dark:border-[#2b2b33]/60 dark:bg-[#111118]/70 sm:text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-[#C25A2B]"
+                          checked={checked}
+                          onChange={(e) => set(e.target.checked)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        ["Școli", showScoli, setShowScoli] as const,
+                        ["Restaurante", showRestaurante, setShowRestaurante] as const,
+                        ["Magazine alimentare", showMagazine, setShowMagazine] as const,
+                      ] as const
+                    ).map(([label, checked, set]) => (
+                      <label
+                        key={label}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/40 bg-white/70 px-2.5 py-1.5 text-[11px] dark:border-[#2b2b33]/60 dark:bg-[#111118]/70 sm:text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-[#C25A2B]"
+                          checked={checked}
+                          onChange={(e) => set(e.target.checked)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative min-h-0 flex-1 w-full pb-[env(safe-area-inset-bottom,0px)]">
+              <BucharestMap
+                key={id}
+                markers={markers}
+                initialSelectedId={null}
+                showControls
+                fullscreen={false}
+                fillContainer
+                focusLngLat={{ lng, lat, zoom: 14.5 }}
+                poiFilters={poiFilters}
+                showFullscreenButton={false}
+              />
+            </div>
           </div>
         </div>
       )}
     </>
   );
 }
-

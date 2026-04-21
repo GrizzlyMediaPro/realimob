@@ -14,12 +14,22 @@ import { AgentMobileBar } from "../../components/AgentContactCard";
 import SimilarListingsCarousel from "../../components/SimilarListingsCarousel";
 import AgentContactCard from "../../components/AgentContactCard";
 import PropertyDetailsSection from "../../components/PropertyDetailsSection";
-import { getAnuntById, getRoomImages, parsePretToNumber, type Anunt, type RoomImage } from "../../../lib/anunturiData";
+import {
+  getAnuntById,
+  getRoomImages,
+  inferCurrencyFromPret,
+  parsePretToNumber,
+  type Anunt,
+  type RoomImage,
+} from "../../../lib/anunturiData";
+import { estimateMonthlyRentFromSaleAmount } from "../../../lib/estimateMonthlyRent";
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
 } from "../../../lib/listingToAnunt";
 import RoomGallery from "../../components/RoomGallery";
+import ConvertedListingPrice from "../../components/ConvertedListingPrice";
+import ListingDescriptionDisplay from "../../components/ListingDescriptionDisplay";
 import { prisma } from "../../../lib/prisma";
 
 type AnuntPageProps = {
@@ -123,18 +133,19 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
     "București";
+  const saleAmount =
+    anunt.priceAmount ?? parsePretToNumber(anunt.pret);
+  const saleCurrency =
+    anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret);
+  const rentAmount = estimateMonthlyRentFromSaleAmount(saleAmount);
   const pretLuna = formatPretLuna(anunt.pret);
+  const rentPerMpAmount =
+    anunt.suprafataUtil !== undefined && anunt.suprafataUtil > 0
+      ? Math.round(rentAmount / anunt.suprafataUtil)
+      : undefined;
   const pretPerMpLuna =
-    anunt.suprafataUtil !== undefined && anunt.pret
-      ? `${Math.round((() => {
-          const pretVanzare = parsePretToNumber(anunt.pret);
-          let factor = 120;
-          if (pretVanzare < 50000) factor = 100;
-          if (pretVanzare > 150000) factor = 150;
-          const chirie = Math.round(pretVanzare / factor);
-          const chirieFinala = Math.max(300, Math.min(2000, chirie));
-          return chirieFinala / anunt.suprafataUtil;
-        })()).toLocaleString("ro-RO")} €/m²`
+    rentPerMpAmount !== undefined
+      ? `${rentPerMpAmount.toLocaleString("ro-RO")} ${saleCurrency === "EUR" ? "€" : saleCurrency}/m²`
       : undefined;
   const formatHistoryDate = (iso?: string) =>
     iso ? new Date(iso).toLocaleDateString("ro-RO") : "N/A";
@@ -144,6 +155,9 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
       event: "Listat pentru închiriere",
       price: pretLuna,
       pricePerMp: pretPerMpLuna,
+      priceAmount: rentAmount,
+      priceCurrency: saleCurrency,
+      pricePerMpAmount: rentPerMpAmount,
     },
   ];
   if (anunt.updatedAt && anunt.updatedAt !== anunt.createdAt) {
@@ -152,6 +166,9 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
       event: "Actualizare anunț",
       price: pretLuna,
       pricePerMp: pretPerMpLuna,
+      priceAmount: rentAmount,
+      priceCurrency: saleCurrency,
+      pricePerMpAmount: rentPerMpAmount,
     });
   }
 
@@ -199,6 +216,14 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                   titlu={anunt.titlu}
                   lat={anunt.lat}
                   lng={anunt.lng}
+                  pret={pretLuna}
+                  image={anunt.image}
+                  descriere={
+                    anunt.tags.length > 0
+                      ? anunt.tags.join(" • ")
+                      : locationText
+                  }
+                  routePath={`/inchiriere/${anunt.id}`}
                 />
               </div>
             </div>
@@ -215,7 +240,12 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
               {/* Preț + favorite (mobile) / preț + favorite + oferte (md+) */}
               <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto] gap-3 items-center">
                 <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
-                  {pretLuna}
+                  <ConvertedListingPrice
+                    amount={rentAmount}
+                    fromCurrency={saleCurrency}
+                    fallback={pretLuna}
+                    suffix=" / lună"
+                  />
                 </div>
                 <ListingFavoriteButton
                   anuntId={anunt.id}
@@ -267,18 +297,19 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                           label="An construcție"
                         />
                       )}
-                      {anunt.suprafataUtil !== undefined && anunt.pret && (
+                      {anunt.suprafataUtil !== undefined &&
+                        anunt.pret &&
+                        rentPerMpAmount !== undefined && (
                         <GlassSpecCard
                           icon={<MdAttachMoney className="text-[#C25A2B] text-xl md:text-2xl mb-2" />}
-                          value={`${(() => {
-                            const pretVanzare = parsePretToNumber(anunt.pret);
-                            let factor = 120;
-                            if (pretVanzare < 50000) factor = 100;
-                            if (pretVanzare > 150000) factor = 150;
-                            const chirie = Math.round(pretVanzare / factor);
-                            const chirieFinala = Math.max(300, Math.min(2000, chirie));
-                            return Math.round(chirieFinala / anunt.suprafataUtil).toLocaleString("ro-RO");
-                          })()} €/m²`}
+                          value={
+                            <ConvertedListingPrice
+                              amount={rentPerMpAmount}
+                              fromCurrency={saleCurrency}
+                              fallback={pretPerMpLuna ?? "—"}
+                              suffix="/m²"
+                            />
+                          }
                           label="Preț pe m²"
                         />
                       )}
@@ -292,9 +323,10 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                           <h2 className="text-lg md:text-xl font-semibold mb-2">
                             Descriere
                           </h2>
-                          <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
-                            {(anunt as any).description || "Acest anunț este un exemplu realist pentru prezentarea proprietăților în București. Poți folosi această secțiune pentru a evidenția avantajele principale ale locuinței: compartimentare, lumină naturală, finisaje, acces la transport, magazine și zone verzi."}
-                          </p>
+                          <ListingDescriptionDisplay
+                            html={(anunt as any).description}
+                            fallback="Acest anunț este un exemplu realist pentru prezentarea proprietăților în București. Poți folosi această secțiune pentru a evidenția avantajele principale ale locuinței: compartimentare, lumină naturală, finisaje, acces la transport, magazine și zone verzi."
+                          />
                         </div>
                       </div>
                   </GlassStatsCard>
@@ -336,6 +368,14 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                         titlu={anunt.titlu}
                         lat={anunt.lat}
                         lng={anunt.lng}
+                        pret={pretLuna}
+                        image={anunt.image}
+                        descriere={
+                          anunt.tags.length > 0
+                            ? anunt.tags.join(" • ")
+                            : locationText
+                        }
+                        routePath={`/inchiriere/${anunt.id}`}
                       />
                     </div>
                   )}

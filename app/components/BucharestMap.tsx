@@ -40,6 +40,9 @@ export default function BucharestMap({
   drawnPolygon,
   onClearPolygon,
   poiFilters,
+  /** Centrare inițială (ex. modal anunț); dacă lipsește, rămâne zoom-ul pe București. */
+  focusLngLat,
+  showFullscreenButton = true,
 }: {
   markers: MarkerItem[];
   initialSelectedId?: string | null;
@@ -51,6 +54,8 @@ export default function BucharestMap({
   drawnPolygon?: number[][] | null;
   onClearPolygon?: () => void;
   poiFilters?: PoiFilters;
+  focusLngLat?: { lng: number; lat: number; zoom?: number };
+  showFullscreenButton?: boolean;
 }) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
   const router = useRouter();
@@ -63,16 +68,34 @@ export default function BucharestMap({
     []
   );
 
-  const initialViewState: ViewState = {
-    longitude: bucharestCenter.longitude,
-    latitude: bucharestCenter.latitude,
-    zoom: 12.5,
-    bearing: 0,
-    pitch: 0,
-    padding: { top: 0, bottom: 0, left: 0, right: 0 },
-  };
+  const homeViewState = useMemo<ViewState>(() => {
+    if (focusLngLat) {
+      return {
+        longitude: focusLngLat.lng,
+        latitude: focusLngLat.lat,
+        zoom: focusLngLat.zoom ?? 14.5,
+        bearing: 0,
+        pitch: 0,
+        padding: { top: 0, bottom: 0, left: 0, right: 0 },
+      };
+    }
+    return {
+      longitude: bucharestCenter.longitude,
+      latitude: bucharestCenter.latitude,
+      zoom: 12.5,
+      bearing: 0,
+      pitch: 0,
+      padding: { top: 0, bottom: 0, left: 0, right: 0 },
+    };
+  }, [
+    bucharestCenter.latitude,
+    bucharestCenter.longitude,
+    focusLngLat?.lat,
+    focusLngLat?.lng,
+    focusLngLat?.zoom,
+  ]);
 
-  const [viewState, setViewState] = useState<ViewState>(initialViewState);
+  const [viewState, setViewState] = useState<ViewState>(homeViewState);
   const [selected, setSelected] = useState<MarkerItem | null>(
     markers.find((m) => m.id === initialSelectedId) ?? null
   );
@@ -385,7 +408,7 @@ export default function BucharestMap({
   };
 
   const handleRecenter = () => {
-    setViewState(initialViewState);
+    setViewState(homeViewState);
   };
 
   const handleFullscreen = () => {
@@ -769,7 +792,7 @@ export default function BucharestMap({
           </div>
 
           {/* Buton Fullscreen dreapta sus - doar pe hărțile mici (nu fullscreen) */}
-          {!fullscreen && (
+          {!fullscreen && showFullscreenButton && (
             <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
               <button
                 type="button"

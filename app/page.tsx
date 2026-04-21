@@ -4,6 +4,7 @@ import HeroFilter from "./components/HeroFilter";
 import Categorii from "./components/Categorii";
 import CategoriiPopulare from "./components/CategoriiPopulare";
 import AnunturiNoi from "./components/AnunturiNoi";
+import ColaboratoriSection from "./components/ColaboratoriSection";
 import Newsletter from "./components/Newsletter";
 import Footer from "./components/Footer";
 
@@ -19,6 +20,7 @@ export default function Home() {
       <Categorii />
       <CategoriiPopulare />
       <AnunturiNoi />
+      <ColaboratoriSection />
       <Newsletter />
       <Footer />
     </div>

@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import CookieBlockerScript from "./components/CookieBlockerScript";
 import CookieConsent from "./components/CookieConsent";
+import Providers from "./providers";
 import "./globals.css";
 
 const kurskMedium = localFont({
@@ -68,7 +69,7 @@ export default function RootLayout({
             ].join(", "),
           }}
         />
-          {children}
+          <Providers>{children}</Providers>
           <CookieConsent />
         </body>
       </html>

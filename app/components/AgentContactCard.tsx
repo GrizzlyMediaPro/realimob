@@ -68,6 +68,7 @@ type DisplayAgent = {
   linkedin?: string;
   phone?: string | null;
   avatar?: string | null;
+  bio?: string | null;
   isAssigned: boolean;
 };
 
@@ -89,6 +90,7 @@ function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
       linkedin: undefined,
       phone: a.phone ?? null,
       avatar: a.avatar ?? null,
+      bio: a.bio?.trim() ? a.bio.trim() : null,
       isAssigned: true,
     };
   }
@@ -103,6 +105,7 @@ function resolveDisplayAgent(anunt: Anunt): DisplayAgent {
     linkedin: mock.linkedin,
     phone: null,
     avatar: null,
+    bio: null,
     isAssigned: false,
   };
 }
@@ -209,13 +212,20 @@ function AgentModal({
   isAssigned: boolean;
   onClose: () => void;
 }) {
+  const [isAvatarZoomOpen, setIsAvatarZoomOpen] = useState(false);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (isAvatarZoomOpen) {
+        setIsAvatarZoomOpen(false);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [isAvatarZoomOpen, onClose]);
 
   return createPortal(
     <div
@@ -234,21 +244,29 @@ function AgentModal({
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               {agent.avatar ? (
-                <img
-                  src={agent.avatar}
-                  alt=""
-                  className="w-10 h-10 rounded-full object-cover border border-white/20"
-                />
+                <button
+                  type="button"
+                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/60"
+                  onClick={() => setIsAvatarZoomOpen(true)}
+                  aria-label="Vezi imaginea de profil mărită"
+                  title="Vezi imaginea mărită"
+                >
+                  <img
+                    src={agent.avatar}
+                    alt={`Profil ${agent.name}`}
+                    className="w-14 h-14 rounded-full object-cover border border-white/20 cursor-zoom-in"
+                  />
+                </button>
               ) : (
-                <div className="w-10 h-10 rounded-full bg-[#C25A2B]/15 flex items-center justify-center text-sm font-semibold text-[#C25A2B]">
+                <div className="w-14 h-14 rounded-full bg-[#C25A2B]/15 flex items-center justify-center text-base font-semibold text-[#C25A2B]">
                   {agentInitials}
                 </div>
               )}
               <div>
-                <div className="text-sm font-semibold text-foreground">
+                <div className="text-base font-semibold text-foreground">
                   {agent.name}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
                   {agent.role}
                 </div>
               </div>
@@ -262,6 +280,12 @@ function AgentModal({
               <MdClose size={18} className="text-gray-500 dark:text-gray-400" />
             </button>
           </div>
+
+          {agent.bio ? (
+            <div className="rounded-xl bg-gray-50/80 dark:bg-zinc-900/70 px-3.5 py-3 text-sm text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
+              {agent.bio}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-3 gap-3 text-xs">
             <div className="flex flex-col gap-1 rounded-xl bg-gray-50/80 dark:bg-zinc-900/70 px-3 py-2">
@@ -351,6 +375,28 @@ function AgentModal({
           </div>
         </div>
       </div>
+      {isAvatarZoomOpen && agent.avatar ? (
+        <div
+          className="fixed inset-0 z-[100000] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.78)" }}
+          onClick={() => setIsAvatarZoomOpen(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/35 text-white hover:bg-black/55 transition-colors"
+            onClick={() => setIsAvatarZoomOpen(false)}
+            aria-label="Închide imaginea mărită"
+          >
+            <MdClose size={20} />
+          </button>
+          <img
+            src={agent.avatar}
+            alt={`Profil ${agent.name}`}
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-2xl border border-white/20 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </div>,
     document.body,
   );
@@ -447,10 +493,10 @@ export default function AgentContactCard({ anunt }: AgentContactCardProps) {
               <img
                 src={agent.avatar}
                 alt=""
-                className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/30"
+                className="w-18 h-18 rounded-full object-cover shrink-0 border border-white/30"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-[#C25A2B]/10 flex items-center justify-center text-xs font-semibold text-[#C25A2B] shrink-0">
+              <div className="w-18 h-18 rounded-full bg-[#C25A2B]/10 flex items-center justify-center text-base font-semibold text-[#C25A2B] shrink-0">
                 {agentInitials}
               </div>
             )}

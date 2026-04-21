@@ -38,6 +38,9 @@ export async function PUT(request: Request) {
       newListingsAutoApprove?: unknown;
       cityCenterLatitude?: unknown;
       cityCenterLongitude?: unknown;
+      collaboratorsTitle?: unknown;
+      collaboratorsImageUrl?: unknown;
+      collaboratorsDescription?: unknown;
     };
 
     await getOrCreatePlatformSettings();
@@ -51,6 +54,9 @@ export async function PUT(request: Request) {
       newListingsAutoApprove?: boolean;
       cityCenterLatitude?: number | null;
       cityCenterLongitude?: number | null;
+      collaboratorsTitle?: string | null;
+      collaboratorsImageUrl?: string | null;
+      collaboratorsDescription?: string | null;
     } = {};
 
     if (typeof body.siteName === "string") {
@@ -95,6 +101,30 @@ export async function PUT(request: Request) {
     if (lat !== undefined) data.cityCenterLatitude = lat;
     const lng = parseCoord(body.cityCenterLongitude);
     if (lng !== undefined) data.cityCenterLongitude = lng;
+    if (body.collaboratorsTitle === null || body.collaboratorsTitle === "") {
+      data.collaboratorsTitle = null;
+    } else if (typeof body.collaboratorsTitle === "string") {
+      const t = body.collaboratorsTitle.trim().slice(0, 140);
+      data.collaboratorsTitle = t.length ? t : null;
+    }
+    if (
+      body.collaboratorsImageUrl === null ||
+      body.collaboratorsImageUrl === ""
+    ) {
+      data.collaboratorsImageUrl = null;
+    } else if (typeof body.collaboratorsImageUrl === "string") {
+      const url = body.collaboratorsImageUrl.trim().slice(0, 1200);
+      data.collaboratorsImageUrl = url.length ? url : null;
+    }
+    if (
+      body.collaboratorsDescription === null ||
+      body.collaboratorsDescription === ""
+    ) {
+      data.collaboratorsDescription = null;
+    } else if (typeof body.collaboratorsDescription === "string") {
+      const html = body.collaboratorsDescription.trim().slice(0, 12000);
+      data.collaboratorsDescription = html.length ? html : null;
+    }
 
     if (Object.keys(data).length === 0) {
       const settings = await prisma.platformSettings.findUniqueOrThrow({

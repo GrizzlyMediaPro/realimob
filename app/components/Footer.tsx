@@ -218,6 +218,19 @@ export default function Footer() {
           }}
         >
           <p>© {new Date().getFullYear()} Realimob. Toate drepturile rezervate.</p>
+          <p className="mt-2">
+            Facut cu <span aria-label="inima rosie">❤️</span> de{" "}
+            <a
+              href="https://www.grizzlymediapro.ro/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`underline transition-colors ${
+                isDark ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Grizzly Media Pro
+            </a>
+          </p>
         </div>
       </div>
     </footer>

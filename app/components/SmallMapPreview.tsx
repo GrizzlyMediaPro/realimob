@@ -11,6 +11,10 @@ type SmallMapPreviewProps = {
   titlu: string;
   lat?: number;
   lng?: number;
+  pret?: string;
+  image?: string;
+  descriere?: string;
+  routePath?: string;
 };
 
 export default function SmallMapPreview({
@@ -18,6 +22,10 @@ export default function SmallMapPreview({
   titlu,
   lat,
   lng,
+  pret,
+  image,
+  descriere,
+  routePath,
 }: SmallMapPreviewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -88,6 +96,10 @@ export default function SmallMapPreview({
         titlu={titlu}
         lat={lat}
         lng={lng}
+        pret={pret}
+        image={image}
+        descriere={descriere}
+        routePath={routePath}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         showButton={false}

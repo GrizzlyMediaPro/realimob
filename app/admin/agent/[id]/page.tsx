@@ -12,6 +12,7 @@ import {
   MdHome,
   MdVisibility,
   MdAssignment,
+  MdArticle,
 } from "react-icons/md";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
@@ -53,6 +54,7 @@ export default async function AdminAgentProfilePage({ params }: PageProps) {
       email: true,
       phone: true,
       avatar: true,
+      bio: true,
       sectors: true,
       rating: true,
       googleCalendarEmail: true,
@@ -245,6 +247,18 @@ export default async function AdminAgentProfilePage({ params }: PageProps) {
                 </div>
               </div>
             </dl>
+
+            {agent.bio?.trim() ? (
+              <div className="mt-8 flex gap-3 items-start rounded-xl border border-black/10 dark:border-white/10 p-4">
+                <MdArticle className="text-gray-400 shrink-0 mt-0.5" size={20} />
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                    Descriere publică
+                  </p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{agent.bio.trim()}</p>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-8 grid grid-cols-3 gap-3 text-center">
               <div className="rounded-xl border border-black/10 dark:border-white/10 p-3">

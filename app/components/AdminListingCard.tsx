@@ -5,12 +5,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { CiImageOn } from "react-icons/ci";
 import { MdLocationOn } from "react-icons/md";
+import ConvertedListingPrice from "./ConvertedListingPrice";
 
 type AdminListingCardProps = {
   id: string;
   titlu: string;
   image: string;
   pret: string;
+  priceAmount?: number;
+  priceCurrency?: string;
+  priceDetails?: Record<string, unknown> | null;
   tags: string[];
   locationText: string;
   imageCount: number;
@@ -81,6 +85,9 @@ export default function AdminListingCard({
   titlu,
   image,
   pret,
+  priceAmount,
+  priceCurrency,
+  priceDetails,
   tags,
   locationText,
   imageCount,
@@ -91,6 +98,20 @@ export default function AdminListingCard({
   const isDark = useDarkMode();
   const imageSrc = typeof image === "string" ? image.trim() : "";
   const hasImage = imageSrc.length > 0;
+
+  const pretAfisat =
+    priceAmount != null &&
+    priceCurrency?.trim() &&
+    Number.isFinite(priceAmount) ? (
+      <ConvertedListingPrice
+        amount={priceAmount}
+        fromCurrency={priceCurrency}
+        fallback={pret}
+        priceDetails={priceDetails}
+      />
+    ) : (
+      pret
+    );
 
   const cardStyle: React.CSSProperties = {
     background: isDark
@@ -180,7 +201,7 @@ export default function AdminListingCard({
           )}
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-base md:text-lg font-bold text-foreground">
-              {pret}
+              {pretAfisat}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {tags.slice(0, 3).map((tag, idx) => (

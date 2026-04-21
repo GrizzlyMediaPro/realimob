@@ -25,6 +25,7 @@ import {
   MdClose,
 } from "react-icons/md";
 import PropertyDetailsSection from "../../../../components/PropertyDetailsSection";
+import ListingDescriptionDisplay from "../../../../components/ListingDescriptionDisplay";
 
 type DBAgent = {
   id: string;
@@ -836,9 +837,10 @@ export default function AdminPreviewPage() {
                   <MdDescription className="text-[#C25A2B]" />
                   Descriere
                 </h2>
-                <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
-                  {listing.description || "Fără descriere."}
-                </p>
+                <ListingDescriptionDisplay
+                  html={listing.description}
+                  fallback="Fără descriere."
+                />
               </div>
 
               {/* Detalii proprietate din DB */}
