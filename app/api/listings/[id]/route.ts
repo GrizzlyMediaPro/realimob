@@ -48,3 +48,42 @@ export async function GET(
     );
   }
 }
+
+/** Ștergere de către creatorul anunțului (fără motiv). */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
+    }
+
+    const listing = await prisma.listing.findUnique({
+      where: { id },
+      select: { id: true, submittedByUserId: true },
+    });
+
+    if (!listing) {
+      return NextResponse.json(
+        { error: "Anunțul nu a fost găsit" },
+        { status: 404 },
+      );
+    }
+
+    if (listing.submittedByUserId !== userId) {
+      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
+    }
+
+    await prisma.listing.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE listing", error);
+    return NextResponse.json(
+      { error: "A apărut o eroare la ștergerea anunțului" },
+      { status: 500 },
+    );
+  }
+}

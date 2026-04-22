@@ -18,7 +18,7 @@ type MarkerItem = {
   routePath?: string;
 };
 
-type PoiFilters = {
+export type PoiFilters = {
   mode: "all" | "custom";
   /** Metrou / metrou ușor (light rail), stații Metrorex etc. */
   transportMetrou: boolean;

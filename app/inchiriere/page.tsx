@@ -27,6 +27,10 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ListingCard from "../components/ListingCard";
 import ListingFiltersModal from "../components/ListingFiltersModal";
+import MapPoiFiltersPanel, {
+  DEFAULT_MAP_POI_FILTERS,
+  type PoiFilters,
+} from "../components/MapPoiFiltersPanel";
 import {
   getImageCount,
   inferCurrencyFromPret,
@@ -123,6 +127,7 @@ function InchirierePageContent() {
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [drawnPolygon, setDrawnPolygon] = useState<number[][] | null>(null);
+  const [mapPoiFilters, setMapPoiFilters] = useState<PoiFilters>(DEFAULT_MAP_POI_FILTERS);
   const [isMobile, setIsMobile] = useState(false);
   const [dbListings, setDbListings] = useState<Anunt[]>([]);
   const sortRef = useRef<HTMLDivElement>(null);
@@ -446,8 +451,8 @@ function InchirierePageContent() {
           {isMapView && (
             <div className="w-full md:w-1/2 h-[45vh] md:h-full relative pb-2 md:pb-4 px-2 md:pl-2 md:pr-0 shrink-0">
               <div className="h-full relative rounded-2xl overflow-hidden">
-                <BucharestMap 
-                  markers={mapMarkers} 
+                <BucharestMap
+                  markers={mapMarkers}
                   initialSelectedId={selectedMapId}
                   isDrawingMode={isDrawingMode}
                   onPolygonComplete={(polygon) => {
@@ -457,6 +462,13 @@ function InchirierePageContent() {
                   drawnPolygon={drawnPolygon}
                   onClearPolygon={() => setDrawnPolygon(null)}
                   fillContainer
+                  poiFilters={mapPoiFilters}
+                />
+                <MapPoiFiltersPanel
+                  value={mapPoiFilters}
+                  onChange={setMapPoiFilters}
+                  dense
+                  className="absolute z-20 top-3 left-3 max-w-[min(20rem,calc(100%-1.5rem))] max-h-[min(45dvh,280px)] overflow-y-auto overscroll-contain"
                 />
                 {/* Buton Pen pentru desenare */}
                 <button

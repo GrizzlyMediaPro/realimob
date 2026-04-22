@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MdClose } from "react-icons/md";
+import MapPoiFiltersPanel, { DEFAULT_MAP_POI_FILTERS, type PoiFilters } from "./MapPoiFiltersPanel";
 
 const BucharestMap = dynamic(() => import("./BucharestMap"), {
   ssr: false,
@@ -68,13 +69,7 @@ export default function ListingMapModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, handleClose]);
 
-  const [poiMode, setPoiMode] = useState<"all" | "custom">("all");
-  const [showTransportMetrou, setShowTransportMetrou] = useState(true);
-  const [showTransportTramvai, setShowTransportTramvai] = useState(true);
-  const [showTransportAutobuz, setShowTransportAutobuz] = useState(true);
-  const [showScoli, setShowScoli] = useState(true);
-  const [showRestaurante, setShowRestaurante] = useState(true);
-  const [showMagazine, setShowMagazine] = useState(true);
+  const [poiFilters, setPoiFilters] = useState<PoiFilters>(DEFAULT_MAP_POI_FILTERS);
 
   const markers = useMemo(() => {
     if (!coordsValid) return [];
@@ -91,27 +86,6 @@ export default function ListingMapModal({
       },
     ];
   }, [coordsValid, id, titlu, lat, lng, pret, image, descriere, routePath]);
-
-  const poiFilters = useMemo(
-    () => ({
-      mode: poiMode,
-      transportMetrou: showTransportMetrou,
-      transportTramvai: showTransportTramvai,
-      transportAutobuz: showTransportAutobuz,
-      scoli: showScoli,
-      restaurante: showRestaurante,
-      magazine: showMagazine,
-    }),
-    [
-      poiMode,
-      showTransportMetrou,
-      showTransportTramvai,
-      showTransportAutobuz,
-      showScoli,
-      showRestaurante,
-      showMagazine,
-    ],
-  );
 
   if (!coordsValid) {
     return null;
@@ -169,83 +143,7 @@ export default function ListingMapModal({
             </div>
 
             <div className="shrink-0 border-b border-[#d5dae0] px-2 py-2 dark:border-[#2b2b33] sm:px-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                <h3 className="text-xs font-semibold text-foreground sm:text-sm">
-                  Puncte de interes
-                </h3>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs">
-                  <label className="inline-flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="radio"
-                      className="accent-[#C25A2B]"
-                      checked={poiMode === "all"}
-                      onChange={() => setPoiMode("all")}
-                    />
-                    <span>Hartă completă</span>
-                  </label>
-                  <label className="inline-flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="radio"
-                      className="accent-[#C25A2B]"
-                      checked={poiMode === "custom"}
-                      onChange={() => setPoiMode("custom")}
-                    />
-                    <span>Selectez manual</span>
-                  </label>
-                </div>
-              </div>
-
-              {poiMode === "custom" && (
-                <div className="mt-2 flex max-h-[min(36dvh,220px)] flex-col gap-2 overflow-y-auto overscroll-contain sm:max-h-none sm:overflow-visible">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                    Transport în comun
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(
-                      [
-                        ["Metrou", showTransportMetrou, setShowTransportMetrou] as const,
-                        ["Tramvai", showTransportTramvai, setShowTransportTramvai] as const,
-                        ["Autobuz", showTransportAutobuz, setShowTransportAutobuz] as const,
-                      ] as const
-                    ).map(([label, checked, set]) => (
-                      <label
-                        key={label}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/40 bg-white/70 px-2.5 py-1.5 text-[11px] dark:border-[#2b2b33]/60 dark:bg-[#111118]/70 sm:text-xs"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-[#C25A2B]"
-                          checked={checked}
-                          onChange={(e) => set(e.target.checked)}
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(
-                      [
-                        ["Școli", showScoli, setShowScoli] as const,
-                        ["Restaurante", showRestaurante, setShowRestaurante] as const,
-                        ["Magazine alimentare", showMagazine, setShowMagazine] as const,
-                      ] as const
-                    ).map(([label, checked, set]) => (
-                      <label
-                        key={label}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/40 bg-white/70 px-2.5 py-1.5 text-[11px] dark:border-[#2b2b33]/60 dark:bg-[#111118]/70 sm:text-xs"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-[#C25A2B]"
-                          checked={checked}
-                          onChange={(e) => set(e.target.checked)}
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <MapPoiFiltersPanel value={poiFilters} onChange={setPoiFilters} bare />
             </div>
 
             <div className="relative min-h-0 flex-1 w-full pb-[env(safe-area-inset-bottom,0px)]">

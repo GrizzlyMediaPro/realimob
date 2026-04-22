@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { revalidateAgentPerformanceScoreCache } from "@/lib/agentPerformanceScore";
@@ -50,7 +51,12 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { listingId, action, agentId } = body;
+    const { listingId, action, agentId, reason } = body as {
+      listingId?: string;
+      action?: string;
+      agentId?: string;
+      reason?: string;
+    };
 
     if (!listingId) {
       return NextResponse.json(
@@ -106,6 +112,52 @@ export async function PATCH(request: NextRequest) {
       );
 
       return NextResponse.json(listing);
+    }
+
+    if (action === "delete") {
+      const reasonTrim =
+        typeof reason === "string" ? reason.trim().slice(0, 2000) : "";
+      if (!reasonTrim) {
+        return NextResponse.json(
+          { error: "Introdu motivul ștergerii pentru creatorul anunțului." },
+          { status: 400 },
+        );
+      }
+
+      const submitterId = existing.submittedByUserId;
+      const titleShort =
+        existing.title.length > 120
+          ? `${existing.title.slice(0, 117)}…`
+          : existing.title;
+
+      await prisma.listing.delete({ where: { id: listingId } });
+
+      revalidateAgentPerformanceScoreCache(existing.agentId);
+
+      if (submitterId) {
+        try {
+          const cc = await clerkClient();
+          const submitter = await cc.users.getUser(submitterId);
+          const email =
+            submitter.emailAddresses[0]?.emailAddress?.trim().toLowerCase() ??
+            null;
+          if (email) {
+            await prisma.appNotification.create({
+              data: {
+                type: "listing_deleted_by_admin",
+                title: "Anunț șters de administrator",
+                body: `Anunțul „${titleShort}” a fost șters de un administrator. Motiv: ${reasonTrim}`,
+                href: "/cont",
+                clientEmail: email,
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error("delete listing notify submitter", notifyErr);
+        }
+      }
+
+      return NextResponse.json({ success: true });
     }
 
     if (action === "assign_agent") {
@@ -184,8 +236,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Acțiune necunoscută. Folosește: approve, deny, assign_agent, auto_assign" },
-      { status: 400 }
+      {
+        error:
+          "Acțiune necunoscută. Folosește: approve, deny, delete, assign_agent, auto_assign",
+      },
+      { status: 400 },
     );
   } catch (error) {
     console.error("Failed to update listing", error);

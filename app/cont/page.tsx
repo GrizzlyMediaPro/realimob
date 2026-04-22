@@ -161,6 +161,8 @@ export default function ContPage() {
   };
   const [favorites, setFavorites] = useState<FavoriteListing[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [deletingListingId, setDeletingListingId] = useState<string | null>(null);
+  const [listingDeleteError, setListingDeleteError] = useState<string | null>(null);
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -237,6 +239,42 @@ export default function ContPage() {
       );
     }
   }, [isLoaded, isSignedIn, router]);
+
+  const requestDeleteOwnListing = useCallback(async (listingId: string) => {
+    if (
+      !window.confirm(
+        "Sigur vrei să ștergi definitiv acest anunț? Acțiunea este ireversibilă.",
+      )
+    ) {
+      return;
+    }
+    setListingDeleteError(null);
+    setDeletingListingId(listingId);
+    try {
+      const r = await fetch(`/api/listings/${listingId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) {
+        throw new Error(j?.error || "Nu am putut șterge anunțul.");
+      }
+      setData((cur) =>
+        cur
+          ? {
+              ...cur,
+              listings: cur.listings.filter((x) => x.id !== listingId),
+            }
+          : cur,
+      );
+    } catch (e) {
+      setListingDeleteError(
+        e instanceof Error ? e.message : "Eroare la ștergerea anunțului.",
+      );
+    } finally {
+      setDeletingListingId(null);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -723,6 +761,11 @@ export default function ContPage() {
                   <MdHome className="text-[#C25A2B]" size={20} />
                   Anunțurile mele
                 </h2>
+                {listingDeleteError && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+                    {listingDeleteError}
+                  </p>
+                )}
                 {data.listings.length === 0 ? (
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Nu ai încă anunțuri publicate din acest cont.{" "}
@@ -778,6 +821,16 @@ export default function ContPage() {
                               )}
                             </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => void requestDeleteOwnListing(l.id)}
+                            disabled={deletingListingId === l.id}
+                            aria-label="Șterge anunțul"
+                            className="self-center shrink-0 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/40 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                            title="Șterge anunțul"
+                          >
+                            <MdDelete size={18} />
+                          </button>
                         </li>
                       );
                     })}

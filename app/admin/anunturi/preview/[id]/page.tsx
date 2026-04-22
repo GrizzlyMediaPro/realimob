@@ -23,6 +23,7 @@ import {
   MdSwapHoriz,
   MdInfoOutline,
   MdClose,
+  MdDelete,
 } from "react-icons/md";
 import PropertyDetailsSection from "../../../../components/PropertyDetailsSection";
 import ListingDescriptionDisplay from "../../../../components/ListingDescriptionDisplay";
@@ -110,6 +111,9 @@ export default function AdminPreviewPage() {
   const [scoredAgents, setScoredAgents] = useState<ScoredAgent[]>([]);
   const [scoredLoading, setScoredLoading] = useState(false);
   const [scoreInfoAgentId, setScoreInfoAgentId] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchListing = useCallback(async () => {
     setLoading(true);
@@ -228,6 +232,38 @@ export default function AdminPreviewPage() {
       await fetchListing();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAdminDelete = async () => {
+    const r = deleteReason.trim();
+    if (!r) {
+      setDeleteError("Scrie motivul ștergerii (vizibil pentru creator).");
+      return;
+    }
+    setDeleteError(null);
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId: id,
+          action: "delete",
+          reason: r,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Eroare la ștergerea anunțului");
+      }
+      setDeleteModalOpen(false);
+      setDeleteReason("");
+      router.push("/admin/anunturi");
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Eroare la ștergere");
     } finally {
       setActionLoading(false);
     }
@@ -465,6 +501,21 @@ export default function AdminPreviewPage() {
                   )}
                 </>
               ))}
+              <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 hidden sm:block" />
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteModalOpen(true);
+                }}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                style={{ backgroundColor: "#991B1B" }}
+                title="Șterge definitiv din baza de date"
+              >
+                <MdDelete size={16} />
+                Șterge anunț
+              </button>
             </div>
           </div>
 
@@ -849,6 +900,77 @@ export default function AdminPreviewPage() {
           </div>
         </div>
       </main>
+
+      {deleteModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-delete-listing-title"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-5 md:p-6 shadow-xl"
+            style={{
+              background: isDark ? "rgba(28,28,36,0.98)" : "rgba(255,255,255,0.98)",
+              border: isDark
+                ? "1px solid rgba(255,255,255,0.1)"
+                : "1px solid rgba(0,0,0,0.08)",
+            }}
+          >
+            <h2
+              id="admin-delete-listing-title"
+              className="text-lg font-semibold text-foreground mb-2"
+            >
+              Ștergi acest anunț?
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              Anunțul va fi eliminat definitiv. Creatorul primește o notificare în
+              cont și trebuie să vezi motivul pe care îl scrii mai jos.
+            </p>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+              Motiv (obligatoriu)
+            </label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              rows={4}
+              maxLength={2000}
+              className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-gray-400 resize-y min-h-[100px]"
+              placeholder="Ex.: Conținut care încalcă regulamentul platformei…"
+            />
+            {deleteError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mt-2">{deleteError}</p>
+            )}
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteReason("");
+                  setDeleteError(null);
+                }}
+                disabled={actionLoading}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                }}
+              >
+                Anulează
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAdminDelete()}
+                disabled={actionLoading}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+                style={{ backgroundColor: "#991B1B" }}
+              >
+                {actionLoading ? "Se șterge…" : "Șterge definitiv"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
