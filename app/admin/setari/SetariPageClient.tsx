@@ -21,9 +21,18 @@ import {
   MdLocationOn,
   MdGroups,
   MdImage,
+  MdDeleteOutline,
+  MdArrowUpward,
+  MdArrowDownward,
 } from "react-icons/md";
 import { useUploadThing } from "@/app/components/Uploadthing";
 import { ListingDescriptionEditor } from "@/app/components/ListingDescriptionEditor";
+
+type CollaboratorDto = {
+  name: string;
+  imageUrl: string;
+  description: string;
+};
 
 type PlatformSettingsDto = {
   id: string;
@@ -39,6 +48,7 @@ type PlatformSettingsDto = {
   collaboratorsTitle?: string | null;
   collaboratorsImageUrl?: string | null;
   collaboratorsDescription?: string | null;
+  collaborators?: CollaboratorDto[];
   updatedAt: string;
 };
 
@@ -72,31 +82,37 @@ export default function AdminSetariPage() {
   const [newListingsAutoApprove, setNewListingsAutoApprove] = useState(false);
   const [cityCenterLatitude, setCityCenterLatitude] = useState("");
   const [cityCenterLongitude, setCityCenterLongitude] = useState("");
-  const [collaboratorsTitle, setCollaboratorsTitle] = useState("");
-  const [collaboratorsImageUrl, setCollaboratorsImageUrl] = useState("");
-  const [collaboratorsDescription, setCollaboratorsDescription] = useState("");
-  const collaboratorsImageInputRef = useRef<HTMLInputElement | null>(null);
-  const {
-    startUpload: startCollaboratorsImageUpload,
-    isUploading: isCollaboratorsImageUploading,
-  } = useUploadThing("imageUploader");
+  const [collaborators, setCollaborators] = useState<CollaboratorDto[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
-  const handleCollaboratorsImageSelect = async (files: FileList | null) => {
-    if (!files?.length) return;
-    try {
-      const uploaded = await startCollaboratorsImageUpload(Array.from(files));
-      const uploadedUrl = uploaded?.[0]?.url;
-      if (uploadedUrl) {
-        setCollaboratorsImageUrl(uploadedUrl);
-      }
-    } catch (uploadError) {
-      setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : "Eroare la încărcarea imaginii.",
-      );
-    }
+  const updateCollaboratorAt = (
+    index: number,
+    patch: Partial<CollaboratorDto>,
+  ) => {
+    setCollaborators((current) =>
+      current.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)),
+    );
+  };
+
+  const addCollaborator = () => {
+    setCollaborators((current) => [
+      ...current,
+      { name: "", imageUrl: "", description: "" },
+    ]);
+  };
+
+  const removeCollaboratorAt = (index: number) => {
+    setCollaborators((current) => current.filter((_, i) => i !== index));
+  };
+
+  const moveCollaborator = (index: number, direction: -1 | 1) => {
+    setCollaborators((current) => {
+      const next = [...current];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -142,9 +158,30 @@ export default function AdminSetariPage() {
             ? String(s.cityCenterLongitude)
             : "",
         );
-        setCollaboratorsTitle(s.collaboratorsTitle ?? "");
-        setCollaboratorsImageUrl(s.collaboratorsImageUrl ?? "");
-        setCollaboratorsDescription(s.collaboratorsDescription ?? "");
+        const incoming = Array.isArray(s.collaborators) ? s.collaborators : [];
+        if (incoming.length > 0) {
+          setCollaborators(
+            incoming.map((c) => ({
+              name: c.name ?? "",
+              imageUrl: c.imageUrl ?? "",
+              description: c.description ?? "",
+            })),
+          );
+        } else if (
+          s.collaboratorsTitle ||
+          s.collaboratorsImageUrl ||
+          s.collaboratorsDescription
+        ) {
+          setCollaborators([
+            {
+              name: s.collaboratorsTitle ?? "",
+              imageUrl: s.collaboratorsImageUrl ?? "",
+              description: s.collaboratorsDescription ?? "",
+            },
+          ]);
+        } else {
+          setCollaborators([]);
+        }
         setUpdatedAt(s.updatedAt);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Eroare la încărcare.");
@@ -172,9 +209,16 @@ export default function AdminSetariPage() {
           newListingsAutoApprove,
           cityCenterLatitude: cityCenterLatitude.trim() || null,
           cityCenterLongitude: cityCenterLongitude.trim() || null,
-          collaboratorsTitle: collaboratorsTitle.trim() || null,
-          collaboratorsImageUrl: collaboratorsImageUrl.trim() || null,
-          collaboratorsDescription: collaboratorsDescription.trim() || null,
+          collaborators: collaborators
+            .map((c) => ({
+              name: c.name.trim(),
+              imageUrl: c.imageUrl.trim(),
+              description: c.description.trim(),
+            }))
+            .filter((c) => c.name || c.imageUrl || c.description),
+          collaboratorsTitle: null,
+          collaboratorsImageUrl: null,
+          collaboratorsDescription: null,
         }),
       });
       const data = await res.json();
@@ -484,85 +528,55 @@ export default function AdminSetariPage() {
                 <section className="space-y-4">
                   <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <MdGroups size={22} className="text-[#C25A2B]" />
-                    Secțiune colaboratori (homepage)
+                    Colaboratori (homepage)
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Această secțiune este afișată pe pagina principală, imediat
-                    deasupra newsletter-ului.
+                    Lista colaboratorilor este afișată pe pagina principală sub
+                    titlul „Colaboratori”. Dacă adaugi mai mulți, sunt arătați
+                    într-un carusel.
                   </p>
-                  <div className="grid gap-4">
-                    <label className="block space-y-1.5">
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                        Titlu secțiune
-                      </span>
-                      <input
-                        type="text"
-                        value={collaboratorsTitle}
-                        onChange={(e) => setCollaboratorsTitle(e.target.value)}
-                        placeholder="ex: Colaboratori de încredere"
-                        className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/80 dark:bg-[#1B1B21]/90 border border-gray-200 dark:border-white/10"
-                      />
-                    </label>
-
-                    <div className="space-y-2">
-                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-1">
-                        <MdImage size={14} /> Imagine secțiune
-                      </span>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <input
-                          ref={collaboratorsImageInputRef}
-                          type="file"
-                          accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(event) => {
-                            void handleCollaboratorsImageSelect(
-                              event.currentTarget.files,
-                            );
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            collaboratorsImageInputRef.current?.click()
+                  <div className="space-y-4">
+                    {collaborators.length === 0 ? (
+                      <p
+                        className="text-sm text-gray-500 dark:text-gray-400 italic rounded-xl px-4 py-3"
+                        style={{
+                          background: isDark
+                            ? "rgba(255,255,255,0.04)"
+                            : "rgba(0,0,0,0.03)",
+                          border: isDark
+                            ? "1px dashed rgba(255,255,255,0.12)"
+                            : "1px dashed rgba(0,0,0,0.12)",
+                        }}
+                      >
+                        Niciun colaborator adăugat. Apasă „Adaugă colaborator”
+                        pentru a începe.
+                      </p>
+                    ) : (
+                      collaborators.map((entry, index) => (
+                        <CollaboratorRowEditor
+                          key={index}
+                          index={index}
+                          total={collaborators.length}
+                          entry={entry}
+                          isDark={isDark}
+                          onChange={(patch) =>
+                            updateCollaboratorAt(index, patch)
                           }
-                          disabled={isCollaboratorsImageUploading}
-                          className="px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-[#C25A2B] hover:opacity-90 disabled:opacity-50"
-                        >
-                          {isCollaboratorsImageUploading
-                            ? "Se încarcă..."
-                            : "Încarcă imaginea"}
-                        </button>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          PNG / JPG / WEBP
-                        </span>
-                      </div>
-                      {collaboratorsImageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={collaboratorsImageUrl}
-                          alt="Previzualizare colaboratori"
-                          className="w-full max-w-md rounded-xl border border-gray-200 dark:border-white/10 object-cover max-h-56"
+                          onMove={(direction) =>
+                            moveCollaborator(index, direction)
+                          }
+                          onRemove={() => removeCollaboratorAt(index)}
+                          onUploadError={(message) => setError(message)}
                         />
-                      ) : null}
-                    </div>
-
-                    <ListingDescriptionEditor
-                      value={collaboratorsDescription}
-                      onChange={setCollaboratorsDescription}
-                      placeholder="Descrierea colaboratorilor (rich text)"
-                      controlStyle={{
-                        background: isDark
-                          ? "rgba(0,0,0,0.2)"
-                          : "rgba(255,255,255,0.75)",
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.12)"
-                          : "rgba(0,0,0,0.08)",
-                      }}
-                      label="Descriere secțiune"
-                      required={false}
-                      helperText="Poți formata textul (titluri, liste, link-uri). Va fi afișat exact pe homepage."
-                    />
+                      ))
+                    )}
+                    <button
+                      type="button"
+                      onClick={addCollaborator}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-[#C25A2B] hover:opacity-90"
+                    >
+                      <MdGroups size={18} /> Adaugă colaborator
+                    </button>
                   </div>
                 </section>
 
@@ -720,6 +734,162 @@ function ToggleRow({
           style={{ left: checked ? "26px" : "4px" }}
         />
       </button>
+    </div>
+  );
+}
+
+function CollaboratorRowEditor({
+  index,
+  total,
+  entry,
+  isDark,
+  onChange,
+  onMove,
+  onRemove,
+  onUploadError,
+}: {
+  index: number;
+  total: number;
+  entry: CollaboratorDto;
+  isDark: boolean;
+  onChange: (patch: Partial<CollaboratorDto>) => void;
+  onMove: (direction: -1 | 1) => void;
+  onRemove: () => void;
+  onUploadError: (message: string) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { startUpload, isUploading } = useUploadThing("imageUploader");
+
+  const handleSelect = async (files: FileList | null) => {
+    if (!files?.length) return;
+    try {
+      const uploaded = await startUpload(Array.from(files));
+      const uploadedUrl = uploaded?.[0]?.url;
+      if (uploadedUrl) {
+        onChange({ imageUrl: uploadedUrl });
+      }
+    } catch (uploadError) {
+      onUploadError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Eroare la încărcarea imaginii.",
+      );
+    }
+  };
+
+  return (
+    <div
+      className="rounded-2xl p-4 md:p-5 space-y-4"
+      style={{
+        background: isDark ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0.03)",
+        border: isDark
+          ? "1px solid rgba(255,255,255,0.08)"
+          : "1px solid rgba(0,0,0,0.06)",
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Colaborator #{index + 1}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            className="p-2 rounded-lg text-gray-500 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Mută mai sus"
+            title="Mută mai sus"
+          >
+            <MdArrowUpward size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={index === total - 1}
+            className="p-2 rounded-lg text-gray-500 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Mută mai jos"
+            title="Mută mai jos"
+          >
+            <MdArrowDownward size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-2 rounded-lg text-red-500 hover:bg-red-500/10"
+            aria-label="Șterge colaboratorul"
+            title="Șterge colaboratorul"
+          >
+            <MdDeleteOutline size={18} />
+          </button>
+        </div>
+      </div>
+
+      <label className="block space-y-1.5">
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+          Nume colaborator
+        </span>
+        <input
+          type="text"
+          value={entry.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="ex: Banca X"
+          className="w-full rounded-xl px-3 py-2.5 text-sm bg-white/80 dark:bg-[#1B1B21]/90 border border-gray-200 dark:border-white/10"
+        />
+      </label>
+
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-1">
+          <MdImage size={14} /> Imagine colaborator
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(event) => {
+              void handleSelect(event.currentTarget.files);
+              event.currentTarget.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-[#C25A2B] hover:opacity-90 disabled:opacity-50"
+          >
+            {isUploading ? "Se încarcă..." : "Încarcă imaginea"}
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            PNG / JPG / WEBP
+          </span>
+        </div>
+        {entry.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={entry.imageUrl}
+            alt={entry.name || `Colaborator ${index + 1}`}
+            className="w-full max-w-md rounded-xl border border-gray-200 dark:border-white/10 object-cover max-h-56"
+          />
+        ) : null}
+      </div>
+
+      <ListingDescriptionEditor
+        value={entry.description}
+        onChange={(html) => onChange({ description: html })}
+        placeholder="Descrierea colaboratorului (rich text)"
+        controlStyle={{
+          background: isDark
+            ? "rgba(0,0,0,0.2)"
+            : "rgba(255,255,255,0.75)",
+          borderColor: isDark
+            ? "rgba(255,255,255,0.12)"
+            : "rgba(0,0,0,0.08)",
+        }}
+        label="Descriere"
+        required={false}
+        helperText="Poți formata textul (titluri, liste, link-uri). Se afișează pe homepage."
+      />
     </div>
   );
 }

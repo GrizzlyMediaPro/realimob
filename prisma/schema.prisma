@@ -237,9 +237,13 @@ model PlatformSettings {
   cityCenterLongitude Float?
 
   /// Secțiune „Colaboratori” pe homepage (deasupra newsletter)
+  /// Câmpurile vechi sunt păstrate pentru compatibilitate (un singur colaborator).
   collaboratorsTitle       String?
   collaboratorsImageUrl    String?
   collaboratorsDescription String?
+  /// Listă de colaboratori (afișată ca grid/carusel pe homepage).
+  /// Format: [{ name: string, imageUrl: string, description: string }]
+  collaborators            Json?
 
   updatedAt DateTime @updatedAt
 }

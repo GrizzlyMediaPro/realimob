@@ -14,6 +14,7 @@ export async function GET() {
       collaboratorsTitle: s.collaboratorsTitle,
       collaboratorsImageUrl: s.collaboratorsImageUrl,
       collaboratorsDescription: s.collaboratorsDescription,
+      collaborators: s.collaborators,
     });
   } catch (e) {
     console.error("GET /api/settings/public", e);
@@ -27,6 +28,7 @@ export async function GET() {
         collaboratorsTitle: null,
         collaboratorsImageUrl: null,
         collaboratorsDescription: null,
+        collaborators: [],
       },
       { status: 200 }
     );

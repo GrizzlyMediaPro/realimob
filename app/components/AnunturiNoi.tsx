@@ -24,6 +24,7 @@ import {
   type Anunt,
 } from "../../lib/anunturiData";
 import { countListingImages, transformListingToAnunt } from "../../lib/listingToAnunt";
+import ConvertedListingPrice from "./ConvertedListingPrice";
 
 // Funcție helper pentru a obține icoana potrivită pentru fiecare tag
 const getTagIcon = (tag: string): IconType | null => {
@@ -250,7 +251,6 @@ export default function AnunturiNoi() {
               className="flex gap-6 overflow-x-auto hide-scrollbar pb-4"
             >
               {highlightedAnunturi.map((anunt: Anunt) => {
-                const pret = anunt.pret;
                 const href = selectedType === "vanzare" ? `/vanzare/${anunt.id}` : `/inchiriere/${anunt.id}`;
                 
                 return (
@@ -307,7 +307,12 @@ export default function AnunturiNoi() {
                     {/* Preț ca sticker semi-transparent în partea de jos */}
                     <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-black/60 backdrop-blur-sm">
                       <div className="text-xl font-bold text-white" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                        {pret}
+                        <ConvertedListingPrice
+                          amount={anunt.priceAmount}
+                          fromCurrency={anunt.priceCurrency}
+                          fallback={anunt.pret}
+                          priceDetails={anunt.priceDetails ?? null}
+                        />
                       </div>
                     </div>
                   </div>

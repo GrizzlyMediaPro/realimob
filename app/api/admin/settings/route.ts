@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import {
   getOrCreatePlatformSettings,
   PLATFORM_SETTINGS_KEY,
+  sanitizeCollaboratorsList,
+  type CollaboratorEntry,
 } from "@/lib/platformSettings";
 
 const CURRENCIES = ["RON", "EUR", "USD"] as const;
@@ -41,6 +43,7 @@ export async function PUT(request: Request) {
       collaboratorsTitle?: unknown;
       collaboratorsImageUrl?: unknown;
       collaboratorsDescription?: unknown;
+      collaborators?: unknown;
     };
 
     await getOrCreatePlatformSettings();
@@ -57,6 +60,7 @@ export async function PUT(request: Request) {
       collaboratorsTitle?: string | null;
       collaboratorsImageUrl?: string | null;
       collaboratorsDescription?: string | null;
+      collaborators?: CollaboratorEntry[];
     } = {};
 
     if (typeof body.siteName === "string") {
@@ -125,19 +129,21 @@ export async function PUT(request: Request) {
       const html = body.collaboratorsDescription.trim().slice(0, 12000);
       data.collaboratorsDescription = html.length ? html : null;
     }
+    if (body.collaborators !== undefined) {
+      data.collaborators = sanitizeCollaboratorsList(body.collaborators);
+    }
 
     if (Object.keys(data).length === 0) {
-      const settings = await prisma.platformSettings.findUniqueOrThrow({
-        where: { key: PLATFORM_SETTINGS_KEY },
-      });
+      const settings = await getOrCreatePlatformSettings();
       return NextResponse.json(settings);
     }
 
-    const settings = await prisma.platformSettings.update({
+    await prisma.platformSettings.update({
       where: { key: PLATFORM_SETTINGS_KEY },
-      data,
+      data: data as never,
     });
 
+    const settings = await getOrCreatePlatformSettings();
     return NextResponse.json(settings);
   } catch (e) {
     console.error("PUT /api/admin/settings", e);
