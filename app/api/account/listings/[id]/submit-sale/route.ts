@@ -1,7 +1,6 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { rejectIfAgentSuspended } from "@/lib/reject-if-agent-suspended";
 
 export async function POST(
   request: NextRequest,
@@ -13,9 +12,6 @@ export async function POST(
       return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
     }
 
-    const suspended = await rejectIfAgentSuspended(userId);
-    if (suspended) return suspended;
-
     const { id: listingId } = await params;
     const body = (await request.json()) as {
       contractUrl?: string;
@@ -25,31 +21,30 @@ export async function POST(
     const contractFileName = body.contractFileName?.trim() ?? null;
     if (!contractUrl) {
       return NextResponse.json(
-        { error: "Lipsește documentul (URL contract)." },
+        { error: "Lipsește documentul (URL dovadă)." },
         { status: 400 },
       );
     }
 
-    const client = await clerkClient();
-    const user = await client.users.getUser(userId);
-    const email = user.emailAddresses[0]?.emailAddress ?? null;
-    if (!email) {
-      return NextResponse.json({ error: "Email indisponibil" }, { status: 400 });
-    }
-
-    const agent = await prisma.agent.findFirst({
-      where: { email },
-      select: { id: true },
-    });
-    if (!agent) {
-      return NextResponse.json({ error: "Agent inexistent" }, { status: 404 });
-    }
-
-    const listing = await prisma.listing.findFirst({
-      where: { id: listingId, agentId: agent.id },
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true,
+        status: true,
+        submittedByUserId: true,
+        saleSubmittedAt: true,
+        saleVerifiedAt: true,
+        saleRejectedAt: true,
+      },
     });
     if (!listing) {
       return NextResponse.json({ error: "Anunț inexistent" }, { status: 404 });
+    }
+    if (listing.submittedByUserId !== userId) {
+      return NextResponse.json(
+        { error: "Poți trimite dovada doar pentru anunțurile tale." },
+        { status: 403 },
+      );
     }
     if (listing.status !== "approved") {
       return NextResponse.json(
@@ -64,7 +59,7 @@ export async function POST(
       !listing.saleRejectedAt;
     if (pendingReview) {
       return NextResponse.json(
-        { error: "Există deja un contract în curs de verificare." },
+        { error: "Există deja un document în curs de verificare." },
         { status: 400 },
       );
     }
@@ -77,14 +72,14 @@ export async function POST(
         saleSubmittedAt: new Date(),
         saleRejectedAt: null,
         saleRejectionNote: null,
-        saleRequestedByType: "agent",
+        saleRequestedByType: "client",
         saleRequestedByUserId: userId,
       },
     });
 
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error("submit-sale", e);
+    console.error("account submit-sale", e);
     return NextResponse.json({ error: "Eroare la salvare" }, { status: 500 });
   }
 }

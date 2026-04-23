@@ -38,6 +38,10 @@ model Listing {
   saleVerifiedAt      DateTime?
   saleRejectedAt      DateTime?
   saleRejectionNote   String?
+  /// Cine a inițiat cererea de marcare: agent | client
+  saleRequestedByType String?
+  /// Clerk user id al utilizatorului care a trimis cererea (agent sau client)
+  saleRequestedByUserId String?
 
   /// Clerk user id — cine a trimis anunțul (cont utilizator)
   submittedByUserId String?

@@ -5,9 +5,9 @@ import { MdClose, MdUploadFile } from "react-icons/md";
 import { UploadButton } from "./Uploadthing";
 
 type MarkListingSoldModalProps = {
-  listingId: string;
   listingTitle: string;
   markLabel: string;
+  submitEndpoint: string;
   isOpen: boolean;
   onClose: () => void;
   onSubmitted: () => void;
@@ -15,9 +15,9 @@ type MarkListingSoldModalProps = {
 };
 
 export default function MarkListingSoldModal({
-  listingId,
   listingTitle,
   markLabel,
+  submitEndpoint,
   isOpen,
   onClose,
   onSubmitted,
@@ -57,7 +57,7 @@ export default function MarkListingSoldModal({
     setSubmitting(true);
     setError(null);
     try {
-      const r = await fetch(`/api/agent/listings/${listingId}/submit-sale`, {
+      const r = await fetch(submitEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,8 +110,8 @@ export default function MarkListingSoldModal({
           <p className="text-gray-600 dark:text-gray-400">
             <span className="font-medium text-foreground">{listingTitle}</span>
             <br />
-            Încarcă contractul de vânzare-cumparare (sau documentul echivalent). Administratorul îl verifică
-            înainte ca anunțul să fie scos din site și mutat la „Vândute”.
+            Încarcă dovada vânzării/închirierii (contract sau document echivalent). Administratorul verifică
+            documentul înainte ca anunțul să fie mutat în categoria finalizată.
           </p>
           <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-4">
             <UploadButton

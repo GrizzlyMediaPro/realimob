@@ -60,6 +60,10 @@ export async function GET() {
           createdAt: true,
           location: true,
           images: true,
+          saleSubmittedAt: true,
+          saleVerifiedAt: true,
+          saleRejectedAt: true,
+          saleRejectionNote: true,
         },
       }),
       emailNorm

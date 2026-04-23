@@ -3183,9 +3183,9 @@ export default function AgentDashboardPage() {
 
       <MarkListingSoldModal
         isOpen={Boolean(markSoldListingId && markSoldTarget)}
-        listingId={markSoldListingId ?? ""}
         listingTitle={markSoldTarget?.titlu ?? ""}
         markLabel={markSoldModalLabel}
+        submitEndpoint={`/api/agent/listings/${markSoldListingId ?? ""}/submit-sale`}
         isDark={isDark}
         onClose={() => setMarkSoldListingId(null)}
         onSubmitted={() => void refreshAgentListings()}

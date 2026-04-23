@@ -102,29 +102,49 @@ export default function AnunturiNoi() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
-    const fetchLatestListings = async () => {
+    const fetchLatestListings = async (attempt = 1): Promise<void> => {
       try {
-        const response = await fetch("/api/listings?limit=40");
+        const response = await fetch("/api/listings?limit=40", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         if (!response.ok || cancelled) return;
 
         const data = await response.json();
         const listings = Array.isArray(data?.listings) ? data.listings : [];
-        const transformed: UiAnunt[] = listings.map((listing: any) => ({
-          ...transformListingToAnunt(listing),
-          transactionType: listing?.transactionType,
-          realImageCount: countListingImages(listing?.images),
-        }));
+        const transformed: UiAnunt[] = listings.map((listing: unknown) => {
+          const src = (listing ?? {}) as {
+            transactionType?: string;
+            images?: unknown;
+          };
+          return {
+            ...transformListingToAnunt(listing),
+            transactionType: src.transactionType,
+            realImageCount: countListingImages(src.images),
+          };
+        });
 
         if (!cancelled) setDbAnunturi(transformed);
       } catch (error) {
-        console.error("Failed to fetch latest listings:", error);
+        if (cancelled) return;
+        if (error instanceof DOMException && error.name === "AbortError") return;
+
+        // Eșecuri tranzitorii (pornire server / rețea): mai încercăm de câteva ori.
+        if (attempt < 3) {
+          const delayMs = attempt * 500;
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          if (!cancelled) await fetchLatestListings(attempt + 1);
+          return;
+        }
       }
     };
 
     fetchLatestListings();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 

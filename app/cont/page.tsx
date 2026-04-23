@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import MarkListingSoldModal from "../components/MarkListingSoldModal";
 import { getFirstListingImageUrl } from "../../lib/listingToAnunt";
 import {
   MdPerson,
@@ -36,6 +37,10 @@ type AccountListing = {
   createdAt: string;
   location: string;
   images: unknown;
+  saleSubmittedAt: string | null;
+  saleVerifiedAt: string | null;
+  saleRejectedAt: string | null;
+  saleRejectionNote: string | null;
 };
 
 type AccountViewing = {
@@ -104,6 +109,8 @@ function listingStatusLabel(status: string) {
   switch (status) {
     case "approved":
       return { label: "Publicat", color: "#10B981" };
+    case "sold":
+      return { label: "Finalizat", color: "#0EA5E9" };
     case "pending":
       return { label: "În moderare", color: "#F59E0B" };
     case "denied":
@@ -111,6 +118,11 @@ function listingStatusLabel(status: string) {
     default:
       return { label: status, color: "#6B7280" };
   }
+}
+
+function isRentTransactionLabel(transactionType: string) {
+  const tx = transactionType.toLowerCase();
+  return tx.includes("închiri") || tx.includes("inchiri");
 }
 
 function viewingStatusLabel(status: string) {
@@ -163,6 +175,7 @@ export default function ContPage() {
   const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [deletingListingId, setDeletingListingId] = useState<string | null>(null);
   const [listingDeleteError, setListingDeleteError] = useState<string | null>(null);
+  const [markSoldListingId, setMarkSoldListingId] = useState<string | null>(null);
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -328,6 +341,17 @@ export default function ContPage() {
       setAgentRequestLoading(false);
     }
   };
+
+  const markSoldTarget = useMemo(
+    () => data?.listings.find((l) => l.id === markSoldListingId) ?? null,
+    [data?.listings, markSoldListingId],
+  );
+  const markSoldModalLabel = useMemo(() => {
+    if (!markSoldTarget) return "Marchează ca vândut";
+    return isRentTransactionLabel(markSoldTarget.transactionType)
+      ? "Marchează ca închiriat"
+      : "Marchează ca vândut";
+  }, [markSoldTarget]);
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -778,6 +802,18 @@ export default function ContPage() {
                     {data.listings.map((l) => {
                       const st = listingStatusLabel(l.status);
                       const img = firstListingImage(l.images);
+                      const salePendingReview =
+                        l.status === "approved" &&
+                        Boolean(l.saleSubmittedAt) &&
+                        !l.saleVerifiedAt &&
+                        !l.saleRejectedAt;
+                      const saleRejected =
+                        l.status === "approved" &&
+                        Boolean(l.saleRejectedAt) &&
+                        !l.saleSubmittedAt;
+                      const markLabel = isRentTransactionLabel(l.transactionType)
+                        ? "Marchează ca închiriat"
+                        : "Marchează ca vândut";
                       return (
                         <li
                           key={l.id}
@@ -820,6 +856,26 @@ export default function ContPage() {
                                 </Link>
                               )}
                             </div>
+                            {salePendingReview && (
+                              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-1 rounded-lg mt-2 w-fit">
+                                Cererea este în verificare la administrator.
+                              </p>
+                            )}
+                            {saleRejected && l.saleRejectionNote && (
+                              <p className="text-xs text-red-700 dark:text-red-300 bg-red-500/10 px-2 py-1 rounded-lg mt-2">
+                                Cerere respinsă: {l.saleRejectionNote}
+                              </p>
+                            )}
+                            {l.status === "approved" && (
+                              <button
+                                type="button"
+                                disabled={salePendingReview}
+                                onClick={() => setMarkSoldListingId(l.id)}
+                                className="mt-2 text-xs font-semibold px-3 py-2 rounded-xl border border-[#C25A2B]/50 text-[#C25A2B] hover:bg-[#C25A2B]/10 disabled:opacity-45 disabled:cursor-not-allowed"
+                              >
+                                {markLabel} — încarcă dovada
+                              </button>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -920,6 +976,15 @@ export default function ContPage() {
           ) : null}
         </div>
       </main>
+      <MarkListingSoldModal
+        isOpen={Boolean(markSoldListingId && markSoldTarget)}
+        listingTitle={markSoldTarget?.title ?? ""}
+        markLabel={markSoldModalLabel}
+        submitEndpoint={`/api/account/listings/${markSoldListingId ?? ""}/submit-sale`}
+        isDark={isDark}
+        onClose={() => setMarkSoldListingId(null)}
+        onSubmitted={() => void load()}
+      />
       <Footer />
     </div>
   );

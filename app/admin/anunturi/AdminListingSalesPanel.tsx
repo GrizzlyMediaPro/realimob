@@ -17,6 +17,7 @@ type Row = {
   saleVerifiedAt: string | null;
   saleRejectedAt: string | null;
   saleRejectionNote: string | null;
+  saleRequestedByType: string | null;
   agent: AgentS | null;
 };
 
@@ -57,6 +58,7 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
             ? new Date(l.saleRejectedAt as string).toISOString()
             : null,
           saleRejectionNote: (l.saleRejectionNote as string) ?? null,
+          saleRequestedByType: (l.saleRequestedByType as string) ?? null,
           agent: l.agent
             ? {
                 id: String((l.agent as AgentS).id),
@@ -176,6 +178,23 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
               >
                 <div className="flex flex-wrap justify-between gap-2 mb-2">
                   <div>
+                    {(() => {
+                      const t = row.transactionType.toLowerCase();
+                      const isRent =
+                        t.includes("închiri") || t.includes("inchiri");
+                      const requestSource =
+                        row.saleRequestedByType === "client"
+                          ? "Client"
+                          : row.saleRequestedByType === "agent"
+                            ? "Agent"
+                            : "Nespecificat";
+                      return (
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#C25A2B]">
+                          Cerere {isRent ? "închiriat" : "vândut"} · sursă:{" "}
+                          {requestSource}
+                        </p>
+                      );
+                    })()}
                     <p className="font-semibold text-foreground">{row.title}</p>
                     <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 break-all">
                       ID anunț: {row.id}
@@ -184,10 +203,12 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
                       {row.transactionType} · {row.price.toLocaleString("ro-RO")}{" "}
                       {row.currency}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      Agent: {row.agent?.name ?? "—"}{" "}
-                      {row.agent?.email ? `(${row.agent.email})` : ""}
-                    </p>
+                    {row.saleRequestedByType !== "client" && (
+                      <p className="text-xs text-gray-500">
+                        Agent: {row.agent?.name ?? "—"}{" "}
+                        {row.agent?.email ? `(${row.agent.email})` : ""}
+                      </p>
+                    )}
                   </div>
                   <Link
                     href={`/admin/anunturi/preview/${row.id}`}
@@ -233,7 +254,13 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
                     )}
                     {row.saleVerifiedAt && (
                       <p className="text-emerald-600 dark:text-emerald-400">
-                        Aprobat · anunț inactiv (vândut) ·{" "}
+                        {(() => {
+                          const t = row.transactionType.toLowerCase();
+                          const isRent =
+                            t.includes("închiri") || t.includes("inchiri");
+                          return `Aprobat · anunț inactiv (${isRent ? "închiriat" : "vândut"})`;
+                        })()}{" "}
+                        ·{" "}
                         {new Date(row.saleVerifiedAt).toLocaleString("ro-RO", {
                           timeZone: "Europe/Bucharest",
                         })}
@@ -273,7 +300,12 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
                         onClick={() => patch(row.id, "approve")}
                         className="px-3 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-600 disabled:opacity-50"
                       >
-                        Aprobă (marchează vândut)
+                        {(() => {
+                          const t = row.transactionType.toLowerCase();
+                          const isRent =
+                            t.includes("închiri") || t.includes("inchiri");
+                          return `Aprobă (marchează ${isRent ? "închiriat" : "vândut"})`;
+                        })()}
                       </button>
                       <button
                         type="button"
