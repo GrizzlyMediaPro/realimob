@@ -2,14 +2,44 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { FaFacebook, FaInstagram, FaLinkedin, FaYoutube } from "react-icons/fa";
 import { FaTiktok } from "react-icons/fa6";
 import { useTheme } from "../hooks/useTheme";
+
+type CollaboratorLink = {
+  name: string;
+  href: string;
+};
+
+const menuLinks = [
+  { label: "Apartamente", href: "/anunturi?categorie=apartamente" },
+  { label: "Garsoniere", href: "/anunturi?categorie=garsoniere" },
+  { label: "Case și vile", href: "/anunturi?categorie=case-vile" },
+  { label: "Terenuri", href: "/anunturi?categorie=terenuri" },
+  { label: "Spații comerciale", href: "/anunturi?categorie=spatii-comerciale" },
+  { label: "De vânzare", href: "/vanzare" },
+  { label: "De închiriat", href: "/inchiriere" },
+];
+
+const legalLinks = [
+  { label: "Termeni și condiții", href: "/termeni-si-conditii" },
+  { label: "Politica de confidențialitate", href: "/politica-de-confidentialitate" },
+  { label: "Politica cookies", href: "/politica-cookies" },
+];
+
+function extractFirstUrlFromHtml(html: string): string | null {
+  const hrefMatch = html.match(/href=["']([^"'#]+)["']/i);
+  if (hrefMatch?.[1]) return hrefMatch[1];
+  const urlMatch = html.match(/https?:\/\/[^\s<>"']+/i);
+  return urlMatch?.[0] ?? null;
+}
 
 export default function Footer() {
   const [language, setLanguage] = useState("Română");
   const { theme, changeTheme, mounted } = useTheme();
   const [isDark, setIsDark] = useState(false);
+  const [collaboratorLinks, setCollaboratorLinks] = useState<CollaboratorLink[]>([]);
 
   // Detectare dark mode fără hydration mismatch
   useEffect(() => {
@@ -23,6 +53,46 @@ export default function Footer() {
       attributeFilter: ["class"],
     });
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCollaborators = async () => {
+      try {
+        const response = await fetch("/api/public/platform-settings", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          collaborators?: Array<{ name?: string; description?: string }>;
+        };
+        const incoming = Array.isArray(data.collaborators) ? data.collaborators : [];
+        const links = incoming
+          .map((item): CollaboratorLink | null => {
+            const name = typeof item.name === "string" ? item.name.trim() : "";
+            if (!name) return null;
+            const description = typeof item.description === "string" ? item.description : "";
+            const href = extractFirstUrlFromHtml(description) ?? "/#colaboratori";
+            return { name, href };
+          })
+          .filter((item): item is CollaboratorLink => Boolean(item));
+
+        if (!cancelled) {
+          setCollaboratorLinks(links);
+        }
+      } catch {
+        if (!cancelled) setCollaboratorLinks([]);
+      }
+    };
+
+    void loadCollaborators();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
   
   const getAppearanceLabel = () => {
@@ -149,20 +219,21 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Dreapta - Coloane de linkuri */}
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {/* Companie */}
+          {/* Dreapta - 3 coloane de linkuri */}
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Meniu */}
             <div>
               <h3 className={`font-bold mb-4 text-sm ${isDark ? "text-gray-200" : "text-gray-800"}`} style={{ fontFamily: "var(--font-galak-regular)" }}>
-                Companie
+                Meniu
               </h3>
               <ul className="space-y-2" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Despre noi</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Știri</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Cariere</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Publicitate</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Contact</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Declarație accesibilitate</a></li>
+                {menuLinks.map((item) => (
+                  <li key={item.label}>
+                    <Link href={item.href} className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -172,11 +243,13 @@ export default function Footer() {
                 Legal
               </h3>
               <ul className="space-y-2" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Impressum</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Termeni și condiții</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Politica de confidențialitate</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Setări confidențialitate</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Raportează vulnerabilitate</a></li>
+                {legalLinks.map((item) => (
+                  <li key={item.label}>
+                    <Link href={item.href} className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -186,22 +259,24 @@ export default function Footer() {
                 Parteneri
               </h3>
               <ul className="space-y-2" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Conectare</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Înregistrare</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Oferta noastră</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Termeni și condiții</a></li>
-              </ul>
-            </div>
-
-            {/* Popular */}
-            <div>
-              <h3 className={`font-bold mb-4 text-sm ${isDark ? "text-gray-200" : "text-gray-800"}`} style={{ fontFamily: "var(--font-galak-regular)" }}>
-                Popular
-              </h3>
-              <ul className="space-y-2" style={{ fontFamily: "var(--font-galak-regular)" }}>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Aplicație iOS</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Aplicație Android</a></li>
-                <li><a href="#" className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}>Harta site-ului</a></li>
+                {collaboratorLinks.length > 0 ? (
+                  collaboratorLinks.map((item) => (
+                    <li key={item.name}>
+                      <a
+                        href={item.href}
+                        target={item.href.startsWith("http") ? "_blank" : undefined}
+                        rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                        className={`text-sm transition-colors ${isDark ? "text-gray-500 hover:text-gray-200" : "text-gray-500 hover:text-gray-800"}`}
+                      >
+                        {item.name}
+                      </a>
+                    </li>
+                  ))
+                ) : (
+                  <li className={`text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                    Partenerii vor apărea aici.
+                  </li>
+                )}
               </ul>
             </div>
           </div>
