@@ -1667,20 +1667,27 @@ export default function AdaugaAnuntPage() {
               <h1 className="text-2xl md:text-3xl font-bold mb-3">
                 Anunțul a fost trimis!
               </h1>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                Anunțul tău va fi verificat și publicat în cel mai scurt timp
-                posibil. Vei fi redirecționat către pagina principală.
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
+                Anunțul este în moderare. Pentru publicare, descarcă contractul de
+                intermediere, semnează-l și încarcă varianta semnată din pagina Cont.
+                Administratorul verifică anunțul și contractul înainte de publicare.
               </p>
-              <div className="flex justify-center">
+              <div className="flex flex-wrap justify-center gap-3">
                 <Link
-                  href="/"
+                  href="/cont"
                   className="px-6 py-3 rounded-xl text-white font-medium hover:opacity-90 transition-all duration-300"
                   style={{
                     background:
                       "linear-gradient(135deg, rgba(194, 90, 43, 0.95) 0%, rgba(180, 75, 35, 0.9) 100%)",
                   }}
                 >
-                  Înapoi acasă
+                  Mergi la Cont — contract
+                </Link>
+                <Link
+                  href="/"
+                  className="px-6 py-3 rounded-xl font-medium border border-black/15 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
+                >
+                  Acasă
                 </Link>
               </div>
             </div>

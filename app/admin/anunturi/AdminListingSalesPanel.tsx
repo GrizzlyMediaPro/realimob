@@ -165,7 +165,7 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
         {!loading && rows.length === 0 && (
           <p className="text-sm text-gray-500 py-8 text-center">
             {tab === "pending"
-              ? "Nu există contracte în așteptare."
+              ? "Nu există cereri în așteptare."
               : "Nu există înregistrări recente."}
           </p>
         )}
@@ -225,7 +225,9 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
                       rel="noreferrer"
                       className="text-sm font-medium text-[#C25A2B] underline"
                     >
-                      Deschide contractul
+                      {row.saleRequestedByType === "agent"
+                        ? "Deschide OP comision"
+                        : "Deschide dovada"}
                     </a>
                     <span className="text-xs text-gray-500">
                       {row.saleContractFileName ?? ""} · trimis{" "}
@@ -247,7 +249,9 @@ export default function AdminListingSalesPanel({ isDark }: { isDark: boolean }) 
                           rel="noreferrer"
                           className="font-medium text-[#C25A2B] underline"
                         >
-                          Contract depus
+                          {row.saleRequestedByType === "agent"
+                            ? "OP comision depus"
+                            : "Dovadă depusă"}
                         </a>
                         {row.saleContractFileName ? ` · ${row.saleContractFileName}` : ""}
                       </p>

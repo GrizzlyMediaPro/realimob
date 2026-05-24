@@ -1,9 +1,11 @@
-import type { Metadata, Viewport } from "next";
+import type { Viewport } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import CookieBlockerScript from "./components/CookieBlockerScript";
 import CookieConsent from "./components/CookieConsent";
+import JsonLd from "./components/JsonLd";
 import Providers from "./providers";
+import { organizationJsonLd, rootMetadata } from "@/lib/seo";
 import "./globals.css";
 
 const kurskMedium = localFont({
@@ -30,10 +32,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export const metadata: Metadata = {
-  title: "Realimob",
-  description: "Realimob - platformă imobiliară",
-};
+export const metadata = rootMetadata;
 
 export default function RootLayout({
   children,
@@ -45,6 +44,7 @@ export default function RootLayout({
       <html lang="ro">
         <head>
           <CookieBlockerScript />
+          <JsonLd data={organizationJsonLd} />
         </head>
         <body className={`${kurskMedium.variable} ${galakThin.variable} ${galakRegular.variable} antialiased`}>
         {/* Zonă safe-area top (notch / dynamic island) cu același efect de "glass" ca navbar-ul */}

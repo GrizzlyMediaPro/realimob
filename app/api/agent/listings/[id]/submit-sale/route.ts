@@ -25,7 +25,7 @@ export async function POST(
     const contractFileName = body.contractFileName?.trim() ?? null;
     if (!contractUrl) {
       return NextResponse.json(
-        { error: "Lipsește documentul (URL contract)." },
+        { error: "Lipsește OP-ul pentru comision (PDF)." },
         { status: 400 },
       );
     }
@@ -64,7 +64,7 @@ export async function POST(
       !listing.saleRejectedAt;
     if (pendingReview) {
       return NextResponse.json(
-        { error: "Există deja un contract în curs de verificare." },
+        { error: "Există deja un OP pentru comision în curs de verificare." },
         { status: 400 },
       );
     }

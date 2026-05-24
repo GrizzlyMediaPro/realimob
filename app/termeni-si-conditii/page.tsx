@@ -1,9 +1,15 @@
 import Navbar from "@/app/components/Navbar";
 import Footer from "@/app/components/Footer";
+import TermsContent from "./TermsContent";
 
-export const metadata = {
-  title: "Termeni si Conditii | Real Imob",
-};
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata = buildPageMetadata({
+  title: "Termeni și condiții",
+  description:
+    "Termeni și condiții generale de utilizare a platformei Realimob — drepturi, obligații și reguli pentru utilizatori și agenți imobiliari.",
+  path: "/termeni-si-conditii",
+});
 
 export default function TermeniSiConditiiPage() {
   return (
@@ -14,39 +20,13 @@ export default function TermeniSiConditiiPage() {
           className="text-3xl md:text-4xl font-bold mb-3"
           style={{ fontFamily: "var(--font-galak-regular)" }}
         >
-          Termeni si conditii Real Imob
+          Termeni și condiții
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-          Data ultimei actualizari: 24 aprilie 2026
+          Data ultimei actualizări: 21 mai 2026
         </p>
 
-        <section className="space-y-5 text-sm md:text-base leading-7">
-          <p>
-            Acest document stabileste conditiile in care platforma Real Imob poate
-            fi utilizata de catre persoane fizice si juridice pentru cautarea,
-            publicarea si administrarea anunturilor imobiliare.
-          </p>
-          <p>
-            Prin accesarea platformei, utilizatorul confirma ca a citit, a inteles
-            si accepta acesti termeni, impreuna cu Politica de confidentialitate si
-            Politica cookies.
-          </p>
-          <p>
-            Utilizatorul este responsabil pentru corectitudinea continutului
-            publicat. Real Imob isi rezerva dreptul de a modifica, suspenda sau
-            elimina continut care incalca legea, drepturile tertilor sau regulile
-            platformei.
-          </p>
-          <p>
-            Real Imob nu este parte in tranzactiile dintre utilizatori, proprietari,
-            agenti sau alti colaboratori. Platforma ofera exclusiv infrastructura
-            tehnica pentru listare si comunicare.
-          </p>
-          <p>
-            Ne rezervam dreptul de a actualiza acesti termeni oricand. Modificarile
-            devin aplicabile de la publicarea lor pe aceasta pagina.
-          </p>
-        </section>
+        <TermsContent />
       </main>
       <Footer />
     </div>

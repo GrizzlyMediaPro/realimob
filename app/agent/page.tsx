@@ -3002,7 +3002,7 @@ export default function AgentDashboardPage() {
                         <div className="flex flex-col gap-2 px-1">
                           {anunt.salePendingReview && (
                             <span className="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-1 rounded-lg w-fit">
-                              Contract în verificare la administrator
+                              OP comision în verificare la administrator
                             </span>
                           )}
                           {anunt.saleRejected && anunt.saleRejectionNote && (
@@ -3016,7 +3016,7 @@ export default function AgentDashboardPage() {
                             onClick={() => setMarkSoldListingId(anunt.id)}
                             className="w-full sm:w-auto text-left px-3 py-2 rounded-xl text-xs font-semibold border border-[#C25A2B]/50 text-[#C25A2B] hover:bg-[#C25A2B]/10 disabled:opacity-45 disabled:cursor-not-allowed"
                           >
-                            {markLabel} — încarcă contractul
+                            {markLabel} — încarcă OP pentru comision
                           </button>
                         </div>
                       </div>
@@ -3185,6 +3185,7 @@ export default function AgentDashboardPage() {
         isOpen={Boolean(markSoldListingId && markSoldTarget)}
         listingTitle={markSoldTarget?.titlu ?? ""}
         markLabel={markSoldModalLabel}
+        uploadKind="commission_op"
         submitEndpoint={`/api/agent/listings/${markSoldListingId ?? ""}/submit-sale`}
         isDark={isDark}
         onClose={() => setMarkSoldListingId(null)}

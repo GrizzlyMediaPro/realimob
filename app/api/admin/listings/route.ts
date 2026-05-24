@@ -3,6 +3,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { revalidateAgentPerformanceScoreCache } from "@/lib/agentPerformanceScore";
+import { hasIntermediationContractUploaded } from "@/lib/listingIntermediationContract";
 
 // GET — Lista anunțurilor cu filtru de status (pentru admin)
 export async function GET(request: NextRequest) {
@@ -51,11 +52,12 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { listingId, action, agentId, reason } = body as {
+    const { listingId, action, agentId, reason, note } = body as {
       listingId?: string;
       action?: string;
       agentId?: string;
       reason?: string;
+      note?: string;
     };
 
     if (!listingId) {
@@ -88,14 +90,87 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
+      if (!hasIntermediationContractUploaded(existing)) {
+        return NextResponse.json(
+          {
+            error:
+              "Aprobarea este posibilă după ce utilizatorul încarcă contractul de intermediere semnat. Verifică documentul înainte.",
+          },
+          { status: 400 },
+        );
+      }
+
       const listing = await prisma.listing.update({
         where: { id: listingId },
         data: {
           status: "approved",
           agentId: effectiveAgentId,
+          intermediationContractVerifiedAt: new Date(),
+          intermediationContractRejectedAt: null,
+          intermediationContractRejectionNote: null,
         },
         include: { agent: true },
       });
+
+      return NextResponse.json(listing);
+    }
+
+    if (action === "reject_intermediation_contract") {
+      if (existing.status !== "pending") {
+        return NextResponse.json(
+          { error: "Respingerea contractului este disponibilă doar pentru anunțuri în moderare." },
+          { status: 400 },
+        );
+      }
+      if (!hasIntermediationContractUploaded(existing)) {
+        return NextResponse.json(
+          { error: "Nu există contract încărcat de respins." },
+          { status: 400 },
+        );
+      }
+
+      const rejectionNote = note?.trim().slice(0, 500) || null;
+      const listing = await prisma.listing.update({
+        where: { id: listingId },
+        data: {
+          intermediationContractUrl: null,
+          intermediationContractFileName: null,
+          intermediationContractSubmittedAt: null,
+          intermediationContractRejectedAt: new Date(),
+          intermediationContractRejectionNote: rejectionNote,
+        },
+        include: { agent: true },
+      });
+
+      const submitterId = existing.submittedByUserId;
+      if (submitterId) {
+        try {
+          const cc = await clerkClient();
+          const submitter = await cc.users.getUser(submitterId);
+          const email =
+            submitter.emailAddresses[0]?.emailAddress?.trim().toLowerCase() ??
+            null;
+          if (email) {
+            const titleShort =
+              existing.title.length > 120
+                ? `${existing.title.slice(0, 117)}…`
+                : existing.title;
+            await prisma.appNotification.create({
+              data: {
+                type: "listing_intermediation_contract_rejected",
+                title: "Contract respins — reîncarcă documentul",
+                body: rejectionNote
+                  ? `Pentru anunțul „${titleShort}”: ${rejectionNote}`
+                  : `Contractul pentru anunțul „${titleShort}” nu a fost acceptat. Descarcă șablonul, semnează și încarcă din nou din Cont.`,
+                href: "/cont",
+                clientEmail: email,
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error("reject intermediation contract notify", notifyErr);
+        }
+      }
 
       return NextResponse.json(listing);
     }
@@ -238,7 +313,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Acțiune necunoscută. Folosește: approve, deny, delete, assign_agent, auto_assign",
+          "Acțiune necunoscută. Folosește: approve, deny, delete, assign_agent, auto_assign, reject_intermediation_contract",
       },
       { status: 400 },
     );

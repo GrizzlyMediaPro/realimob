@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 import { MdClose, MdUploadFile } from "react-icons/md";
 import { UploadButton } from "./Uploadthing";
 
+/** Agent: OP comision (PDF). Client: dovadă vânzare/închiriere. */
+export type MarkListingSoldUploadKind = "commission_op" | "sale_proof";
+
 type MarkListingSoldModalProps = {
   listingTitle: string;
   markLabel: string;
   submitEndpoint: string;
+  uploadKind?: MarkListingSoldUploadKind;
   isOpen: boolean;
   onClose: () => void;
   onSubmitted: () => void;
@@ -18,11 +22,13 @@ export default function MarkListingSoldModal({
   listingTitle,
   markLabel,
   submitEndpoint,
+  uploadKind = "sale_proof",
   isOpen,
   onClose,
   onSubmitted,
   isDark,
 }: MarkListingSoldModalProps) {
+  const isCommissionOp = uploadKind === "commission_op";
   const [contractUrl, setContractUrl] = useState("");
   const [fileName, setFileName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -51,7 +57,11 @@ export default function MarkListingSoldModal({
 
   const submit = async () => {
     if (!contractUrl.trim()) {
-      setError("Încarcă contractul înainte de trimitere.");
+      setError(
+        isCommissionOp
+          ? "Încarcă OP-ul pentru comision (PDF) înainte de trimitere."
+          : "Încarcă dovada înainte de trimitere.",
+      );
       return;
     }
     setSubmitting(true);
@@ -110,8 +120,9 @@ export default function MarkListingSoldModal({
           <p className="text-gray-600 dark:text-gray-400">
             <span className="font-medium text-foreground">{listingTitle}</span>
             <br />
-            Încarcă dovada vânzării/închirierii (contract sau document echivalent). Administratorul verifică
-            documentul înainte ca anunțul să fie mutat în categoria finalizată.
+            {isCommissionOp
+              ? "Încarcă OP-ul pentru comision (PDF). Administratorul verifică documentul înainte ca anunțul să fie mutat în categoria finalizată."
+              : "Încarcă dovada vânzării/închirierii (contract sau document echivalent). Administratorul verifică documentul înainte ca anunțul să fie mutat în categoria finalizată."}
           </p>
           <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-4">
             <UploadButton
@@ -125,8 +136,10 @@ export default function MarkListingSoldModal({
               }}
               onUploadError={(e: Error) => setError(e.message)}
               content={{
-                button: "Încarcă contractul (PDF / imagine)",
-                allowedContent: "Document",
+                button: isCommissionOp
+                  ? "Încarcă OP pentru comision (PDF)"
+                  : "Încarcă dovada (PDF / imagine)",
+                allowedContent: isCommissionOp ? "PDF" : "Document",
               }}
             />
             {contractUrl ? (

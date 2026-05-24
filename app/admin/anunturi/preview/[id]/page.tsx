@@ -24,7 +24,12 @@ import {
   MdInfoOutline,
   MdClose,
   MdDelete,
+  MdDownload,
 } from "react-icons/md";
+import {
+  hasIntermediationContractUploaded,
+  isIntermediationContractAwaitingAdmin,
+} from "@/lib/listingIntermediationContract";
 import PropertyDetailsSection from "../../../../components/PropertyDetailsSection";
 import ListingDescriptionDisplay from "../../../../components/ListingDescriptionDisplay";
 
@@ -76,6 +81,11 @@ type DBListing = {
   createdAt: string;
   images?: any[] | null;
   details?: any | null;
+  intermediationContractUrl?: string | null;
+  intermediationContractFileName?: string | null;
+  intermediationContractSubmittedAt?: string | null;
+  intermediationContractRejectedAt?: string | null;
+  intermediationContractRejectionNote?: string | null;
 };
 
 function useDarkMode() {
@@ -114,6 +124,7 @@ export default function AdminPreviewPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [contractRejectNote, setContractRejectNote] = useState("");
 
   const fetchListing = useCallback(async () => {
     setLoading(true);
@@ -169,6 +180,31 @@ export default function AdminPreviewPage() {
       router.push("/admin/anunturi");
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectContract = async () => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId: id,
+          action: "reject_intermediation_contract",
+          note: contractRejectNote.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Eroare la respingerea contractului");
+      }
+      setContractRejectNote("");
+      await fetchListing();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Eroare");
     } finally {
       setActionLoading(false);
     }
@@ -329,6 +365,8 @@ export default function AdminPreviewPage() {
     modStatus === "approved" || modStatus === "sold";
   const isDeniedListing = modStatus === "denied";
   const hasAssignedAgent = Boolean(listing.agentId || listing.agent);
+  const hasSignedContract = hasIntermediationContractUploaded(listing);
+  const contractAwaitingReview = isIntermediationContractAwaitingAdmin(listing);
 
   return (
     <div className="min-h-screen text-foreground">
@@ -405,14 +443,19 @@ export default function AdminPreviewPage() {
                 <>
                   <button
                     onClick={() => handleApprove()}
-                    disabled={actionLoading}
+                    disabled={actionLoading || !hasSignedContract}
+                    title={
+                      hasSignedContract
+                        ? "Aprobă anunțul și contractul"
+                        : "Utilizatorul trebuie să încarce contractul semnat"
+                    }
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
                     style={{ backgroundColor: "#10B981" }}
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#059669"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#10B981"; }}
                   >
                     <MdCheckCircle size={16} />
-                    Aprobă
+                    Aprobă anunț + contract
                   </button>
                   <button
                     onClick={handleDeny}
@@ -518,6 +561,59 @@ export default function AdminPreviewPage() {
               </button>
             </div>
           </div>
+
+          {isPendingModeration && (
+            <div
+              className="mt-3 p-3 rounded-xl text-sm"
+              style={{
+                background: isDark
+                  ? "rgba(245, 158, 11, 0.12)"
+                  : "rgba(245, 158, 11, 0.08)",
+                border: `1px solid ${isDark ? "rgba(245, 158, 11, 0.25)" : "rgba(245, 158, 11, 0.35)"}`,
+              }}
+            >
+              <p className="font-medium text-foreground flex items-center gap-2 mb-2">
+                <MdDescription className="text-[#C25A2B]" size={18} />
+                Contract intermediere
+              </p>
+              {!hasSignedContract ? (
+                <p className="text-gray-600 dark:text-gray-400 text-xs">
+                  Utilizatorul nu a încărcat încă contractul semnat. Aprobarea este blocată
+                  până la încărcare.
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`/api/admin/listings/${listing.id}/intermediation-contract`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#C25A2B] hover:opacity-90"
+                  >
+                    <MdDownload size={14} />
+                    Deschide contract semnat
+                  </a>
+                  {contractAwaitingReview && (
+                    <span className="text-xs text-amber-700 dark:text-amber-300">
+                      În așteptare — verifică documentul, apoi aprobă.
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    value={contractRejectNote}
+                    onChange={(e) => setContractRejectNote(e.target.value)}
+                    placeholder="Motiv respingere contract (opțional)"
+                    className="flex-1 min-w-[180px] px-2 py-1.5 rounded-lg text-xs border border-black/10 dark:border-white/15 bg-white/50 dark:bg-white/5"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRejectContract}
+                    disabled={actionLoading}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 disabled:opacity-50"
+                  >
+                    Respinge contract
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Panel selectare agent cu scoring */}
           {assigningAgent && (

@@ -17,6 +17,7 @@ import {
   MdVisibility,
   MdSwapHoriz,
   MdInfoOutline,
+  MdDescription,
 } from "react-icons/md";
 import { CiFilter, CiImageOn } from "react-icons/ci";
 import Link from "next/link";
@@ -29,6 +30,10 @@ import {
 import { normalizeListingCurrencyCode } from "@/lib/bnrFxRates";
 import AdminChestionareVizionariPanel from "./AdminChestionareVizionariPanel";
 import AdminListingSalesPanel from "./AdminListingSalesPanel";
+import {
+  hasIntermediationContractUploaded,
+  isIntermediationContractAwaitingAdmin,
+} from "@/lib/listingIntermediationContract";
 
 type AnuntStatus = "active" | "inactive" | "pending";
 type DeactivationReason =
@@ -103,6 +108,9 @@ type DBListing = {
   createdAt: string;
   images?: unknown;
   details?: unknown;
+  intermediationContractUrl?: string | null;
+  intermediationContractSubmittedAt?: string | null;
+  intermediationContractRejectedAt?: string | null;
 };
 
 /** Aliniat la `lib/listingToAnunt.ts` — câmpuri pentru filtre în lista admin. */
@@ -310,6 +318,30 @@ export default function AdminAnunturiPage() {
       await fetchPendingListings();
     } catch (err: any) {
       setDbPendingError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectContract = async (listingId: string, note?: string) => {
+    setActionLoading(listingId);
+    try {
+      const res = await fetch("/api/admin/listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          listingId,
+          action: "reject_intermediation_contract",
+          note: note?.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Eroare la respingerea contractului");
+      }
+      await fetchPendingListings();
+    } catch (err: unknown) {
+      setDbPendingError(err instanceof Error ? err.message : "Eroare");
     } finally {
       setActionLoading(null);
     }
@@ -1181,6 +1213,11 @@ export default function AdminAnunturiPage() {
                         const thumb = getFirstListingImageUrl(listing.images);
                         const imgCount = countListingImages(listing.images);
                         const hasRealThumb = thumb !== "/ap2.jpg";
+                        const hasContract = hasIntermediationContractUploaded(listing);
+                        const contractPending = isIntermediationContractAwaitingAdmin({
+                          ...listing,
+                          status: listing.status,
+                        });
 
                         return (
                           <div
@@ -1265,6 +1302,22 @@ export default function AdminAnunturiPage() {
                                   <p className="text-xs text-gray-400 dark:text-gray-500">
                                     Creat la: {new Date(listing.createdAt).toLocaleDateString("ro-RO")}
                                   </p>
+                                  <p className="text-xs mt-1 flex items-center gap-1">
+                                    <MdDescription size={14} className="text-[#C25A2B]" />
+                                    {hasContract ? (
+                                      contractPending ? (
+                                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                          Contract încărcat — de verificat
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-500">Contract încărcat</span>
+                                      )
+                                    ) : (
+                                      <span className="text-red-600 dark:text-red-400 font-medium">
+                                        Lipsește contractul semnat
+                                      </span>
+                                    )}
+                                  </p>
                                 </div>
 
                                 {/* Agent info */}
@@ -1291,9 +1344,23 @@ export default function AdminAnunturiPage() {
                                     : "rgba(0, 0, 0, 0.06)",
                                 }}
                               >
+                                {hasContract && (
+                                  <a
+                                    href={`/api/admin/listings/${listing.id}/intermediation-contract`}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#C25A2B] border border-[#C25A2B]/40 hover:bg-[#C25A2B]/10"
+                                  >
+                                    <MdDescription size={16} />
+                                    Contract
+                                  </a>
+                                )}
                                 <button
                                   onClick={() => handleApprove(listing.id)}
-                                  disabled={isActioning}
+                                  disabled={isActioning || !hasContract}
+                                  title={
+                                    hasContract
+                                      ? "Aprobă anunțul și contractul"
+                                      : "Așteaptă contractul semnat de la utilizator"
+                                  }
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
                                   style={{ backgroundColor: "#10B981" }}
                                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#059669"; }}
@@ -1302,6 +1369,16 @@ export default function AdminAnunturiPage() {
                                   <MdCheckCircle size={16} />
                                   Aprobă
                                 </button>
+                                {hasContract && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectContract(listing.id)}
+                                    disabled={isActioning}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 disabled:opacity-50"
+                                  >
+                                    Respinge contract
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleDeny(listing.id)}
                                   disabled={isActioning}

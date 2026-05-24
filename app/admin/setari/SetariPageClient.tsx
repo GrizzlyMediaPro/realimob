@@ -455,7 +455,7 @@ export default function AdminSetariPage() {
                       />
                       <ToggleRow
                         label="Aprobare automată anunțuri noi"
-                        description="Anunțurile publicate din formularul public intră direct ca aprobate. Folosește doar dacă ai încredere în surse."
+                        description="Dacă e activ, anunțurile noi sunt marcate aprobate fără moderare (nu include verificarea contractului de intermediere — pentru publicare completă folosește moderarea manuală)."
                         checked={newListingsAutoApprove}
                         onChange={setNewListingsAutoApprove}
                         isDark={isDark}

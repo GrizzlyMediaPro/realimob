@@ -8,6 +8,7 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import MarkListingSoldModal from "../components/MarkListingSoldModal";
+import ListingIntermediationContractPanel from "../components/ListingIntermediationContractPanel";
 import { getFirstListingImageUrl } from "../../lib/listingToAnunt";
 import {
   MdPerson,
@@ -41,6 +42,9 @@ type AccountListing = {
   saleVerifiedAt: string | null;
   saleRejectedAt: string | null;
   saleRejectionNote: string | null;
+  intermediationContractSubmittedAt: string | null;
+  intermediationContractRejectedAt: string | null;
+  intermediationContractRejectionNote: string | null;
 };
 
 type AccountViewing = {
@@ -814,6 +818,14 @@ export default function ContPage() {
                       const markLabel = isRentTransactionLabel(l.transactionType)
                         ? "Marchează ca închiriat"
                         : "Marchează ca vândut";
+                      const contractSubmitted =
+                        l.status === "pending" &&
+                        Boolean(l.intermediationContractSubmittedAt) &&
+                        !l.intermediationContractRejectedAt;
+                      const contractRejected =
+                        l.status === "pending" &&
+                        Boolean(l.intermediationContractRejectedAt) &&
+                        !l.intermediationContractSubmittedAt;
                       return (
                         <li
                           key={l.id}
@@ -865,6 +877,17 @@ export default function ContPage() {
                               <p className="text-xs text-red-700 dark:text-red-300 bg-red-500/10 px-2 py-1 rounded-lg mt-2">
                                 Cerere respinsă: {l.saleRejectionNote}
                               </p>
+                            )}
+                            {l.status === "pending" && (
+                              <ListingIntermediationContractPanel
+                                listingId={l.id}
+                                contractSubmitted={contractSubmitted}
+                                contractRejected={contractRejected}
+                                rejectionNote={l.intermediationContractRejectionNote}
+                                onSubmitted={() => void load()}
+                                isDark={isDark}
+                                compact
+                              />
                             )}
                             {l.status === "approved" && (
                               <button

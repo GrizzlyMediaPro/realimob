@@ -1,4 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "../../components/JsonLd";
+import { fetchApprovedListingForSeo } from "@/lib/listingSeo";
+import { buildListingJsonLd, buildListingMetadata } from "@/lib/seo";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdDescription, MdInfo } from "react-icons/md";
 
 
@@ -35,8 +39,18 @@ type AnuntPageProps = {
   }>;
 };
 
+export async function generateMetadata({ params }: AnuntPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const listing = await fetchApprovedListingForSeo(id);
+  if (!listing) {
+    return { title: "Anunț indisponibil", robots: { index: false, follow: false } };
+  }
+  return buildListingMetadata(listing);
+}
+
 export default async function AnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
+  const listingSeo = await fetchApprovedListingForSeo(id);
   let anunt: Anunt | undefined = getAnuntById(id);
   let roomImages: RoomImage[] = [];
 
@@ -158,6 +172,7 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
 
   return (
     <div className="min-h-screen text-foreground">
+      {listingSeo ? <JsonLd data={buildListingJsonLd(listingSeo)} /> : null}
       <Navbar />
 
       <main className="pt-20 md:pt-24 px-4 md:px-0 pb-6 md:pb-0">

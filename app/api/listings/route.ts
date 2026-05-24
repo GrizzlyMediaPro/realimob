@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { getOrCreatePlatformSettings } from "@/lib/platformSettings";
 import {
   isListingDescriptionEmpty,
   sanitizeListingDescription,
@@ -114,8 +113,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const platform = await getOrCreatePlatformSettings();
-    const status = platform.newListingsAutoApprove ? "approved" : "pending";
+    // Publicare doar după moderare + contract intermediere semnat (verificat de admin).
+    const status = "pending";
 
     const listing = await prisma.listing.create({
       data: {

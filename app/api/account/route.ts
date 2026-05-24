@@ -64,6 +64,12 @@ export async function GET() {
           saleVerifiedAt: true,
           saleRejectedAt: true,
           saleRejectionNote: true,
+          intermediationContractUrl: true,
+          intermediationContractFileName: true,
+          intermediationContractSubmittedAt: true,
+          intermediationContractVerifiedAt: true,
+          intermediationContractRejectedAt: true,
+          intermediationContractRejectionNote: true,
         },
       }),
       emailNorm

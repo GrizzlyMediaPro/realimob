@@ -22,7 +22,7 @@ function isSalePendingAdminReview(l: Listing): boolean {
   return true;
 }
 
-/** Cereri de verificare vânzare: contract încărcat, neaprobat, nerepinsă */
+/** Cereri de verificare vânzare: document încărcat (OP comision / dovadă), neaprobat, nerepinsă */
 export async function GET(request: NextRequest) {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.response;
