@@ -27,7 +27,7 @@ import {
   parsePretToNumber,
   type Anunt,
 } from "../../lib/anunturiData";
-import { estimateMonthlyRentFromSaleAmount } from "../../lib/estimateMonthlyRent";
+import { getMonthlyRentAmount } from "../../lib/estimateMonthlyRent";
 import ConvertedListingPrice from "./ConvertedListingPrice";
 
 type SimilarListingsCarouselProps = {
@@ -78,19 +78,6 @@ const getTagIcon = (tag: string): IconType | null => {
   }
 
   return null;
-};
-
-// Funcție helper pentru a formata prețul ca "X €/lună" pentru închiriere
-const formatPretLuna = (pret: string): string => {
-  const pretVanzare = parsePretToNumber(pret);
-  let factor = 120;
-  if (pretVanzare < 50000) factor = 100;
-  if (pretVanzare > 150000) factor = 150;
-
-  const chirie = Math.round(pretVanzare / factor);
-  const chirieFinala = Math.max(300, Math.min(2000, chirie));
-
-  return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
 };
 
 export default function SimilarListingsCarousel({
@@ -207,19 +194,19 @@ export default function SimilarListingsCarousel({
                 className="flex gap-6 overflow-x-auto hide-scrollbar pb-4"
               >
                 {similarAnunturi.map((item) => {
-                  const saleN = item.priceAmount ?? parsePretToNumber(item.pret);
-                  const saleC = item.priceCurrency ?? inferCurrencyFromPret(item.pret);
+                  const priceN = item.priceAmount ?? parsePretToNumber(item.pret);
+                  const priceC = item.priceCurrency ?? inferCurrencyFromPret(item.pret);
                   const priceOverlay = isInchiriere ? (
                     <ConvertedListingPrice
-                      amount={estimateMonthlyRentFromSaleAmount(saleN)}
-                      fromCurrency={saleC}
-                      fallback={formatPretLuna(item.pret)}
+                      amount={getMonthlyRentAmount(priceN)}
+                      fromCurrency={priceC}
+                      fallback={item.pret}
                       suffix=" / lună"
                     />
                   ) : (
                     <ConvertedListingPrice
-                      amount={saleN}
-                      fromCurrency={saleC}
+                      amount={priceN}
+                      fromCurrency={priceC}
                       fallback={item.pret}
                       priceDetails={item.priceDetails ?? null}
                     />

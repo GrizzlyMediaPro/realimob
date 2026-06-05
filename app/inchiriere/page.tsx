@@ -38,7 +38,10 @@ import {
   type Anunt,
   type SortOption,
 } from "../../lib/anunturiData";
-import { estimateMonthlyRentFromSaleAmount } from "../../lib/estimateMonthlyRent";
+import {
+  formatMonthlyRentFallback,
+  getMonthlyRentAmount,
+} from "../../lib/estimateMonthlyRent";
 import { transformListingToAnunt as listingFromDb } from "../../lib/listingToAnunt";
 
 const BucharestMap = dynamic(() => import("../components/BucharestMap"), {
@@ -84,24 +87,6 @@ const primaryCtaStyle = {
   boxShadow:
     "0 4px 16px rgba(194, 90, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
 } as const;
-
-// Funcție helper pentru a formata prețul ca "X €/lună"
-// Convertește prețul de vânzare într-un preț rezonabil de chirie
-const formatPretLuna = (pret: string): string => {
-  // Extragem numărul din preț (ex: "85.000 €" -> "85000")
-  const pretVanzare = parsePretToNumber(pret);
-  // Convertim prețul de vânzare în chirie: împărțim la ~100-150 pentru a obține o chirie rezonabilă
-  // Folosim un factor variabil bazat pe preț pentru a avea chiriile mai rezonabile
-  let factor = 120; // factor default
-  if (pretVanzare < 50000) factor = 100; // pentru proprietăți mai mici
-  if (pretVanzare > 150000) factor = 150; // pentru proprietăți premium
-  
-  const chirie = Math.round(pretVanzare / factor);
-  // Asigurăm că chiriile sunt într-un interval rezonabil (300-2000 €/lună)
-  const chirieFinala = Math.max(300, Math.min(2000, chirie));
-  
-  return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
-};
 
 function getDbListingImageCount(images: any): number {
   if (!Array.isArray(images)) return 0;
@@ -289,7 +274,10 @@ function InchirierePageContent() {
           lat: a.lat as number,
           lng: a.lng as number,
           descriere: a.tags.join(" • "),
-          pret: formatPretLuna(a.pret),
+          pret: formatMonthlyRentFallback(
+            getMonthlyRentAmount(a.priceAmount ?? parsePretToNumber(a.pret)),
+            a.priceCurrency ?? inferCurrencyFromPret(a.pret),
+          ),
           image: a.image,
           routePath: `/inchiriere/${a.id}`,
         })),
@@ -646,8 +634,8 @@ function InchirierePageContent() {
                       id={anunt.id}
                       titlu={anunt.titlu}
                       image={anunt.image}
-                      pret={formatPretLuna(anunt.pret)}
-                      priceAmount={estimateMonthlyRentFromSaleAmount(
+                      pret={anunt.pret}
+                      priceAmount={getMonthlyRentAmount(
                         anunt.priceAmount ?? parsePretToNumber(anunt.pret),
                       )}
                       priceCurrency={

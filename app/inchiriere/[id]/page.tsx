@@ -26,7 +26,10 @@ import {
   type Anunt,
   type RoomImage,
 } from "../../../lib/anunturiData";
-import { estimateMonthlyRentFromSaleAmount } from "../../../lib/estimateMonthlyRent";
+import {
+  formatMonthlyRentFallback,
+  getMonthlyRentAmount,
+} from "../../../lib/estimateMonthlyRent";
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
@@ -40,19 +43,6 @@ type AnuntPageProps = {
   params: Promise<{
     id: string;
   }>;
-};
-
-// Funcție helper pentru a formata prețul ca "X €/lună"
-const formatPretLuna = (pret: string): string => {
-  const pretVanzare = parsePretToNumber(pret);
-  let factor = 120;
-  if (pretVanzare < 50000) factor = 100;
-  if (pretVanzare > 150000) factor = 150;
-  
-  const chirie = Math.round(pretVanzare / factor);
-  const chirieFinala = Math.max(300, Math.min(2000, chirie));
-  
-  return `${chirieFinala.toLocaleString("ro-RO")} €/lună`;
 };
 
 export async function generateMetadata({ params }: AnuntPageProps): Promise<Metadata> {
@@ -147,19 +137,19 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
     "București";
-  const saleAmount =
-    anunt.priceAmount ?? parsePretToNumber(anunt.pret);
-  const saleCurrency =
+  const rentAmount = getMonthlyRentAmount(
+    anunt.priceAmount ?? parsePretToNumber(anunt.pret),
+  );
+  const rentCurrency =
     anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret);
-  const rentAmount = estimateMonthlyRentFromSaleAmount(saleAmount);
-  const pretLuna = formatPretLuna(anunt.pret);
+  const pretLuna = formatMonthlyRentFallback(rentAmount, rentCurrency);
   const rentPerMpAmount =
     anunt.suprafataUtil !== undefined && anunt.suprafataUtil > 0
       ? Math.round(rentAmount / anunt.suprafataUtil)
       : undefined;
   const pretPerMpLuna =
     rentPerMpAmount !== undefined
-      ? `${rentPerMpAmount.toLocaleString("ro-RO")} ${saleCurrency === "EUR" ? "€" : saleCurrency}/m²`
+      ? `${rentPerMpAmount.toLocaleString("ro-RO")} ${rentCurrency === "EUR" ? "€" : rentCurrency}/m²`
       : undefined;
   const formatHistoryDate = (iso?: string) =>
     iso ? new Date(iso).toLocaleDateString("ro-RO") : "N/A";
@@ -170,7 +160,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
       price: pretLuna,
       pricePerMp: pretPerMpLuna,
       priceAmount: rentAmount,
-      priceCurrency: saleCurrency,
+      priceCurrency: rentCurrency,
       pricePerMpAmount: rentPerMpAmount,
     },
   ];
@@ -181,7 +171,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
       price: pretLuna,
       pricePerMp: pretPerMpLuna,
       priceAmount: rentAmount,
-      priceCurrency: saleCurrency,
+      priceCurrency: rentCurrency,
       pricePerMpAmount: rentPerMpAmount,
     });
   }
@@ -257,7 +247,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                 <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
                   <ConvertedListingPrice
                     amount={rentAmount}
-                    fromCurrency={saleCurrency}
+                    fromCurrency={rentCurrency}
                     fallback={pretLuna}
                     suffix=" / lună"
                   />
@@ -320,7 +310,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                           value={
                             <ConvertedListingPrice
                               amount={rentPerMpAmount}
-                              fromCurrency={saleCurrency}
+                              fromCurrency={rentCurrency}
                               fallback={pretPerMpLuna ?? "—"}
                               suffix="/m²"
                             />
