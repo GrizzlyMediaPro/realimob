@@ -33,6 +33,9 @@ export type Anunt = {
   favorite?: number;
   /** Prezent pe anunțurile încărcate din MongoDB cu agent atribuit */
   assignedAgent?: AssignedAgentPublic;
+  /** Tip proprietate din DB (Apartament, Casă/Vilă, Teren, Comercial) */
+  propertyType?: string;
+  commercialSubtype?: string | null;
 };
 
 export type SortOption =

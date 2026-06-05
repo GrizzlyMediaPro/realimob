@@ -367,7 +367,12 @@ export default function HeroFilter() {
 
   const handleSearch = () => {
     const route = tipTranzactie === "Închiriere" ? "/inchiriere" : "/vanzare";
-    router.push(route);
+    const params = new URLSearchParams();
+    params.set("tipProprietate", tipProprietate);
+    if (tipProprietate === "Comercial" && subtipComercial) {
+      params.set("subtipComercial", subtipComercial);
+    }
+    router.push(`${route}?${params.toString()}`);
   };
 
   // ─── Filtre esențiale per tip proprietate ──────────────────────────────

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MdClose,
   MdExpandMore,
@@ -8,10 +9,48 @@ import {
   MdTune,
   MdFilterList,
 } from "react-icons/md";
+import { TIP_PROPRIETATE_VALUES } from "../../lib/listingFilters";
 
 // ─── Tipuri ──────────────────────────────────────────────────────────────
 type TipProprietate = "Apartament" | "Casă/Vilă" | "Teren" | "Comercial";
 type SubtipComercial = "" | "Stradal/Retail" | "Birouri" | "Depozit/Hala";
+
+const FILTER_PARAM_KEYS = [
+  "tipProprietate",
+  "subtipComercial",
+  "surfaceMin",
+  "surfaceMax",
+  "roomsMin",
+  "roomsMax",
+  "pretMin",
+  "pretMax",
+] as const;
+
+function isTipProprietate(value: string): value is TipProprietate {
+  return (TIP_PROPRIETATE_VALUES as readonly string[]).includes(value);
+}
+
+function camereToRoomParams(camere: string): { min?: string; max?: string } {
+  switch (camere) {
+    case "Studio":
+    case "1":
+      return { min: "1", max: "1" };
+    case "2":
+      return { min: "2", max: "2" };
+    case "3":
+      return { min: "3", max: "3" };
+    case "4+":
+      return { min: "4" };
+    default:
+      return {};
+  }
+}
+
+function setOrDeleteParam(params: URLSearchParams, key: string, value: string) {
+  const trimmed = value.trim();
+  if (trimmed) params.set(key, trimmed);
+  else params.delete(key);
+}
 
 // ─── Componente helper reutilizabile ─────────────────────────────────────
 
@@ -254,6 +293,9 @@ export default function ListingFiltersModal({
   onClose,
   onApply,
 }: ListingFiltersModalProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isDark, setIsDark] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [tipProprietate, setTipProprietate] =
@@ -392,6 +434,69 @@ export default function ListingFiltersModal({
     WebkitBackdropFilter: "blur(60px) saturate(1.6)",
   };
 
+  const pushFilterParams = useCallback(
+    (params: URLSearchParams) => {
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router],
+  );
+
+  const syncFromUrl = useCallback(() => {
+    const tip = searchParams.get("tipProprietate");
+    if (tip && isTipProprietate(tip)) setTipProprietate(tip);
+
+    const sub = searchParams.get("subtipComercial");
+    setSubtipComercial(
+      sub ? (sub as SubtipComercial) : "",
+    );
+
+    setSuprafataMin(searchParams.get("surfaceMin") ?? "");
+    setSuprafataMax(searchParams.get("surfaceMax") ?? "");
+    setPretMin(searchParams.get("pretMin") ?? "");
+    setPretMax(searchParams.get("pretMax") ?? "");
+
+    const roomsMin = searchParams.get("roomsMin");
+    const roomsMax = searchParams.get("roomsMax");
+    if (roomsMin === "1" && (roomsMax === "1" || !roomsMax)) {
+      setCamere("1");
+    } else if (roomsMin === "2" && roomsMax === "2") {
+      setCamere("2");
+    } else if (roomsMin === "3" && roomsMax === "3") {
+      setCamere("3");
+    } else if (roomsMin === "4" && !roomsMax) {
+      setCamere("4+");
+    } else {
+      setCamere("");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (isOpen) syncFromUrl();
+  }, [isOpen, syncFromUrl]);
+
+  const handleApplyFilters = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tipProprietate", tipProprietate);
+    setOrDeleteParam(
+      params,
+      "subtipComercial",
+      tipProprietate === "Comercial" ? subtipComercial : "",
+    );
+    setOrDeleteParam(params, "surfaceMin", suprafataMin);
+    setOrDeleteParam(params, "surfaceMax", suprafataMax);
+    setOrDeleteParam(params, "pretMin", pretMin);
+    setOrDeleteParam(params, "pretMax", pretMax);
+
+    const rooms = camereToRoomParams(camere);
+    setOrDeleteParam(params, "roomsMin", rooms.min ?? "");
+    setOrDeleteParam(params, "roomsMax", rooms.max ?? "");
+
+    pushFilterParams(params);
+    onApply();
+    onClose();
+  };
+
   const handleReset = () => {
     setPretMin("");
     setPretMax("");
@@ -468,6 +573,12 @@ export default function ListingFiltersModal({
     setBirouriIncluse(null);
     setMpBirouri("");
     setShowMoreFilters(false);
+    setTipProprietate("Apartament");
+    setSubtipComercial("");
+
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of FILTER_PARAM_KEYS) params.delete(key);
+    pushFilterParams(params);
   };
 
   // ─── Render essentials per tip ───────────────────────────────────────
@@ -858,10 +969,7 @@ export default function ListingFiltersModal({
               Închide
             </button>
             <button
-              onClick={() => {
-                onApply();
-                onClose();
-              }}
+              onClick={handleApplyFilters}
               className="px-6 py-2.5 rounded-xl text-white text-sm font-medium hover:opacity-90 transition-opacity"
               style={{
                 background:

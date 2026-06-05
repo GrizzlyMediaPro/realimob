@@ -264,6 +264,8 @@ export function transformListingToAnunt(
     description: listing.description || undefined,
     dbDetails: details || undefined,
     ...(assignedAgent ? { assignedAgent } : {}),
+    propertyType: listing.propertyType ?? undefined,
+    commercialSubtype: listing.commercialSubtype ?? undefined,
   };
 }
 

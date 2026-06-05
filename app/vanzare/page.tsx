@@ -38,6 +38,11 @@ import {
   type Anunt,
   type SortOption,
 } from "../../lib/anunturiData";
+import {
+  filterByCategorie,
+  filterByCommercialSubtype,
+  filterByPropertyType,
+} from "../../lib/listingFilters";
 import { transformListingToAnunt as listingFromDb } from "../../lib/listingToAnunt";
 
 const BucharestMap = dynamic(() => import("../components/BucharestMap"), {
@@ -115,6 +120,8 @@ function VanzarePageContent() {
   const sortRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const categorieParam = searchParams.get("categorie");
+  const tipProprietateParam = searchParams.get("tipProprietate");
+  const subtipComercialParam = searchParams.get("subtipComercial");
   const roomsMinParam = searchParams.get("roomsMin");
   const roomsMaxParam = searchParams.get("roomsMax");
   const surfaceMinParam = searchParams.get("surfaceMin");
@@ -151,29 +158,6 @@ function VanzarePageContent() {
   const isDarkMode =
     typeof document !== "undefined" &&
     document.documentElement.classList.contains("dark");
-
-  const filterByCategorie = (anunturi: Anunt[], categorie: string | null) => {
-    if (!categorie) return anunturi;
-
-    switch (categorie) {
-      case "garsoniere":
-        return anunturi.filter((a) => (a.dormitoare ?? 0) === 1);
-      case "case":
-        return anunturi.filter(
-          (a) => (a.suprafataUtil ?? 0) >= 100 || (a.dormitoare ?? 0) >= 4,
-        );
-      case "apartamente":
-        return anunturi.filter(
-          (a) => (a.dormitoare ?? 0) >= 2 && (a.dormitoare ?? 0) <= 3,
-        );
-      case "spatii-comerciale":
-        // momentan nu avem un flag dedicat pentru spații comerciale în datasetul demo,
-        // așa că lăsăm lista completă pentru această categorie
-        return anunturi;
-      default:
-        return anunturi;
-    }
-  };
 
   const filterByPopularParams = (anunturi: Anunt[]) => {
     const parseOptionalNumber = (value: string | null): number | null => {
@@ -221,7 +205,9 @@ function VanzarePageContent() {
   };
 
   const sortedAnunturi = useMemo(() => {
-    let copy = filterByCategorie(dbListings, categorieParam);
+    let copy = filterByPropertyType(dbListings, tipProprietateParam);
+    copy = filterByCommercialSubtype(copy, subtipComercialParam);
+    copy = filterByCategorie(copy, categorieParam);
     copy = filterByPopularParams(copy);
     
     // Filtrează pe baza poligonului desenat
@@ -247,6 +233,8 @@ function VanzarePageContent() {
     sortOption,
     drawnPolygon,
     categorieParam,
+    tipProprietateParam,
+    subtipComercialParam,
     roomsMinParam,
     roomsMaxParam,
     surfaceMinParam,
