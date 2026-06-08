@@ -5,7 +5,7 @@ import { CiCirclePlus, CiUser, CiLogin } from "react-icons/ci";
 import { MdClose, MdMenu, MdApartment, MdHomeWork, MdLocationCity } from "react-icons/md";
 import Link from "next/link";
 import { MdExpandMore } from "react-icons/md";
-import { SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
+import { ClerkLoaded, SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
 import {
   DISPLAY_CURRENCIES,
   useCurrency,
@@ -253,6 +253,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                   <CiCirclePlus size={24} />
                   Adaugă anunț
                 </Link>
+                <ClerkLoaded>
                 <SignedOut>
                   <Link 
                     href="/inregistrare" 
@@ -327,6 +328,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                     </div>
                   </div>
                 </SignedIn>
+                </ClerkLoaded>
               </div>
 
               {currencyDropdown}
@@ -446,6 +448,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
               </div>
               {/* Cont nou și Intră în cont (doar pe mobil) */}
               <div className="flex flex-row gap-3 mt-6 md:hidden">
+                <ClerkLoaded>
                 <SignedOut>
                   <Link 
                     href="/inregistrare" 
@@ -527,6 +530,7 @@ export default function Navbar({ fullWidthContent = false }: NavbarProps) {
                     </div>
                   </div>
                 </SignedIn>
+                </ClerkLoaded>
               </div>
             </div>
           </div>

@@ -38,6 +38,7 @@ import RoomGallery from "../../components/RoomGallery";
 import ConvertedListingPrice from "../../components/ConvertedListingPrice";
 import ListingDescriptionDisplay from "../../components/ListingDescriptionDisplay";
 import { prisma } from "../../../lib/prisma";
+import { getListingNearbyInsights } from "../../../lib/listing-nearby-insights";
 
 type AnuntPageProps = {
   params: Promise<{
@@ -137,6 +138,12 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
     anunt.tags.find((t) => t.includes("Sector")) ??
     anunt.tags.find((t) => t.toLowerCase().includes("centru")) ??
     "București";
+
+  const nearbyInsights =
+    anunt.lat !== undefined && anunt.lng !== undefined
+      ? await getListingNearbyInsights(anunt.lat, anunt.lng)
+      : null;
+
   const rentAmount = getMonthlyRentAmount(
     anunt.priceAmount ?? parsePretToNumber(anunt.pret),
   );
@@ -356,6 +363,7 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
                     pretPerMp={pretPerMpLuna}
                     isInchiriere={true}
                     priceHistory={priceHistory}
+                    nearbyInsights={nearbyInsights}
                   />
                 </div>
 
