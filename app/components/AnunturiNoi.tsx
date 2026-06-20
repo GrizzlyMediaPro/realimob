@@ -23,7 +23,7 @@ import type { IconType } from "react-icons";
 import {
   type Anunt,
 } from "../../lib/anunturiData";
-import { countListingImages, transformListingToAnunt } from "../../lib/listingToAnunt";
+import { countListingImages, getListingPriceDisplayProps, transformListingToAnunt } from "../../lib/listingToAnunt";
 import ConvertedListingPrice from "./ConvertedListingPrice";
 
 // Funcție helper pentru a obține icoana potrivită pentru fiecare tag
@@ -171,7 +171,7 @@ export default function AnunturiNoi() {
         window.removeEventListener('resize', checkScroll);
       };
     }
-  }, []);
+  }, [highlightedAnunturi.length, selectedType]);
 
   useEffect(() => {
     const checkDarkMode = () => {
@@ -265,19 +265,23 @@ export default function AnunturiNoi() {
             </div>
           </div>
           
-          <div className="relative">
+          <div className="relative md:px-14">
             <div 
               ref={scrollContainerRef}
-              className="flex gap-6 overflow-x-auto hide-scrollbar pb-4"
+              className="flex gap-6 overflow-x-auto hide-scrollbar pb-4 snap-x snap-mandatory overscroll-x-contain"
+              style={{ WebkitOverflowScrolling: "touch" }}
             >
               {highlightedAnunturi.map((anunt: Anunt) => {
                 const href = selectedType === "vanzare" ? `/vanzare/${anunt.id}` : `/inchiriere/${anunt.id}`;
+                const priceDisplay = getListingPriceDisplayProps(anunt);
                 
                 return (
                 <Link
                   key={anunt.id}
                   href={href}
-                  className="shrink-0 w-[320px] rounded-lg overflow-hidden relative cursor-pointer"
+                  prefetch
+                  draggable={false}
+                  className="shrink-0 w-[320px] rounded-lg overflow-hidden relative cursor-pointer snap-start touch-manipulation"
                   style={{
                     background: isDark ? "rgba(35, 35, 48, 0.45)" : "rgba(255, 255, 255, 0.55)",
                     border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.45)",
@@ -328,10 +332,11 @@ export default function AnunturiNoi() {
                     <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-black/60 backdrop-blur-sm">
                       <div className="text-xl font-bold text-white" style={{ fontFamily: "var(--font-galak-regular)" }}>
                         <ConvertedListingPrice
-                          amount={anunt.priceAmount}
+                          amount={priceDisplay.amount}
                           fromCurrency={anunt.priceCurrency}
                           fallback={anunt.pret}
                           priceDetails={anunt.priceDetails ?? null}
+                          suffix={priceDisplay.suffix}
                         />
                       </div>
                     </div>
@@ -376,8 +381,9 @@ export default function AnunturiNoi() {
             {/* Buton navigare stânga */}
             {showLeftArrow && (
               <button
+                type="button"
                 onClick={() => scroll('left')}
-                className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-10"
+                className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-20"
                 style={{
                   background: isDark ? "rgba(35, 35, 48, 0.6)" : "rgba(255, 255, 255, 0.7)",
                   border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.5)",
@@ -396,8 +402,9 @@ export default function AnunturiNoi() {
             {/* Buton navigare dreapta */}
             {showRightArrow && (
               <button
+                type="button"
                 onClick={() => scroll('right')}
-                className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-10"
+                className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full hover:opacity-80 items-center justify-center text-foreground transition-opacity shadow-lg z-20"
                 style={{
                   background: isDark ? "rgba(35, 35, 48, 0.6)" : "rgba(255, 255, 255, 0.7)",
                   border: isDark ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid rgba(255, 255, 255, 0.5)",

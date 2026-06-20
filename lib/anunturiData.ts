@@ -14,8 +14,10 @@ export type Anunt = {
   titlu: string;
   image: string;
   pret: string;
-  /** Valoare numerică pentru conversie BNR (opțional pentru date vechi doar-text). */
+  /** Valoare numerică totală (sortare/filtre); pentru €/m² = unit × suprafață. */
   priceAmount?: number;
+  /** Valoare din DB (total sau €/m², după `pretPerMp`). */
+  unitPriceAmount?: number;
   priceCurrency?: string;
   priceDetails?: Record<string, unknown> | null;
   tags: string[];

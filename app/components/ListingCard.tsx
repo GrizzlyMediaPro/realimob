@@ -9,6 +9,7 @@ import { MdClose, MdLocationOn, MdPhone } from "react-icons/md";
 import type { IconType } from "react-icons";
 import ViewingBookingModal from "./ViewingBookingModal";
 import ListingFavoriteButton from "./ListingFavoriteButton";
+import { getListingPriceDisplayProps } from "../../lib/listingToAnunt";
 import ConvertedListingPrice from "./ConvertedListingPrice";
 
 type ListingCardProps = {
@@ -17,6 +18,7 @@ type ListingCardProps = {
   image: string;
   pret: string;
   priceAmount?: number;
+  unitPriceAmount?: number;
   priceCurrency?: string;
   priceDetails?: Record<string, unknown> | null;
   /** Ex. „ / lună” pentru estimări de chirie. */
@@ -52,6 +54,7 @@ export default function ListingCard({
   image,
   pret,
   priceAmount,
+  unitPriceAmount,
   priceCurrency,
   priceDetails,
   priceSuffix,
@@ -103,16 +106,24 @@ export default function ListingCard({
     normalizePhoneForWhatsApp(fallbackWaPhone);
   const canWhatsApp = Boolean(resolvedWaPhone);
 
+  const listingPriceDisplay = getListingPriceDisplayProps({
+    priceAmount,
+    unitPriceAmount,
+    priceDetails,
+  });
+  const displayPriceAmount = listingPriceDisplay.amount ?? priceAmount;
+  const displayPriceSuffix = priceSuffix || listingPriceDisplay.suffix;
+
   const pretAfisat =
-    priceAmount != null &&
+    displayPriceAmount != null &&
     priceCurrency?.trim() &&
-    Number.isFinite(priceAmount) ? (
+    Number.isFinite(displayPriceAmount) ? (
       <ConvertedListingPrice
-        amount={priceAmount}
+        amount={displayPriceAmount}
         fromCurrency={priceCurrency}
         fallback={pret}
         priceDetails={priceDetails}
-        suffix={priceSuffix}
+        suffix={displayPriceSuffix}
       />
     ) : (
       pret

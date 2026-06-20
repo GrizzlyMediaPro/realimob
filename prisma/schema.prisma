@@ -20,6 +20,8 @@ model Listing {
   commercialSubtype String?
   price            Float
   currency         String
+  /// Număr total de vizualizări ale paginii anunțului
+  viewCount        Int     @default(0)
   location         String
   address          String?
   sector           String?

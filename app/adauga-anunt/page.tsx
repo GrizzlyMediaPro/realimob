@@ -128,6 +128,7 @@ function InputField({
   type = "text",
   required = false,
   suffix,
+  list,
 }: {
   label: string;
   placeholder?: string;
@@ -137,6 +138,7 @@ function InputField({
   type?: string;
   required?: boolean;
   suffix?: string;
+  list?: string;
 }) {
   return (
     <div>
@@ -150,6 +152,7 @@ function InputField({
           placeholder={placeholder || label}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          list={list}
           className={`w-full px-4 py-3 rounded-xl border backdrop-blur-xl text-black dark:text-foreground placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C25A2B]/50 transition-all duration-300 text-sm ${suffix ? "pr-12" : ""}`}
           style={style}
         />
@@ -162,6 +165,16 @@ function InputField({
     </div>
   );
 }
+
+const SECTOR_SUGGESTIONS = [
+  "Sector 1",
+  "Sector 2",
+  "Sector 3",
+  "Sector 4",
+  "Sector 5",
+  "Sector 6",
+  "Ilfov",
+];
 
 function ChipGroup({
   label,
@@ -370,6 +383,8 @@ export default function AdaugaAnuntPage() {
   const [subtipComercial, setSubtipComercial] = useState<SubtipComercial>("");
   const [pret, setPret] = useState("");
   const [moneda, setMoneda] = useState("RON");
+  /** Teren: preț total vs preț pe m² */
+  const [pretPeMp, setPretPeMp] = useState(false);
   /** true = TVA inclus în preț; false = TVA nu e inclus */
   const [tvaInclus, setTvaInclus] = useState<boolean | null>(null);
   const [locatie, setLocatie] = useState("");
@@ -601,8 +616,8 @@ export default function AdaugaAnuntPage() {
         setSubmitError("Completează locația / zona.");
         return;
       }
-      if (!sector) {
-        setSubmitError("Selectează sectorul sau localitatea.");
+      if (!sector.trim()) {
+        setSubmitError("Completează sectorul sau localitatea.");
         return;
       }
       if (tvaInclus === null) {
@@ -689,6 +704,7 @@ export default function AdaugaAnuntPage() {
         birouriIncluse,
         mpBirouri,
         tvaInclus,
+        pretPerMp: tipProprietate === "Teren" && pretPeMp,
       };
 
       const images = camereImagini.map((camera) => ({
@@ -1813,7 +1829,10 @@ export default function AdaugaAnuntPage() {
                         <button
                           key={tip}
                           type="button"
-                          onClick={() => setTipProprietate(tip)}
+                          onClick={() => {
+                            setTipProprietate(tip);
+                            if (tip !== "Teren") setPretPeMp(false);
+                          }}
                           className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 border ${
                             tipProprietate === tip
                               ? "bg-[#C25A2B] text-white border-[#C25A2B]"
@@ -1863,43 +1882,60 @@ export default function AdaugaAnuntPage() {
                     onChange={setAdresa}
                     style={controlStyle}
                   />
-                  <SelectField
+                  <InputField
                     label="Sector / Localitate"
+                    placeholder="Ex: Sector 1, Cluj-Napoca, Brașov"
                     value={sector}
                     onChange={setSector}
-                    options={[
-                      "Sector 1",
-                      "Sector 2",
-                      "Sector 3",
-                      "Sector 4",
-                      "Sector 5",
-                      "Sector 6",
-                      "Ilfov",
-                    ]}
                     style={controlStyle}
+                    list="sector-localitate-suggestions"
                     required
                   />
+                  <datalist id="sector-localitate-suggestions">
+                    {SECTOR_SUGGESTIONS.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
                 </div>
 
                 {/* Preț */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {tipProprietate === "Teren" && (
+                    <div className="sm:col-span-3">
+                      <ChipGroup
+                        label="Tip preț"
+                        options={["Preț total", "Preț pe m²"]}
+                        selected={pretPeMp ? "Preț pe m²" : "Preț total"}
+                        onChange={(v) => setPretPeMp(v === "Preț pe m²")}
+                        required
+                      />
+                    </div>
+                  )}
                   <InputField
                     label={
                       tipTranzactie === "Închiriere"
                         ? "Preț / lună"
-                        : "Preț"
+                        : tipProprietate === "Teren" && pretPeMp
+                          ? "Preț / m²"
+                          : "Preț"
                     }
                     placeholder={
                       tipTranzactie === "Închiriere"
                         ? "Ex: 500"
-                        : "Ex: 85000"
+                        : tipProprietate === "Teren" && pretPeMp
+                          ? "Ex: 20"
+                          : "Ex: 85000"
                     }
                     value={pret}
                     onChange={(v) => setPret(v.replace(/[^0-9]/g, ""))}
                     style={controlStyle}
                     type="text"
                     required
-                    suffix={moneda}
+                    suffix={
+                      tipProprietate === "Teren" && pretPeMp
+                        ? `${moneda}/m²`
+                        : moneda
+                    }
                   />
                   <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">

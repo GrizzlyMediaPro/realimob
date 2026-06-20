@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { CiHeart } from "react-icons/ci";
+import {
+  LISTING_FAVORITES_CHANGED_EVENT,
+} from "./ListingStatsCard";
 import { MdFavorite, MdClose, MdLogin } from "react-icons/md";
 
 type ListingFavoriteButtonProps = {
@@ -63,6 +66,11 @@ export default function ListingFavoriteButton({ anuntId, className = "" }: Listi
       } else {
         const j = (await r.json()) as { favorited: boolean };
         setFavorited(j.favorited);
+        window.dispatchEvent(
+          new CustomEvent(LISTING_FAVORITES_CHANGED_EVENT, {
+            detail: { listingId: anuntId },
+          }),
+        );
       }
     } catch {
       setFavorited(prev);

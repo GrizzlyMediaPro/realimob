@@ -221,9 +221,17 @@ function VanzarePageContent() {
     }
     
     if (sortOption === "pret_crescator") {
-      copy.sort((a, b) => parsePretToNumber(a.pret) - parsePretToNumber(b.pret));
+      copy.sort(
+        (a, b) =>
+          (a.priceAmount ?? parsePretToNumber(a.pret)) -
+          (b.priceAmount ?? parsePretToNumber(b.pret)),
+      );
     } else if (sortOption === "pret_descrescator") {
-      copy.sort((a, b) => parsePretToNumber(b.pret) - parsePretToNumber(a.pret));
+      copy.sort(
+        (a, b) =>
+          (b.priceAmount ?? parsePretToNumber(b.pret)) -
+          (a.priceAmount ?? parsePretToNumber(a.pret)),
+      );
     } else if (sortOption === "noi") {
       copy.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     }
@@ -618,6 +626,7 @@ function VanzarePageContent() {
                       image={anunt.image}
                       pret={anunt.pret}
                       priceAmount={anunt.priceAmount ?? parsePretToNumber(anunt.pret)}
+                      unitPriceAmount={anunt.unitPriceAmount}
                       priceCurrency={anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret)}
                       priceDetails={anunt.priceDetails}
                       tags={anunt.tags}

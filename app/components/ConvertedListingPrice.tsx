@@ -5,7 +5,7 @@ import {
   currencyDisplaySymbol,
   normalizeListingCurrencyCode,
 } from "../../lib/bnrFxRates";
-import { listingTvaSuffix } from "../../lib/listingToAnunt";
+import { listingTvaSuffix, listingPriceUnitSuffix } from "../../lib/listingToAnunt";
 
 type ConvertedListingPriceProps = {
   amount?: number;
@@ -45,10 +45,11 @@ export default function ConvertedListingPrice({
 
   const sym = currencyDisplaySymbol(displayCurrency);
   const tva = listingTvaSuffix(priceDetails ?? null);
+  const unitSuffix = suffix || listingPriceUnitSuffix(priceDetails ?? null);
 
   return (
     <span className={className} suppressHydrationWarning>
-      {`${conv.toLocaleString("ro-RO")} ${sym}${suffix}${tva}`}
+      {`${conv.toLocaleString("ro-RO")} ${sym}${unitSuffix}${tva}`}
     </span>
   );
 }

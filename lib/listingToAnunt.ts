@@ -15,13 +15,68 @@ export function listingTvaSuffix(
   return "";
 }
 
+/** Preț introdus pe m² (terenuri). */
+export function isListingPricePerMp(
+  details?: Record<string, unknown> | null,
+): boolean {
+  return Boolean(details && details.pretPerMp === true);
+}
+
+/** Sufix unitate preț (/m²) când prețul e pe metru. */
+export function listingPriceUnitSuffix(
+  details?: Record<string, unknown> | null,
+): string {
+  return isListingPricePerMp(details) ? "/m²" : "";
+}
+
+/** Suprafață în m² — utilă, teren sau curte. */
+export function getListingSurfaceSqm(
+  details?: Record<string, unknown> | null,
+): number | undefined {
+  if (!details || typeof details !== "object") return undefined;
+  return (
+    toOptionalNumber(details.suprafataUtila) ??
+    toOptionalNumber(details.suprafata) ??
+    toOptionalNumber(details.suprafataTeren)
+  );
+}
+
+/** Preț total efectiv (pentru sortare/filtre) când DB stochează €/m². */
+export function listingEffectiveTotalPrice(
+  unitPrice: number,
+  details?: Record<string, unknown> | null,
+): number {
+  if (!Number.isFinite(unitPrice)) return 0;
+  if (isListingPricePerMp(details)) {
+    const surface = getListingSurfaceSqm(details);
+    if (surface) return unitPrice * surface;
+  }
+  return unitPrice;
+}
+
+/** Valoare afișată pe card + sufix opțional. */
+export function getListingPriceDisplayProps(anunt: {
+  priceAmount?: number;
+  unitPriceAmount?: number;
+  priceDetails?: Record<string, unknown> | null;
+}): { amount?: number; suffix: string } {
+  const perMp = isListingPricePerMp(anunt.priceDetails);
+  const unit = anunt.unitPriceAmount ?? anunt.priceAmount;
+  const total = anunt.priceAmount;
+  return {
+    amount: perMp ? unit : total,
+    suffix: perMp ? "/m²" : "",
+  };
+}
+
 /** Afișare preț cu mențiune TVA (din `details.tvaInclus`). */
 export function formatListingPriceDisplay(
   price: number,
   currency: string,
   details?: Record<string, unknown> | null,
 ): string {
-  const base = `${Number(price).toLocaleString("ro-RO")} ${currency}`;
+  const unit = listingPriceUnitSuffix(details);
+  const base = `${Number(price).toLocaleString("ro-RO")} ${currency}${unit}`;
   return `${base}${listingTvaSuffix(details)}`;
 }
 
@@ -204,7 +259,8 @@ export function transformListingToAnunt(
   const firstImage = getFirstListingImageUrl(images);
 
   const tags: string[] = [];
-  if (details.suprafataUtila) tags.push(`${details.suprafataUtila} m²`);
+  const surfaceSqm = getListingSurfaceSqm(details);
+  if (surfaceSqm) tags.push(`${surfaceSqm} m²`);
   if (listing.sector) tags.push(listing.sector);
   if (details.etaj !== undefined && details.etaj !== "") {
     tags.push(`Etaj ${details.etaj}`);
@@ -234,7 +290,18 @@ export function transformListingToAnunt(
     String(listing.currency ?? "RON").trim() || "RON",
   );
   const numPrice = listingPriceToNumber(listing.price);
-  const displayPrice = Number.isFinite(numPrice) ? numPrice : 0;
+  const unitPrice = Number.isFinite(numPrice) ? numPrice : 0;
+  const detailsRecord = listing.details as Record<string, unknown> | null;
+  const totalPrice = listingEffectiveTotalPrice(unitPrice, detailsRecord);
+  const displayPrice = isListingPricePerMp(detailsRecord) ? unitPrice : totalPrice;
+  const viewCount =
+    listing.viewCount != null && Number.isFinite(Number(listing.viewCount))
+      ? Number(listing.viewCount)
+      : 0;
+  const favoriteCount =
+    typeof listing._count?.favorites === "number"
+      ? listing._count.favorites
+      : 0;
 
   return {
     id: listing.id,
@@ -243,11 +310,12 @@ export function transformListingToAnunt(
     pret: formatListingPriceDisplay(
       displayPrice,
       currencyDisplaySymbol(normCur),
-      listing.details as Record<string, unknown> | null,
+      detailsRecord,
     ),
-    priceAmount: Number.isFinite(numPrice) ? numPrice : undefined,
+    priceAmount: Number.isFinite(totalPrice) ? totalPrice : undefined,
+    unitPriceAmount: Number.isFinite(unitPrice) ? unitPrice : undefined,
     priceCurrency: normCur,
-    priceDetails: (listing.details as Record<string, unknown> | null) ?? null,
+    priceDetails: detailsRecord ?? null,
     tags,
     createdAt: listing.createdAt,
     updatedAt: listing.updatedAt,
@@ -255,12 +323,12 @@ export function transformListingToAnunt(
     lng: fixedLng,
     dormitoare,
     bai: toOptionalNumber(details.nrBai),
-    suprafataUtil: toOptionalNumber(details.suprafataUtila),
+    suprafataUtil: getListingSurfaceSqm(details),
     etaj: details.etaj || undefined,
     anConstructie: toOptionalNumber(details.anConstructie),
     zilePostat,
-    vizualizari: 0,
-    favorite: 0,
+    vizualizari: viewCount,
+    favorite: favoriteCount,
     description: listing.description || undefined,
     dbDetails: details || undefined,
     ...(assignedAgent ? { assignedAgent } : {}),

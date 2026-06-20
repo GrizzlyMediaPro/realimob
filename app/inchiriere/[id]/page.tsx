@@ -34,6 +34,7 @@ import {
   transformListingToAnunt,
   transformImagesToRoomImages,
 } from "../../../lib/listingToAnunt";
+import ListingStatsCard from "../../components/ListingStatsCard";
 import RoomGallery from "../../components/RoomGallery";
 import ConvertedListingPrice from "../../components/ConvertedListingPrice";
 import ListingDescriptionDisplay from "../../components/ListingDescriptionDisplay";
@@ -55,6 +56,8 @@ export async function generateMetadata({ params }: AnuntPageProps): Promise<Meta
   return buildListingMetadata(listing);
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
   const listingSeo = await fetchApprovedListingForSeo(id);
@@ -66,7 +69,10 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
     try {
       const listing = await prisma.listing.findUnique({
         where: { id },
-        include: { agent: true },
+        include: {
+          agent: true,
+          _count: { select: { favorites: true } },
+        },
       });
       if (listing && listing.status === "approved") {
         anunt = transformListingToAnunt(listing);
@@ -395,38 +401,12 @@ export default async function InchiriereAnuntPage({ params }: AnuntPageProps) {
 
                   {/* Cardul cu statistici - pe mobile apare al doilea */}
                   <div className="order-2 md:order-1 md:mb-4">
-                    <GlassStatsCard>
-                      {anunt.zilePostat !== undefined && (
-                        <div className="relative z-2 flex items-center gap-3">
-                          <MdAccessTime className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Postat acum {anunt.zilePostat} {anunt.zilePostat === 1 ? 'zi' : 'zile'}
-                          </div>
-                        </div>
-                      )}
-                      {anunt.zilePostat !== undefined && (anunt.vizualizari !== undefined || anunt.favorite !== undefined) && (
-                        <GlassDivider />
-                      )}
-                      {anunt.vizualizari !== undefined && (
-                        <div className="relative z-2 flex items-center gap-3">
-                          <MdVisibility className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {anunt.vizualizari.toLocaleString("ro-RO")} vizualizări
-                          </div>
-                        </div>
-                      )}
-                      {anunt.vizualizari !== undefined && anunt.favorite !== undefined && (
-                        <GlassDivider />
-                      )}
-                      {anunt.favorite !== undefined && (
-                        <div className="relative z-2 flex items-center gap-3">
-                          <MdFavorite className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {anunt.favorite} favorite
-                          </div>
-                        </div>
-                      )}
-                    </GlassStatsCard>
+                    <ListingStatsCard
+                      listingId={anunt.id}
+                      zilePostat={anunt.zilePostat}
+                      initialViewCount={anunt.vizualizari ?? 0}
+                      initialFavoriteCount={anunt.favorite ?? 0}
+                    />
                   </div>
                 </aside>
               </div>

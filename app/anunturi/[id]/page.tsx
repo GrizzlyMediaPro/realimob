@@ -28,7 +28,10 @@ import {
 import {
   transformListingToAnunt,
   transformImagesToRoomImages,
+  getListingPriceDisplayProps,
+  isListingPricePerMp,
 } from "../../../lib/listingToAnunt";
+import ListingStatsCard from "../../components/ListingStatsCard";
 import RoomGallery from "../../components/RoomGallery";
 import ConvertedListingPrice from "../../components/ConvertedListingPrice";
 import { prisma } from "../../../lib/prisma";
@@ -48,6 +51,8 @@ export async function generateMetadata({ params }: AnuntPageProps): Promise<Meta
   return buildListingMetadata(listing);
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function AnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
   const listingSeo = await fetchApprovedListingForSeo(id);
@@ -58,7 +63,10 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
     try {
       const listing = await prisma.listing.findUnique({
         where: { id },
-        include: { agent: true },
+        include: {
+          agent: true,
+          _count: { select: { favorites: true } },
+        },
       });
       if (listing && listing.status === "approved") {
         anunt = transformListingToAnunt(listing);
@@ -136,8 +144,13 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
     anunt.priceAmount ?? parsePretToNumber(anunt.pret);
   const saleCurrency =
     anunt.priceCurrency ?? inferCurrencyFromPret(anunt.pret);
-  const perMpAmount =
-    anunt.suprafataUtil !== undefined && saleAmount > 0
+  const priceDisplay = getListingPriceDisplayProps(anunt);
+  const headerPriceAmount = priceDisplay.amount ?? saleAmount;
+  const headerPriceSuffix = priceDisplay.suffix;
+  const pricePerMpListing = isListingPricePerMp(anunt.priceDetails);
+  const perMpAmount = pricePerMpListing
+    ? (anunt.unitPriceAmount ?? headerPriceAmount)
+    : anunt.suprafataUtil !== undefined && saleAmount > 0
       ? Math.round(saleAmount / anunt.suprafataUtil)
       : undefined;
   const perMpFallback =
@@ -240,10 +253,11 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
               <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_auto] gap-3 items-center">
                 <div className="text-2xl md:text-3xl font-bold min-w-0 row-start-1 col-start-1">
                   <ConvertedListingPrice
-                    amount={saleAmount}
+                    amount={headerPriceAmount}
                     fromCurrency={saleCurrency}
                     fallback={anunt.pret}
                     priceDetails={anunt.priceDetails ?? null}
+                    suffix={headerPriceSuffix}
                   />
                 </div>
                 <ListingFavoriteButton
@@ -441,38 +455,12 @@ export default async function AnuntPage({ params }: AnuntPageProps) {
 
                   {/* Cardul cu statistici - pe mobile apare al doilea */}
                   <div className="order-2 md:order-1 md:mb-4">
-                    <GlassStatsCard>
-                      {anunt.zilePostat !== undefined && (
-                        <div className="relative z-2 flex items-center gap-3">
-                          <MdAccessTime className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Postat acum {anunt.zilePostat} {anunt.zilePostat === 1 ? 'zi' : 'zile'}
-                          </div>
-                        </div>
-                      )}
-                      {anunt.zilePostat !== undefined && (anunt.vizualizari !== undefined || anunt.favorite !== undefined) && (
-                        <GlassDivider />
-                      )}
-                      {anunt.vizualizari !== undefined && (
-                        <div className="relative z-2 flex items-center gap-3">
-                          <MdVisibility className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {anunt.vizualizari.toLocaleString("ro-RO")} vizualizări
-                          </div>
-                        </div>
-                      )}
-                      {anunt.vizualizari !== undefined && anunt.favorite !== undefined && (
-                        <GlassDivider />
-                      )}
-                      {anunt.favorite !== undefined && (
-                        <div className="relative z-2 flex items-center gap-3">
-                          <MdFavorite className="text-gray-500 dark:text-gray-400 text-lg shrink-0" />
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {anunt.favorite} favorite
-                          </div>
-                        </div>
-                      )}
-                    </GlassStatsCard>
+                    <ListingStatsCard
+                      listingId={anunt.id}
+                      zilePostat={anunt.zilePostat}
+                      initialViewCount={anunt.vizualizari ?? 0}
+                      initialFavoriteCount={anunt.favorite ?? 0}
+                    />
                   </div>
                 </aside>
               </div>
