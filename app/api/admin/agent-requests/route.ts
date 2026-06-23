@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import type { AgentApplicationMetadata } from "@/lib/agent-application";
 import { getCachedAgentPerformanceScore } from "@/lib/agentPerformanceScore";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 type AgentStatus = "pending" | "approved" | "rejected" | "none" | "suspended";
 
@@ -14,18 +15,6 @@ const getUserStatus = (status: unknown): AgentStatus => {
   return "none";
 };
 
-async function assertAdmin(userId: string) {
-  const client = await clerkClient();
-  const currentUser = await client.users.getUser(userId);
-  const isAdmin = Boolean(currentUser.publicMetadata?.isAdmin);
-
-  if (!isAdmin) {
-    return null;
-  }
-
-  return client;
-}
-
 function splitFullName(nume: string) {
   const normalized = nume.trim().replace(/\s+/g, " ");
   if (!normalized) return { firstName: "", lastName: "" };
@@ -34,17 +23,11 @@ function splitFullName(nume: string) {
 }
 
 export async function GET() {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
-    const client = await assertAdmin(userId);
-    if (!client) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
+    const client = await clerkClient();
     const usersResponse = await client.users.getUserList({
       orderBy: "-created_at",
       limit: 100,
@@ -155,17 +138,12 @@ type PatchBody =
     };
 
 export async function PATCH(request: Request) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
-    const client = await assertAdmin(userId);
-    if (!client) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
+    const client = await clerkClient();
+    const adminUserId = gate.userId;
     const body = (await request.json()) as PatchBody;
     const targetUserId = body.targetUserId?.trim();
     if (!targetUserId) {
@@ -267,7 +245,7 @@ export async function PATCH(request: Request) {
           agentApplication: {
             ...app,
             reviewedAt: new Date().toISOString(),
-            reviewedBy: userId,
+            reviewedBy: adminUserId,
             rejectionMessage: message,
           },
         },
@@ -300,7 +278,7 @@ export async function PATCH(request: Request) {
           agentApplication: {
             ...appForApprove,
             reviewedAt: new Date().toISOString(),
-            reviewedBy: userId,
+            reviewedBy: adminUserId,
           },
         },
       });
@@ -348,17 +326,11 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
-    const client = await assertAdmin(userId);
-    if (!client) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
+    const client = await clerkClient();
     const body = (await request.json()) as { targetUserId?: string };
     const targetUserId = body.targetUserId?.trim();
     if (!targetUserId) {

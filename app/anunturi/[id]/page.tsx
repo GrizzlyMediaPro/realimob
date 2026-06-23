@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import JsonLd from "../../components/JsonLd";
 import { fetchApprovedListingForSeo } from "@/lib/listingSeo";
-import { buildListingJsonLd, buildListingMetadata } from "@/lib/seo";
+import { buildListingJsonLd, buildListingMetadata, getListingCanonicalPath } from "@/lib/seo";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdDescription, MdInfo } from "react-icons/md";
 
 
@@ -56,6 +57,9 @@ export const dynamic = "force-dynamic";
 export default async function AnuntPage({ params }: AnuntPageProps) {
   const { id } = await params;
   const listingSeo = await fetchApprovedListingForSeo(id);
+  if (listingSeo) {
+    redirect(getListingCanonicalPath(listingSeo.transactionType, id));
+  }
   let anunt: Anunt | undefined = getAnuntById(id);
   let roomImages: RoomImage[] = [];
 

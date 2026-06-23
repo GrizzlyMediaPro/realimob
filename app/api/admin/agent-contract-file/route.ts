@@ -1,29 +1,15 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import type { AgentApplicationMetadata } from "@/lib/agent-application";
 import { safeAttachmentFileName } from "@/lib/contract-download";
-
-async function assertAdmin(userId: string) {
-  const client = await clerkClient();
-  const currentUser = await client.users.getUser(userId);
-  if (!currentUser.publicMetadata?.isAdmin) {
-    return null;
-  }
-  return client;
-}
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export async function GET(request: Request) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
-    const client = await assertAdmin(userId);
-    if (!client) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
+    const client = await clerkClient();
     const { searchParams } = new URL(request.url);
     const targetUserId = searchParams.get("targetUserId")?.trim();
     const kind = searchParams.get("kind");

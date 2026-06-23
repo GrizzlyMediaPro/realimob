@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import JsonLd from "../../components/JsonLd";
 import { fetchApprovedListingForSeo } from "@/lib/listingSeo";
-import { buildListingJsonLd, buildListingMetadata } from "@/lib/seo";
+import {
+  buildListingJsonLd,
+  buildListingMetadata,
+  getListingCanonicalPath,
+  isRentTransactionType,
+} from "@/lib/seo";
 import { MdLocationOn, MdBed, MdBathroom, MdSquareFoot, MdLayers, MdCalendarToday, MdAttachMoney, MdAccessTime, MdVisibility, MdFavorite, MdDirectionsWalk, MdDirectionsTransit, MdDirectionsBike, MdSchool, MdDescription, MdInfo, MdHistory } from "react-icons/md";
 
 
@@ -47,7 +53,7 @@ type AnuntPageProps = {
 export async function generateMetadata({ params }: AnuntPageProps): Promise<Metadata> {
   const { id } = await params;
   const listing = await fetchApprovedListingForSeo(id);
-  if (!listing) {
+  if (!listing || isRentTransactionType(listing.transactionType)) {
     return { title: "Anunț indisponibil", robots: { index: false, follow: false } };
   }
   return buildListingMetadata(listing);
@@ -71,6 +77,9 @@ export default async function VanzareAnuntPage({ params }: AnuntPageProps) {
     });
 
     if (listing && listing.status === "approved") {
+      if (isRentTransactionType(listing.transactionType)) {
+        redirect(getListingCanonicalPath(listing.transactionType, id));
+      }
       anunt = transformListingToAnunt(listing);
       const dbImages = listing.images as any[];
       if (dbImages && Array.isArray(dbImages)) {

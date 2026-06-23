@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo";
+import { requireAuthPage } from "@/lib/requireAuth";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Adaugă anunț",
@@ -8,10 +9,11 @@ export const metadata: Metadata = buildPageMetadata({
   noIndex: true,
 });
 
-export default function AdaugaAnuntLayout({
+export default async function AdaugaAnuntLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireAuthPage();
   return children;
 }

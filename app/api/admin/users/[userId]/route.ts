@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 type Body = { action?: string };
 
@@ -7,13 +8,11 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId: adminUserId } = await auth();
-
-    if (!adminUserId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
+    const adminUserId = gate.userId;
     const { userId: targetUserId } = await params;
 
     if (!targetUserId?.startsWith("user_")) {
@@ -31,12 +30,6 @@ export async function PATCH(
     }
 
     const client = await clerkClient();
-    const adminUser = await client.users.getUser(adminUserId);
-    const isAdmin = Boolean(adminUser.publicMetadata?.isAdmin);
-
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
 
     if (action === "ban" && targetUserId === adminUserId) {
       return NextResponse.json(

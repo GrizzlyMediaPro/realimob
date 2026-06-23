@@ -1,24 +1,17 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { safeAttachmentFileName } from "@/lib/contract-download";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
-    const client = await clerkClient();
-    const currentUser = await client.users.getUser(userId);
-    if (!currentUser.publicMetadata?.isAdmin) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
     const { id: listingId } = await params;
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },

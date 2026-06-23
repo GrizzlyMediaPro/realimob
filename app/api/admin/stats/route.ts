@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import type { ClerkClient } from "@clerk/backend";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 async function countUsersCreatedAfter(
   client: ClerkClient,
@@ -30,20 +31,11 @@ async function countUsersCreatedAfter(
 }
 
 export async function GET() {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
     const client = await clerkClient();
-    const currentUser = await client.users.getUser(userId);
-    const isAdmin = Boolean(currentUser.publicMetadata?.isAdmin);
-
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     const [

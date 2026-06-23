@@ -7,11 +7,19 @@ const isPublicApiRoute = createRouteMatcher([
   "/api/settings/public",
   "/api/agents/public-performance-score",
   "/api/bnr-fx",
-  "/api/uploadthing(.*)",
   "/api/cron/viewing-questionnaires",
+]);
+const isProtectedPage = createRouteMatcher([
+  "/admin(.*)",
+  "/cont(.*)",
+  "/agent(.*)",
+  "/adauga-anunt(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  if (isProtectedPage(req)) {
+    await auth.protect();
+  }
   if (isApiRoute(req) && !isPublicApiRoute(req)) {
     await auth.protect();
   }

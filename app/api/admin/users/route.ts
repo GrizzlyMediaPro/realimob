@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 
 type UserStatus = "activ" | "inactiv" | "suspendat";
 
 const INACTIVE_DAYS_THRESHOLD = 90;
 
 export async function GET() {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
+
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-    }
-
     const client = await clerkClient();
-    const currentUser = await client.users.getUser(userId);
-    const isAdmin = Boolean(currentUser.publicMetadata?.isAdmin);
-
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Acces interzis" }, { status: 403 });
-    }
-
     const usersResponse = await client.users.getUserList({
       orderBy: "-created_at",
       limit: 100,

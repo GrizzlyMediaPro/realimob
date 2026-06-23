@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo";
+import { requireAuthPage } from "@/lib/requireAuth";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Contul meu",
@@ -8,6 +9,11 @@ export const metadata: Metadata = buildPageMetadata({
   noIndex: true,
 });
 
-export default function ContLayout({ children }: { children: React.ReactNode }) {
+export default async function ContLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  await requireAuthPage();
   return children;
 }

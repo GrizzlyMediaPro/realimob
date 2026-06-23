@@ -1,6 +1,16 @@
+import { auth } from "@clerk/nextjs/server";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { UploadThingError } from "uploadthing/server";
 
 const f = createUploadthing();
+
+async function requireUploadAuth() {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new UploadThingError("Neautorizat");
+  }
+  return { userId };
+}
 
 export const ourFileRouter = {
   imageUploader: f({
@@ -8,10 +18,11 @@ export const ourFileRouter = {
       maxFileSize: "16MB",
       maxFileCount: 20,
     },
-  }).onUploadComplete(async ({ file }) => {
-    // Poți salva aici informații despre fișier în DB dacă ai nevoie
-    return { url: file.url };
-  }),
+  })
+    .middleware(requireUploadAuth)
+    .onUploadComplete(async ({ file }) => {
+      return { url: file.url };
+    }),
   documentUploader: f({
     image: {
       maxFileSize: "8MB",
@@ -21,10 +32,11 @@ export const ourFileRouter = {
       maxFileSize: "8MB",
       maxFileCount: 1,
     },
-  }).onUploadComplete(async ({ file }) => {
-    return { url: file.url, name: file.name };
-  }),
+  })
+    .middleware(requireUploadAuth)
+    .onUploadComplete(async ({ file }) => {
+      return { url: file.url, name: file.name };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
-
